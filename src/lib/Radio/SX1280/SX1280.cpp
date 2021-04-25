@@ -41,6 +41,12 @@ SX1280Driver::SX1280Driver(uint8_t payload_len):
     module_type = MODULE_E28_2G4M12S;
 #elif defined(TARGET_NAMIMNORC_TX)
     module_type = MODULE_FLASH_2400;
+#elif defined(TARGET_IMRC_GHOST_TX)
+#if TARGET_TX_GHOST_LITE
+    module_type = MODULE_IMRC_2400_LITE;
+#else
+    module_type = MODULE_IMRC_2400;
+#endif
 #else
     module_type = MODULE_DEFAULT;
 #endif

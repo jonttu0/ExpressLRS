@@ -321,11 +321,11 @@ void RTC_WKUP_IRQHandler(void) {Error_Handler();}
 void FLASH_IRQHandler(void) {Error_Handler();}
 void RCC_IRQHandler(void) {Error_Handler();}
 
-void EXTI0_IRQHandler(void) {GPIO_EXTI_IRQHandler(0);}
-void EXTI1_IRQHandler(void) {GPIO_EXTI_IRQHandler(1);}
-void EXTI2_TSC_IRQHandler(void) {GPIO_EXTI_IRQHandler(2);}
-void EXTI3_IRQHandler(void) {GPIO_EXTI_IRQHandler(3);}
-void EXTI4_IRQHandler(void) {GPIO_EXTI_IRQHandler(4);}
+void FAST_CODE_1 EXTI0_IRQHandler(void) {GPIO_EXTI_IRQHandler(0);}
+void FAST_CODE_1 EXTI1_IRQHandler(void) {GPIO_EXTI_IRQHandler(1);}
+void FAST_CODE_1 EXTI2_TSC_IRQHandler(void) {GPIO_EXTI_IRQHandler(2);}
+void FAST_CODE_1 EXTI3_IRQHandler(void) {GPIO_EXTI_IRQHandler(3);}
+void FAST_CODE_1 EXTI4_IRQHandler(void) {GPIO_EXTI_IRQHandler(4);}
 void FAST_CODE_1 EXTI9_5_IRQHandler(void)
 {
     uint8_t pin;
