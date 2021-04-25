@@ -21,7 +21,8 @@ PowerArray_t power_array[MODULE_COUNT] = {
     // NamimnoRC Voyager, 900MHz TX module
     {  PWR_1000mW,  0,    0,    0,     0,     0,     0,      0,      0},
     // NamimnoRC Flash, 2400MHz TX module
-    {  PWR_1000mW,-15,  -13,  -11,    -9,    -7,     -3,     0,      0},
+    {  PWR_1000mW,-18,  -18,  -15,   -12,    -8,     -5,     3,      3},
+    //{  PWR_1000mW,-15,  -13,  -11,    -9,    -7,     -3,     0,      0},
     // IMRC GHOST [max 250mW]
     {  PWR_250mW,   0,    4,   7,     10,    13,     13,    13,     13},
     // IMRC GHOST LITE [max 250mW]
