@@ -504,6 +504,8 @@ https://github.com/jaxxzer
 #define SWITCH_CH_2     SWITCH_1
 #define SWITCH_CH_3     SWITCH_2
 #define SWITCH_CH_4     SWITCH_4
+#define SWITCH_CH_5     SWITCH_5
+#define SWITCH_CH_6     SWITCH_6
 
 #elif defined(TARGET_NAMIMNORC_TX)
 /*
