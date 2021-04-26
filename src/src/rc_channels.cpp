@@ -10,6 +10,13 @@
 #define TX_SKIP_SYNC_WHEN_ARMED 0
 #endif
 
+#if N_SWITCHES < 2
+#error "At least two (2) AUX channels are needed!"
+#endif
+#if 12 < N_SWITCHES
+#error "Up to 12 AUX channels supported!"
+#endif
+
 
 /*************************************************************************************
  * RC OTA PACKET
@@ -187,46 +194,56 @@ void FAST_CODE_1 RcChannels_channels_extract(uint8_t const *const input,
         case 1:
             PackedRCdataOut.ch5 = switchValue;
             break;
+#if 2 < N_SWITCHES
         case 2:
             PackedRCdataOut.ch6 = switchValue;
             break;
+#endif
+#if 3 < N_SWITCHES
         case 3:
             PackedRCdataOut.ch7 = switchValue;
             break;
+#endif
+#if 4 < N_SWITCHES
         case 4:
             PackedRCdataOut.ch8 = switchValue;
             break;
+#endif
 #if 5 < N_SWITCHES
         case 5:
             PackedRCdataOut.ch9 = switchValue;
             break;
+#endif
+#if 6 < N_SWITCHES
         case 6:
             PackedRCdataOut.ch10 = switchValue;
             break;
+#endif
+#if 7 < N_SWITCHES
         case 7:
             PackedRCdataOut.ch11 = switchValue;
             break;
+#endif
 #if 8 < N_SWITCHES
         case 8:
             PackedRCdataOut.ch12 = switchValue;
             break;
+#endif
 #if 9 < N_SWITCHES
         case 9:
             PackedRCdataOut.ch13 = switchValue;
             break;
+#endif
 #if 10 < N_SWITCHES
         case 10:
             PackedRCdataOut.ch14 = switchValue;
             break;
+#endif
 #if 11 < N_SWITCHES
         case 11:
             PackedRCdataOut.ch15 = switchValue;
             break;
-#endif // 11 < N_SWITCHES
-#endif // 10 < N_SWITCHES
-#endif // 9 < N_SWITCHES
-#endif // 8 < N_SWITCHES
-#endif // 5 < N_SWITCHES
+#endif
         default:
             break;
     }
@@ -240,25 +257,38 @@ void RcChannels_processChannels(rc_channels_t const *const rcChannels)
 {
     // channels input range: 0...2048
     uint16_t ChannelDataIn[N_SWITCHES] = {
-        (uint16_t)rcChannels->ch4, (uint16_t)rcChannels->ch5,
-        (uint16_t)rcChannels->ch6, (uint16_t)rcChannels->ch7,
+        (uint16_t)rcChannels->ch4,
+        (uint16_t)rcChannels->ch5,
+#if 2 < N_SWITCHES
+        (uint16_t)rcChannels->ch6,
+#endif
+#if 3 < N_SWITCHES
+        (uint16_t)rcChannels->ch7,
+#endif
+#if 4 < N_SWITCHES
         (uint16_t)rcChannels->ch8,
+#endif
 #if 5 < N_SWITCHES
         (uint16_t)rcChannels->ch9,
-        (uint16_t)rcChannels->ch10, (uint16_t)rcChannels->ch11
+#endif
+#if 6 < N_SWITCHES
+        (uint16_t)rcChannels->ch10,
+#endif
+#if 7 < N_SWITCHES
+        (uint16_t)rcChannels->ch11
+#endif
 #if 8 < N_SWITCHES
     , (uint16_t)rcChannels->ch12
+#endif
 #if 9 < N_SWITCHES
     , (uint16_t)rcChannels->ch13
+#endif
 #if 10 < N_SWITCHES
     , (uint16_t)rcChannels->ch14
+#endif
 #if 11 < N_SWITCHES
     , (uint16_t)rcChannels->ch15
-#endif // 11 < N_SWITCHES
-#endif // 10 < N_SWITCHES
-#endif // 9 < N_SWITCHES
-#endif // 8 < N_SWITCHES
-#endif // 5 < N_SWITCHES
+#endif
     };
     uint8_t switch_state;
 

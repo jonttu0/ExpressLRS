@@ -152,29 +152,36 @@ typedef struct rc_channels_rx_s {
     // switches:
     uint32_t ch4 : 11;
     uint32_t ch5 : 11;
+#if 2 < N_SWITCHES
     uint32_t ch6 : 11;
+#endif
+#if 3 < N_SWITCHES
     uint32_t ch7 : 11;
+#endif
+#if 4 < N_SWITCHES
     uint32_t ch8 : 11;
+#endif
 #if 5 < N_SWITCHES
     uint32_t ch9 : 11;
+#endif
+#if 6 < N_SWITCHES
     uint32_t ch10 : 11;
+#endif
+#if 7 < N_SWITCHES
     uint32_t ch11 : 11;
+#endif
 #if 8 < N_SWITCHES
     uint32_t ch12 : 11;
+#endif
 #if 9 < N_SWITCHES
     uint32_t ch13 : 11;
+#endif
 #if 10 < N_SWITCHES
     uint32_t ch14 : 11;
+#endif
 #if 11 < N_SWITCHES
     uint32_t ch15 : 11;
-#if 12 < N_SWITCHES
-#error "Up to 12 AUX channels supported!"
-#endif // 12 < N_SWITCHES
-#endif // 11 < N_SWITCHES
-#endif // 10 < N_SWITCHES
-#endif // 9 < N_SWITCHES
-#endif // 8 < N_SWITCHES
-#endif // 5 < N_SWITCHES
+#endif
 } PACKED rc_channels_rx_t;
 #else // !PROTOCOL_ELRS_TO_FC
 typedef rc_channels_t rc_channels_rx_t;

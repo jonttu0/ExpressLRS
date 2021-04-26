@@ -93,7 +93,7 @@
 ### Defines how many switches are handled
 # value <= 5 : AUX1 is sent always and AUX2...5 in round-robin
 # value > 5  : round-robin is used for all switches
-# Default is 5
+# Default is 5, min is 2, max is 12
 #-DN_SWITCHES=5
 
 ######################################
