@@ -20,12 +20,13 @@ SECTIONS
   {
     . = ALIGN(4);
     ram_code_start = .;
+    PROVIDE (isr_vector_table_base = .);
     KEEP(*(.isr_vector)) /* Startup code */
     *(.ram_code)
     *(.ram_code*)
     . = ALIGN(4);
     ram_code_end = .;
-  } >RAM_CODE AT> FLASH
+  } >RAM_CODE AT> FLASH_RAM_CODE
 
   /* The program code and other data goes into FLASH */
   .text :
@@ -80,6 +81,14 @@ SECTIONS
     KEEP (*(.fini_array*))
     PROVIDE_HIDDEN (__fini_array_end = .);
   } >FLASH
+
+  . = ALIGN(4);
+  .storage (NOLOAD):
+  {
+    __EEPROM_START = .;
+    . = . + LENGTH(FLASH_STORAGE);
+    __EEPROM_END = .;
+  } > FLASH_STORAGE
 
   /* DMA data section */
   . = ALIGN(4);

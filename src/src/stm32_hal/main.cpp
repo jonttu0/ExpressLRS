@@ -108,8 +108,8 @@ __attribute__((constructor(101))) void premain()
     init_dma_ram();
 
     /* Reset vector location which is set wrongly by SystemInit */
-    extern uint32_t g_pfnVectors;
-    SCB->VTOR = (__IO uint32_t) &g_pfnVectors;
+    extern uint32_t isr_vector_table_base;
+    SCB->VTOR = (__IO uint32_t) &isr_vector_table_base;
 
     hw_init();
 
