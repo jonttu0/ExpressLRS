@@ -140,7 +140,7 @@ uint8_t eeprom_write(uint8_t * input, uint32_t len)
   /* ERASING page */
   EraseInitStruct.TypeErase = FLASH_TYPEERASE_PAGES;
 #ifdef FLASH_BANK_1
-  erase_init.Banks = FLASH_BANK_1;
+  EraseInitStruct.Banks = FLASH_BANK_1;
 #endif
 #if defined (STM32G0xx) || defined (STM32G4xx) || defined (STM32L4xx) || defined (STM32WBxx)
   EraseInitStruct.Page = (address - FLASH_BASE) / __FLASH_PAGE_SIZE;
