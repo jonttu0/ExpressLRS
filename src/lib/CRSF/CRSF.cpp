@@ -21,10 +21,6 @@ void CRSF::Begin()
     SerialInPacketPtr = 0;
     CRSFframeActive = false;
 
-    MspCallback = NULL;
-    BattInfoCallback = NULL;
-    GpsCallback = NULL;
-
     _dev->flush_read();
 }
 

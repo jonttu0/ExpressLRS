@@ -383,7 +383,11 @@ struct crsf_speed_req {
 class CRSF
 {
 public:
-    CRSF(HwSerial *dev) : _dev(dev) {}
+    CRSF(HwSerial *dev) : _dev(dev) {
+        MspCallback = NULL;
+        BattInfoCallback = NULL;
+        GpsCallback = NULL;
+    }
 
     void Begin();
 
