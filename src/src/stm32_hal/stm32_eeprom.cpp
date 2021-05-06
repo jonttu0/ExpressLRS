@@ -143,11 +143,11 @@ uint8_t eeprom_write(uint8_t * input, uint32_t len)
   EraseInitStruct.Banks = FLASH_BANK_1;
 #endif
 #if defined (STM32G0xx) || defined (STM32G4xx) || defined (STM32L4xx) || defined (STM32WBxx)
-  EraseInitStruct.Page = (address - FLASH_BASE) / __FLASH_PAGE_SIZE;
+  EraseInitStruct.Page = (address - FLASH_BASE) / (uint32_t)&__FLASH_PAGE_SIZE;
 #else
   EraseInitStruct.PageAddress = address;
 #endif
-  EraseInitStruct.NbPages = (EEPROM_SIZE) / __FLASH_PAGE_SIZE;
+  EraseInitStruct.NbPages = (EEPROM_SIZE) / (uint32_t)&__FLASH_PAGE_SIZE;
 
   if (HAL_FLASH_Unlock() == HAL_OK) {
 
