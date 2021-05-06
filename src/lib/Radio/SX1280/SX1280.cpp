@@ -34,22 +34,7 @@ SX1280Driver::SX1280Driver(uint8_t payload_len):
     current_power = -100;
     currOpmode = SX1280_MODE_UNKNOWN_MAX;
     _syncWord = 0;
-
-#if defined(TARGET_MODULE_LORA1280F27)
-    module_type = MODULE_LORA1280F27;
-#elif defined(TARGET_MODULE_E28)
-    module_type = MODULE_E28_2G4M12S;
-#elif defined(TARGET_NAMIMNORC_TX)
-    module_type = MODULE_FLASH_2400;
-#elif defined(TARGET_IMRC_GHOST_TX)
-#if TARGET_TX_GHOST_LITE
-    module_type = MODULE_IMRC_2400_LITE;
-#else
-    module_type = MODULE_IMRC_2400;
-#endif
-#else
-    module_type = MODULE_DEFAULT;
-#endif
+    module_type = MODULE_SX128x;
 }
 
 int8_t SX1280Driver::Begin(int sck, int miso, int mosi)

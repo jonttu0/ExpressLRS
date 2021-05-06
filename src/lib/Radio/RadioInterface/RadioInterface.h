@@ -22,15 +22,8 @@ enum isr_states
 
 enum module_types
 {
-    MODULE_DEFAULT = 0,
-    MODULE_R9M_DAC,
-    MODULE_LORA1280F27,
-    MODULE_E28_2G4M12S,
-    MODULE_LORA1276F30,
-    MODULE_VOYAGER_DAC,
-    MODULE_FLASH_2400,
-    MODULE_IMRC_2400,
-    MODULE_IMRC_2400_LITE,
+    MODULE_SX127x = 0,
+    MODULE_SX128x,
     MODULE_COUNT,
 };
 
@@ -42,7 +35,7 @@ public:
         RXdoneCallback1 = RadioInterface::rx_nullCallback;
         TXdoneCallback1 = RadioInterface::tx_nullCallback;
     }
-    uint8_t GetModuleType(void) {
+    uint8_t GetModuleType(void) const {
         return module_type;
     }
 
@@ -102,7 +95,7 @@ protected:
     volatile uint32_t current_freq;
     volatile int8_t current_power;
 
-    uint8_t module_type;
+    uint8_t module_type = MODULE_COUNT;
     uint8_t _syncWord;
 
 private:

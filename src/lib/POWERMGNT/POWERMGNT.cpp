@@ -8,25 +8,60 @@ typedef struct {
 
 PowerArray_t power_array[MODULE_COUNT] = {
     // max pwr,  10mW, 25mW, 50mW, 100mW, 250mW, 500mW, 1000mW, 2000mW
-    // MODULE_DEFAULT
-    {  PWR_50mW,    8,   12,   15,    15,    15,    15,     15,     15},
-    // MODULE_R9M_DAC
-    {  PWR_1000mW,  0,    0,    0,     0,     0,     0,      0,      0},
-    // MODULE_LORA1280F27 ( these are not reliable! don't use this module )
-    {  PWR_500mW,  -7,   -3,    0,     3,     8,    13,     13,     13},
-    // MODULE_E28_2G4M12S (limite to 100mW) [PWR_500mW]
-    {  PWR_100mW, -17,  -13,  -10,    -7,    -3,     0,      0,      0},
+
+    /********** SX127x MODULES **********/
+#if DAC_IN_USE //(defined(TARGET_NAMIMNORC_TX) || defined(TARGET_R9M_TX)) && !defined(R9M_LITE_TX)
+    // FrSky R9M, HappyModel ES915TX and NamimnoRC Voyager
+    {PWR_1000mW,    0,    0,    0,     0,     0,     0,      0,      0},
+
+#elif defined(TARGET_MODULE_LORA1276F30)
     // MODULE_LORA1276F30. 0 = 40mW, 15 = 300mW
-    {  PWR_250mW,   0,    0,    1,     4,    11,    15,     15,     15},
-    // NamimnoRC Voyager, 900MHz TX module
-    {  PWR_1000mW,  0,    0,    0,     0,     0,     0,      0,      0},
+    {PWR_250mW,     0,    0,    1,     4,    11,    15,     15,     15},
+
+#else
+    // Bare SX127x
+    {PWR_50mW,      8,   12,   15,    15,    15,    15,     15,     15},
+#endif
+
+    /********** SX128x MODULES **********/
+#if TARGET_HM_ES24TX
+    {PWR_250mW,   -17,  -13,   -9,    -6,    -2,    -2,     -2,     -2},
+
+#elif defined(TARGET_MODULE_LORA1280F27)
+#error "Don't use LORA1280F27 module! That is not reliable!"
+    {PWR_500mW,    -7,   -3,    0,     3,     8,    13,     13,     13},
+
+#elif defined(TARGET_MODULE_E28)
+    /* 3 different Ebyte E28 variants */
+#if TARGET_MODULE_E28_2G4M12S
+    // E28_2G4M27S (18mW)
+#warning "E28_2G4M12S needs to be verified"
+    {PWR_10mW,      8,   12,   15,    15,    15,    15,     15,     15},
+#elif TARGET_MODULE_E28_2G4M20S
+    // E28_2G4M27S (100mW)
+#warning "E28_2G4M20S needs to be verified"
+    {PWR_100mW,     8,   12,   15,    15,    15,    15,     15,     15},
+#else
+    // E28_2G4M27S (500mW)
+    {PWR_250mW,   -17,  -13,  -10,    -7,    -3,     0,      0,      0},
+#endif
+
+#elif defined(TARGET_NAMIMNORC_TX)
     // NamimnoRC Flash, 2400MHz TX module
-    {  PWR_1000mW,-18,  -18,  -15,   -12,    -8,     -5,     3,      3},
+    {PWR_1000mW,  -18,  -18,  -15,   -12,    -8,     -5,     3,      3},
     //{  PWR_1000mW,-15,  -13,  -11,    -9,    -7,     -3,     0,      0},
-    // IMRC GHOST [max 250mW]
-    {  PWR_250mW,   0,    4,   7,     10,    13,     13,    13,     13},
-    // IMRC GHOST LITE [max 250mW]
-    {  PWR_250mW, -13,   -9,   -7,    -4,    -2,    -2,     -2,     -2},
+
+#elif defined(TARGET_IMRC_GHOST_TX)
+#if TARGET_TX_GHOST_LITE
+    {PWR_250mW,   -13,   -9,   -7,    -4,    -2,    -2,     -2,     -2},
+#else
+    {PWR_250mW,     0,    4,   7,     10,    13,     13,    13,     13},
+#endif
+
+#else
+    // Bare SX128x
+    {PWR_25mW,      8,   13,   13,    13,    13,    13,     13,     13},
+#endif
 };
 
 POWERMGNT::POWERMGNT(int fan)
@@ -49,7 +84,7 @@ void POWERMGNT::Begin(RadioInterface *radio, R9DAC *dac)
         uint8_t type = radio->GetModuleType();
         if (type < MODULE_COUNT) {
             p_max_power = (PowerLevels_e)power_array[type].power[0];
-            if (type == MODULE_R9M_DAC && dac)
+            if (type == MODULE_SX127x && dac)
                 radio->SetOutputPower(0b0000);
         }
     }
@@ -100,13 +135,13 @@ void POWERMGNT::setPower(PowerLevels_e power)
 
 void FAST_CODE_1 POWERMGNT::pa_off(void) const
 {
-    if (p_dac && p_radio->GetModuleType() == MODULE_R9M_DAC)
+    if (p_dac && p_radio->GetModuleType() == MODULE_SX127x)
         p_dac->standby();
 }
 
 void FAST_CODE_1 POWERMGNT::pa_on(void) const
 {
-    if (p_dac && p_radio->GetModuleType() == MODULE_R9M_DAC)
+    if (p_dac && p_radio->GetModuleType() == MODULE_SX127x)
         p_dac->resume();
 }
 
@@ -122,7 +157,7 @@ void POWERMGNT::p_set_power(PowerLevels_e power)
 
     DEBUG_PRINTF("MGMT set pwr:%u, type:%u\n", power, type);
 
-    if (p_dac && type == MODULE_R9M_DAC) {
+    if (p_dac && type == MODULE_SX127x) {
         p_dac->setPower(power);
     } else {
         PowerArray_t * powers = &power_array[type];

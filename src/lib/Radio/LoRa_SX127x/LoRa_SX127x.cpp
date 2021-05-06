@@ -119,16 +119,7 @@ SX127xDriver::SX127xDriver(uint8_t payload_len):
     _syncWord = SX127X_SYNC_WORD;
     current_freq = 0;
     current_power = 0xF; // outside range to make sure the power is initialized
-
-#if defined(TARGET_R9M_TX) && !defined(R9M_LITE_TX)
-    module_type = MODULE_R9M_DAC;
-#elif defined(TARGET_MODULE_LORA1276F30)
-    module_type = MODULE_LORA1276F30;
-#elif defined(TARGET_NAMIMNORC_TX)
-    module_type = MODULE_VOYAGER_DAC;
-#else
-    module_type = MODULE_DEFAULT;
-#endif
+    module_type = MODULE_SX127x;
 }
 
 int8_t SX127xDriver::Begin(int sck, int miso, int mosi)
@@ -178,10 +169,11 @@ void SX127xDriver::SetOutputPower(int8_t Power, uint8_t init)
         return;
     uint8_t reg = Power;
     reg |= SX127X_PA_SELECT_BOOST;
-    if (module_type == MODULE_LORA1276F30)
-        reg |= (0x1 << 4);
-    else
-        reg |= SX127X_MAX_OUTPUT_POWER;
+#if defined(TARGET_MODULE_LORA1276F30)
+    reg |= (0x1 << 4);
+#else
+    reg |= SX127X_MAX_OUTPUT_POWER;
+#endif
     writeRegister(SX127X_REG_PA_CONFIG, reg);
     writeRegister(SX127X_REG_PA_DAC,
         (0x80 | ((Power == 0xf) ? SX127X_PA_BOOST_ON : SX127X_PA_BOOST_OFF)));
