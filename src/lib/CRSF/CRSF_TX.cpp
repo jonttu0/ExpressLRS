@@ -232,6 +232,7 @@ void CRSF_TX::processPacket(uint8_t const *input)
                 if (ParamWriteCallback)
                     ParamWriteCallback(&input[3], 2);
             }
+            break;
         }
         case CRSF_FRAMETYPE_MSP_REQ:
         case CRSF_FRAMETYPE_MSP_WRITE:
