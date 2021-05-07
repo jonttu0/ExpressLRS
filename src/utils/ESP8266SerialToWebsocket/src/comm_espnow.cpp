@@ -59,6 +59,7 @@ static void esp_now_recv_cb(uint8_t *mac_addr, uint8_t *data, uint8_t data_len)
           /* Infrom web clients */
           eeprom_storage.vtx_freq = freq;
           MspVtxWrite(NULL);
+          MspVtxWriteToElrs(freq);
         }
       }
 

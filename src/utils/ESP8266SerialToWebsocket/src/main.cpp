@@ -254,7 +254,7 @@ void MspVtxWriteToElrs(uint16_t freq)
   msp_out.function = MSP_VTX_SET_CONFIG;
   msp_out.payloadSize = sizeof(vtx_cmd);
   memcpy((void*)msp_out.payload, vtx_cmd, sizeof(vtx_cmd));
-  // Send packet
+  // Send packet to ELRS
   MSP::sendPacket(&msp_out, &my_ctrl_serial);
 }
 
@@ -282,6 +282,15 @@ void MspVtxWrite(const char * input, int num)
     settings_out += "MHz";
 
     MspVtxWriteToElrs(freq);
+
+    // Send to other clients
+    msp_out.type = MSP_PACKET_V2_COMMAND;
+    msp_out.flags = 0;
+    msp_out.function = MSP_VTX_SET_CONFIG;
+    msp_out.payloadSize = 2; // 4 => 2, power and pitmode can be ignored
+    msp_out.payload[0] = (freq & 0xff);
+    msp_out.payload[1] = (freq >> 8);
+    espnow_send_msp(msp_out);
   }
   websocket_send(settings_out, num);
 }
