@@ -608,6 +608,7 @@ void msp_data_cb(uint8_t const *const input)
 #if RX_GHST_ENABLED
     (void)input;
 #else
+
     if ((read_u8(&tlm_msp_send) != 0) || (tlm_check_ratio == 0))
         return;
 
@@ -615,24 +616,23 @@ void msp_data_cb(uint8_t const *const input)
      *  [0]         header: seq&0xF,
      *  [1]         payload size
      *  [2]         function
-     *  [3...56]    payload
-     *  [57]        crc
+     *  [3...57]    payload + crc
      */
     mspHeaderV1_TX_t *hdr = (mspHeaderV1_TX_t *)input;
     uint16_t iter;
 
-    if (hdr->flags & MSP_STARTFLAG) {
+    if (hdr->hdr.flags & MSP_STARTFLAG) {
         msp_packet_tx.reset();
         msp_packet_tx.type = MSP_PACKET_TLM_OTA;
-        msp_packet_tx.payloadSize = hdr->hdr.payloadSize + 2; // incl size+func
+        msp_packet_tx.payloadSize = hdr->hdr.payloadSize + 1; // incl crc
         msp_packet_tx.function = hdr->hdr.function;
+        msp_packet_tx.flags = hdr->hdr.flags;
     }
-    for (iter = 0; (iter < sizeof(hdr->payload)) && !msp_packet_tx.iterated(); iter++) {
-        msp_packet_tx.addByte(hdr->payload[iter]);
+    for (iter = 0; (iter < sizeof(hdr->hdr.payload)) && !msp_packet_tx.iterated(); iter++) {
+        msp_packet_tx.addByte(hdr->hdr.payload[iter]);
     }
-    if (iter < sizeof(hdr->payload)) {
+    if (iter <= sizeof(hdr->hdr.payload)) {
         if (!msp_packet_tx.error) {
-            msp_packet_tx.addByte(hdr->crc_msp); // include CRC
             msp_packet_tx.setIteratorToSize();
             write_u8(&tlm_msp_send, 1); // rdy for sending
         } else {

@@ -370,27 +370,23 @@ RcChannels_tlm_ota_send(uint8_t *const output,
                         uint8_t tx)
 {
     TlmDataPacket_s *tlm_ptr = (TlmDataPacket_s *)output;
-    uint8_t iter = 1;
+    uint8_t iter = 0;
     tlm_ptr->flags = (packet.sequence_nbr++) & 0x7;
 
     if (packet.sequence_nbr == 1) {
         /* First send header */
         tlm_ptr->flags |= MSP_OTA_FIRST;
-        if (packet.type != MSP_PACKET_TLM_OTA) {
-            tlm_ptr->flags |= MSP_OTA_HEADER;
-            tlm_ptr->hdr.flags = packet.flags;
-            tlm_ptr->hdr.func = packet.function;
-            tlm_ptr->hdr.payloadSize = packet.payloadSize;
-            iter = 0;
-        }
+        tlm_ptr->flags |= MSP_OTA_HEADER;
+        tlm_ptr->hdr.flags = packet.flags;
+        tlm_ptr->hdr.func = packet.function;
+        tlm_ptr->hdr.payloadSize = packet.payloadSize;
+        iter = 0xff;
     }
 
-    if (iter) {
-        for (iter = 0; iter < sizeof(tlm_ptr->payload.data); iter++)
-            tlm_ptr->payload.data[iter] = packet.readByte();
-    }
+    for (; iter < sizeof(tlm_ptr->payload.data); iter++)
+        tlm_ptr->payload.data[iter] = packet.readByte();
 
-    uint8_t done = packet.iterated();
+    uint8_t const done = packet.iterated();
     if (done)
         /* this is last junk */
         tlm_ptr->flags |= MSP_OTA_LAST;
@@ -406,6 +402,7 @@ RcChannels_tlm_ota_receive(uint8_t const *const input,
                            mspPacket_t &packet)
 {
     TlmDataPacket_s *tlm_ptr = (TlmDataPacket_s *)input;
+    uint8_t iter;
     tlm_ptr->flags >>= 2; // remove pkt_type
 
     if (tlm_ptr->flags & MSP_OTA_FIRST) {
@@ -417,27 +414,30 @@ RcChannels_tlm_ota_receive(uint8_t const *const input,
             packet.flags = tlm_ptr->hdr.flags;
             packet.function = tlm_ptr->hdr.func;
             packet.payloadSize = tlm_ptr->hdr.payloadSize;
-            return 0;
-        } else {
-            //packet.payloadSize = tlm_ptr->payload.data[0] + 3;
-            //packet.function = tlm_ptr->payload.data[1];
+            //DEBUG_PRINTF("flags: %u, func %u, size %u\n", packet.flags, packet.function, packet.payloadSize);
+            goto exit_tlm_rcv;
         }
     }
 
+    //DEBUG_PRINTF("DONE seq %u == %u data: ", (tlm_ptr->flags & 0x7), (packet.sequence_nbr & 0x7));
     if ((tlm_ptr->flags & 0x7) == (packet.sequence_nbr & 0x7)) {
-        for (uint8_t iter = 0; iter < sizeof(tlm_ptr->payload.data); iter++)
+        for (iter = 0; iter < sizeof(tlm_ptr->payload.data) && !packet.iterated(); iter++) {
             packet.addByte(tlm_ptr->payload.data[iter]);
+            //DEBUG_PRINTF("0x%X,", tlm_ptr->payload.data[iter]);
+        }
     }
+    //DEBUG_PRINTF("  \n");
+    //DEBUG_PRINTF("DONE size %u, iter %u\n", packet.payloadSize, packet.payloadIterator);
 
-    packet.sequence_nbr++;
-
+    /* is this the last junk */
     if (tlm_ptr->flags & MSP_OTA_LAST) {
-        /* last junk received */
-        packet.setIteratorToSize();
-        //packet.payloadIterator = 0;
+        packet.payloadIterator = 0;
         packet.sequence_nbr = 0;
         return 1;
     }
+
+exit_tlm_rcv:
+    packet.sequence_nbr++;
     return 0;
 }
 

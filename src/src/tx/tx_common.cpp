@@ -597,7 +597,7 @@ static void MspOtaCommandsSend(mspPacket_t &packet)
 {
     uint16_t iter;
 
-    if (read_u8(&tlm_msp_send) || (TLM_RATIO_NO_TLM == TLMinterval)) {
+    if (read_u8(&tlm_msp_send)) {
         DEBUG_PRINTF("MSP TX packet ignored\n");
         return;
     }
@@ -612,6 +612,7 @@ static void MspOtaCommandsSend(mspPacket_t &packet)
     for (iter = 0; iter < packet.payloadSize; iter++) {
         msp_packet_tx.addByte(packet.payload[iter]);
     }
+    /* Add CRC */
     msp_packet_tx.addByte(msp_packet_tx.crc);
     msp_packet_tx.setIteratorToSize();
 

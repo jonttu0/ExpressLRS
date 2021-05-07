@@ -257,8 +257,8 @@ void loop()
 
     // Send MSP resp if allowed and packet ready
     if (tlm_msp_rcvd) {
-        DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
-            msp_packet_rx.function, msp_packet_rx.payloadSize);
+        //DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
+        //    msp_packet_rx.function, msp_packet_rx.payloadSize);
 
         // TODO: Send received MSP packet to CTRL_SERIAL (MSP)
         // msp_packet_rx;

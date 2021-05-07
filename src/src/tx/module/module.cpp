@@ -45,7 +45,16 @@ static void msp_data_cb(uint8_t const *const input)
     mspHeaderV1_RX_t *hdr = (mspHeaderV1_RX_t *)input;
     uint16_t iter;
 
-    if (read_u8(&tlm_msp_send) || (0 <= tx_common_has_telemetry())) {
+#if 0
+    DEBUG_PRINTF("MSP: hdr:%u size:%u func:%u data: ",
+        hdr->flags, hdr->hdr.payloadSize, hdr->hdr.function);
+    for (iter = 0; (iter < hdr->hdr.payloadSize); iter++) {
+        DEBUG_PRINTF("0x%X, ", hdr->payload[iter]);
+    }
+    DEBUG_PRINTF("\n");
+#endif
+
+    if (read_u8(&tlm_msp_send)) {
         DEBUG_PRINTF("MSP TX packet ignored\n");
         return;
     }
@@ -126,8 +135,8 @@ void loop()
     // Send MSP resp if allowed and packet ready
     if (can_send && tlm_msp_rcvd)
     {
-        DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
-            msp_packet_rx.function, msp_packet_rx.payloadSize);
+        //DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
+        //    msp_packet_rx.function, msp_packet_rx.payloadSize);
         crsf.sendMspPacketToRadio(msp_packet_rx);
         msp_packet_rx.reset();
         tlm_msp_rcvd = 0;
