@@ -233,14 +233,8 @@ void handleSettingDomain(const char * input, int num = -1)
   websocket_send(settings_out, num);
 }
 
-void MspVtxWriteToElrs(uint16_t freq)
+void MspVtxWriteToElrs(uint16_t const freq)
 {
-  uint8_t vtx_cmd[] = {
-    (uint8_t)freq, (uint8_t)(freq >> 8),
-    //power,
-    //(power == 0), // pit mode
-  };
-
   if (freq == 0)
     return;
 
@@ -252,8 +246,11 @@ void MspVtxWriteToElrs(uint16_t freq)
   msp_out.type = MSP_PACKET_V1_CMD;
   msp_out.flags = MSP_VERSION | MSP_STARTFLAG;
   msp_out.function = MSP_VTX_SET_CONFIG;
-  msp_out.payloadSize = sizeof(vtx_cmd);
-  memcpy((void*)msp_out.payload, vtx_cmd, sizeof(vtx_cmd));
+  msp_out.payloadSize = 2; // 4 => 2, power and pitmode can be ignored
+  msp_out.payload[0] = (freq & 0xff);
+  msp_out.payload[1] = (freq >> 8);
+  //msp_out.payload[2] = power;
+  //msp_out.payload[3] = (power == 0); // pit mode
   // Send packet to ELRS
   MSP::sendPacket(&msp_out, &my_ctrl_serial);
 }
@@ -283,7 +280,7 @@ void MspVtxWrite(const char * input, int num)
 
     MspVtxWriteToElrs(freq);
 
-    // Send to other clients
+    // Send to other esp-now clients
     msp_out.type = MSP_PACKET_V2_COMMAND;
     msp_out.flags = 0;
     msp_out.function = MSP_VTX_SET_CONFIG;

@@ -30,12 +30,12 @@ MSP esp_now_msp_rx;
 
 static void esp_now_recv_cb(uint8_t *mac_addr, uint8_t *data, uint8_t data_len)
 {
-  uint8_t iter, packet_ok = 0;
+  uint8_t iter;
   /* No data or peer is unknown => ignore */
   if (!data_len || !esp_now_is_peer_exist(mac_addr))
     return;
 
-  //websocket_send("ESP NOW message received!");
+  websocket_send("ESP NOW message received!");
 
   esp_now_msp_rx.markPacketFree();
 
@@ -57,19 +57,16 @@ static void esp_now_recv_cb(uint8_t *mac_addr, uint8_t *data, uint8_t data_len)
           }
 
           /* Infrom web clients */
-          eeprom_storage.vtx_freq = freq;
-          MspVtxWrite(NULL);
           MspVtxWriteToElrs(freq);
+          MspVtxWrite(NULL);
+          esp_now_msp_rx.markPacketFree();
         }
       }
-
-      esp_now_msp_rx.markPacketFree();
-      packet_ok = 1;
     }
   }
 
   // Pass data to ERLS if packet is ok
-  if (packet_ok) {
+  if (esp_now_msp_rx.mspReceived()) {
     // Note: accepts only correctly formatted MSP packets
     Serial.write((uint8_t*)data, data_len);
   }
@@ -78,7 +75,11 @@ static void esp_now_recv_cb(uint8_t *mac_addr, uint8_t *data, uint8_t data_len)
 static void esp_now_send_cb(uint8_t *mac_addr, u8 status) {
 #if 0
   String temp = "ESPNOW Sent: ";
-  temp += (status ? "FAIL" : "SUCCESS");
+  for (uint8_t iter = 0; iter < 6; iter++) {
+    if (iter) temp += ":";
+    temp += String(mac_addr[iter], HEX);
+  }
+  temp += (status ? " FAIL" : " SUCCESS");
   websocket_send(temp);
 #endif
 }
