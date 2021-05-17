@@ -90,6 +90,7 @@ static uint8_t DRAM_ATTR uplink_Link_quality;
 static uint32_t DRAM_ATTR RFmodeNextCycle;
 static uint8_t DRAM_ATTR scanIndex;
 static uint8_t DRAM_ATTR tentative_cnt;
+static uint8_t DRAM_ATTR no_sync_armed;
 
 ///////////////////////////////////////
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
@@ -355,6 +356,7 @@ void FAST_CODE_1 LostConnection()
 #if SERVO_OUTPUTS_ENABLED
     servo_out_fail_safe();
 #endif
+    no_sync_armed = 0;
 
     uint32_t irq = _SAVE_IRQ();
     TxTimer.stop(); // Stop sync timer
@@ -454,9 +456,11 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
             //DEBUG_PRINTF(" S");
             ElrsSyncPacket_s const * const sync = (ElrsSyncPacket_s*)rx_buffer;
 
-            if (sync->CRCCaesarCipher == CRCCaesarCipher)
+            if ((sync->CRCCaesarCipher == CRCCaesarCipher) &&
+                (sync->sync_key == SYNC_KEY) &&
+                (sync->arm_aux == AUX_CHANNEL_ARM))
             {
-                if (_conn_state == STATE_disconnected || _conn_state == STATE_lost)
+                if ((_conn_state == STATE_disconnected) || (_conn_state == STATE_lost))
                 {
                     TentativeConnection(freq_err);
                     freq_err = 0;
@@ -466,17 +470,28 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
                     if (NonceRXlocal == sync->rxtx_counter &&
                         FHSSgetCurrIndex() == sync->fhssIndex)
                     {
+                        no_sync_armed = sync->no_sync_armed;
                         GotConnection();
                     }
                     else if (2 < (tentative_cnt++))
                     {
                         LostConnection();
                     }
+                } else if (no_sync_armed && ((CRSF_CHANNEL_OUT_VALUE_MIN + 100) < CrsfChannels.ch4)) {
+                    /* Sync should not be received, ignore it */
+                    rx_last_valid_us = 0;
+                    freq_err = 0;
+                    return;
                 }
 
                 handle_tlm_ratio(sync->tlm_interval);
                 FHSSsetCurrIndex(sync->fhssIndex);
                 NonceRXlocal = sync->rxtx_counter;
+            } else {
+                /* Not a valid packet, ignore it */
+                rx_last_valid_us = 0;
+                freq_err = 0;
+                return;
             }
             break;
         }
@@ -512,6 +527,12 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
             break;
 
         case UL_PACKET_MSP: {
+            if (no_sync_armed && ((CRSF_CHANNEL_OUT_VALUE_MIN + 100) > CrsfChannels.ch4)) {
+                /* Not a valid packet, ignore it */
+                rx_last_valid_us = 0;
+                freq_err = 0;
+                return;
+            }
 #if !SERVO_OUTPUTS_ENABLED
             //DEBUG_PRINTF(" M");
             if (RcChannels_tlm_ota_receive(rx_buffer, msp_packet_rx)) {

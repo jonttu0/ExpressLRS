@@ -128,7 +128,7 @@ uint16_t DRAM_FORCE_ATTR crc16_table[256] = {
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
 };
 #elif (CRC16_POLY_NEW == 16) || (CRC16_POLY_NEW == 15)
-#define CRC_PARITY  (CRC16_POLY_NEW == 15)
+//#define CRC_PARITY  (CRC16_POLY_NEW == 15)
 #define CRC_LEN     CRC16_POLY_NEW
 // https://users.ece.cmu.edu/~koopman/crc/c16/0x9eb2.txt
 // Poly: 0x3D65 (implicit+1 = 0x9EB2), reversed: FALSE, (HD=6 up to 135b)

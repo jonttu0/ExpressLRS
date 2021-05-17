@@ -331,10 +331,13 @@ static void FAST_CODE_1
 GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
 {
     ElrsSyncPacket_s * sync = (ElrsSyncPacket_s*)output;
+    sync->CRCCaesarCipher = CRCCaesarCipher;
     sync->fhssIndex = FHSSgetCurrIndex();
     sync->rxtx_counter = rxtx_counter;
     sync->tlm_interval = TLMinterval;
-    sync->CRCCaesarCipher = CRCCaesarCipher;
+    sync->no_sync_armed = TX_SKIP_SYNC;
+    sync->arm_aux = AUX_CHANNEL_ARM;
+    sync->sync_key = SYNC_KEY;
     sync->pkt_type = UL_PACKET_SYNC;
 }
 

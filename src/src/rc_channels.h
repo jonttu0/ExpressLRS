@@ -5,6 +5,14 @@
 #include "msp.h"
 #include <stdint.h>
 
+#if defined(TX_SKIP_SYNC_WHEN_ARMED)
+#define TX_SKIP_SYNC 1
+#else
+#define TX_SKIP_SYNC 0
+#endif
+#define AUX_CHANNEL_ARM     0
+
+
 #define OTA_PACKET_DATA     6
 #define OTA_PACKET_CRC      2
 #define OTA_PACKET_PAYLOAD  (OTA_PACKET_DATA)
@@ -77,12 +85,17 @@ enum
     DL_PACKET_TLM_LINK = 0b11,
 };
 
+#define SYNC_KEY    0x2A
+
 typedef struct ElrsSyncPacket_s {
     uint16_t CRCCaesarCipher;
     uint8_t fhssIndex;
     uint8_t rxtx_counter;
-    uint8_t tlm_interval;
-    uint8_t pkt_type;
+    uint8_t tlm_interval    : 3,
+            no_sync_armed   : 1,
+            arm_aux         : 4;
+    uint8_t pkt_type        : 2,
+            sync_key        : 6;
 } ElrsSyncPacket_s;
 
 

@@ -6,10 +6,6 @@
 
 #include <assert.h>
 
-#ifndef TX_SKIP_SYNC_WHEN_ARMED
-#define TX_SKIP_SYNC_WHEN_ARMED 0
-#endif
-
 #if N_SWITCHES < 2
 #error "At least two (2) AUX channels are needed!"
 #endif
@@ -331,8 +327,8 @@ void FAST_CODE_1 RcChannels_get_packed_data(uint8_t *const output)
 uint8_t FAST_CODE_1
 RcChannels_get_arm_channel_state(void)
 {
-#if TX_SKIP_SYNC_WHEN_ARMED
-    return currentSwitches[0];
+#if TX_SKIP_SYNC
+    return currentSwitches[AUX_CHANNEL_ARM];
 #else
     return 0;
 #endif
