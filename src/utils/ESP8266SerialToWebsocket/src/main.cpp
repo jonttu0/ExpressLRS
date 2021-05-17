@@ -35,6 +35,12 @@
 #ifndef WIFI_AP_PSK
 #define WIFI_AP_PSK "expresslrs"
 #endif
+#ifndef WIFI_AP_HIDDEN
+#define WIFI_AP_HIDDEN 0
+#endif
+#ifndef WIFI_AP_MAX_CONN
+#define WIFI_AP_MAX_CONN 2
+#endif
 
 #if CONFIG_HANDSET
 #define WIFI_AP_SUFFIX " HANDSET"
@@ -46,6 +52,7 @@
 #define WIFI_TIMEOUT 60 // default to 1min
 #endif
 
+#define WIFI_DBG 0
 
 MDNSResponder mdns;
 
@@ -55,7 +62,9 @@ WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
 
 String inputString = "";
-String my_ipaddress_info_str = "NA";
+#if WIFI_DBG
+String wifi_log = "";
+#endif
 
 #if CONFIG_HANDSET
 /* Handset specific data */
@@ -64,6 +73,16 @@ struct mixer mixer[TX_NUM_MIXER];
 static uint8_t handset_num_switches, handset_num_aux;
 static uint8_t handset_mixer_ok = 0, handset_adjust_ok = 0;
 #endif
+
+/*************************************************************************/
+
+int get_reset_reason(void)
+{
+  rst_info *resetInfo;
+  resetInfo = ESP.getResetInfoPtr();
+  int reset_reason = resetInfo->reason;
+  return reset_reason;
+}
 
 /*************************************************************************/
 
@@ -700,7 +719,7 @@ void batt_voltage_measure(void)
     batt_voltage_meas_last_ms = ms;
   }
 
-  if ((batt_voltage <= batt_voltage_warning_limit) &&
+  if (batt_voltage && (batt_voltage <= batt_voltage_warning_limit) &&
       (batt_voltage_warning_timeout <= (ms - batt_voltage_warning_last_ms))) {
 #ifdef WS2812_PIN
     if (!batt_voltage_last_bright) {
@@ -753,8 +772,26 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     //Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\r\n", num, ip[0], ip[1], ip[2], ip[3], payload);
     //socketNumber = num;
 
-    websocket_send(my_ipaddress_info_str, num);
+    IPAddress my_ip;
+    my_ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
+    String info_str = "NA";
+    info_str = "My IP address = ";
+    info_str += my_ip.toString();
+
+    websocket_send(info_str, num);
     websocket_send(espnow_get_info(), num);
+
+#if defined(LATEST_COMMIT)
+    info_str = "Current version (SHA): ";
+    uint8_t commit_sha[] = {LATEST_COMMIT};
+    for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
+      info_str += String(commit_sha[iter], HEX);
+    }
+    websocket_send(info_str, num);
+#endif // LATEST_COMMIT
+#if WIFI_DBG
+    websocket_send(wifi_log, num);
+#endif
 
     // Send settings
     SettingsGet(num);
@@ -1031,124 +1068,155 @@ bool handleFileRead(String path)
 
 /*************************************************/
 
-void setup()
+enum {
+  WIFI_STATE_NA = 0,
+  WIFI_STATE_STA,
+  WIFI_STATE_AP,
+};
+
+WiFiEventHandler stationConnectedHandler;
+WiFiEventHandler stationDisconnectedHandler;
+WiFiEventHandler stationGotIpAddress;
+WiFiEventHandler stationDhcpTimeout;
+WiFiEventHandler AP_ConnectedHandler;
+WiFiEventHandler AP_DisconnectedHandler;
+
+static uint32_t wifi_connect_started;
+static uint8_t wifi_sta_connected;
+
+void onStationConnected(const WiFiEventStationModeConnected& evt) {
+#if WIFI_DBG
+  wifi_log += "Wifi_STA_connect();\n";
+#endif
+}
+
+void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
+#if WIFI_DBG
+  wifi_log += "Wifi_STA_diconnect();\n";
+#endif
+  wifi_sta_connected = WIFI_STATE_NA;
+  mdns.end();
+}
+
+void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
+#if WIFI_DBG
+  wifi_log += "Wifi_STA_GotIP();\n";
+#endif
+  wifi_sta_connected = WIFI_STATE_STA;
+  mdns.setHostname("elrs_tx");
+  if (mdns.begin("elrs_tx", WiFi.localIP())) {
+    mdns.addService("http", "tcp", 80);
+    mdns.addService("ws", "tcp", 81);
+  }
+  led_set(LED_WIFI_STA);
+  /*beep(440, 30);
+  delay(200);
+  beep(440, 30);*/
+}
+
+void onStationDhcpTimeout(void)
 {
-  ESP.wdtDisable();
-
-  IPAddress my_ip;
-  uint8_t sta_up = 0;
-  rst_info *resetInfo;
-  resetInfo = ESP.getResetInfoPtr();
-  int reset_reason = resetInfo->reason;
-
-  msp_handler.markPacketFree();
-
-  eeprom_storage.setup();
-
-  /* Reset values */
-  settings_rate = 1;
-  settings_power = 4;
-  settings_power_max = 8;
-  settings_tlm = 7;
-  settings_region = 255;
-  settings_valid = 0;
-#if CONFIG_HANDSET
-  handset_num_switches = 6;
-  handset_num_aux = 5;
-  handset_mixer_ok = 0;
-  handset_adjust_ok = 0;
+#if WIFI_DBG
+  wifi_log += "Wifi_STA_DhcpTimeout();\n";
 #endif
+  wifi_sta_connected = WIFI_STATE_NA;
+  mdns.end();
+}
 
-#ifdef BUZZER_PIN
-  pinMode(BUZZER_PIN, OUTPUT);
+void onSoftAPModeStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
+  /* Client connected */
+#if WIFI_DBG
+  wifi_log += "Wifi_AP_connect();\n";
 #endif
-  beep(440, 30);
+}
 
-  //Serial.setRxBufferSize(256);
-#ifdef INVERTED_SERIAL
-  // inverted serial
-  Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, true);
-#else
-  // non-inverted serial
-  Serial.begin(SERIAL_BAUD);
+void onSoftAPModeStationDisconnected(const WiFiEventSoftAPModeStationDisconnected& evt) {
+  /* Client disconnected */
+#if WIFI_DBG
+  wifi_log += "Wifi_AP_diconnect();\n";
 #endif
+}
 
-  led_init();
-  led_set(LED_INIT);
-  batt_voltage_init();
-
-#if (BOOT0_PIN == 2 || BOOT0_PIN == 0)
-  reset_stm32_to_app_mode();
-#endif
-
-  FILESYSTEM.begin();
-  //FILESYSTEM.format();
-
+void wifi_config(void)
+{
   wifi_station_set_hostname("elrs_tx");
 
+  wifi_sta_connected = WIFI_STATE_NA;
+#if WIFI_DBG
+  wifi_log = "";
+#endif
+
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PSK, WIFI_CHANNEL);
-  }
-  uint32_t i = 0, led = 0;
-#define TIMEOUT (WIFI_TIMEOUT * 10)
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(100);
-    if (++i > TIMEOUT) {
-      break;
-    }
-    if ((i % 10) == 0) {
-      led_set(led ? LED_INIT : LED_OFF);
-      led ^= 1;
-    }
-    ESP.wdtFeed();
-  }
-  sta_up = (WiFi.status() == WL_CONNECTED);
+  /* Force WIFI off until it is realy needed */
+  WiFi.mode(WIFI_OFF);
+  WiFi.forceSleepBegin();
+  delay(10);
+  WiFi.setAutoConnect(false);
+  WiFi.setAutoReconnect(true);
+  WiFi.persistent(false);
+  WiFi.disconnect(true);
+
+  /* STA mode callbacks */
+  stationConnectedHandler = WiFi.onStationModeConnected(&onStationConnected);
+  stationDisconnectedHandler = WiFi.onStationModeDisconnected(&onStationDisconnected);
+  stationGotIpAddress = WiFi.onStationModeGotIP(&onStationGotIP);
+  stationDhcpTimeout = WiFi.onStationModeDHCPTimeout(&onStationDhcpTimeout);
+  /* AP mode callbacks */
+  AP_ConnectedHandler = WiFi.onSoftAPModeStationConnected(&onSoftAPModeStationConnected);
+  AP_DisconnectedHandler = WiFi.onSoftAPModeStationDisconnected(&onSoftAPModeStationDisconnected);
+
+  WiFi.mode(WIFI_STA);
+  WiFi.begin(WIFI_SSID, WIFI_PSK, WIFI_CHANNEL);
+  wifi_connect_started = millis();
 
 #elif WIFI_MANAGER
+#error "WiFi manager not supported anymore!"
   WiFiManager wifiManager;
   wifiManager.setConfigPortalTimeout(WIFI_TIMEOUT);
   if (wifiManager.autoConnect(WIFI_AP_SSID WIFI_AP_SUFFIX)) {
     // AP found, connected
-    sta_up = 1;
   }
 #endif /* WIFI_MANAGER */
 
-  if (!sta_up) {
-    // WiFi not connected, Start access point
-    WiFi.mode(WIFI_AP);
-    WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL);
-  }
-
-  led_set(LED_WIFI_OK);
-
+  ESP.wdtFeed();
   espnow_init(ESP_NOW_CHANNEL);
+}
 
-  my_ip = (sta_up) ? WiFi.localIP() : WiFi.softAPIP();
+#define WIFI_LOOP_TIMEOUT (WIFI_TIMEOUT * 1000)
+static uint32_t wifi_last_check, led_state;
 
-  if (mdns.begin("elrs_tx", my_ip)) {
-    mdns.addService("http", "tcp", 80);
-    mdns.addService("ws", "tcp", 81);
+void wifi_check(void)
+{
+  uint32_t const now = millis();
+  if (WIFI_LOOP_TIMEOUT < (now - wifi_connect_started)) {
+    IPAddress local_IP(192, 168, 4, 1);
+    IPAddress gateway(192, 168, 4, 1);
+    IPAddress subnet(255, 255, 255, 0);
+
+    // WiFi not connected, Start access point
+    WiFi.setAutoReconnect(false);
+    WiFi.disconnect(true);
+    WiFi.forceSleepWake();
+    WiFi.mode(WIFI_AP);
+    WiFi.softAPConfig(local_IP, gateway, subnet);
+    WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL,
+                WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN);
+    wifi_sta_connected = WIFI_STATE_AP;
+#if WIFI_DBG
+    wifi_log += "WifiAP started\n";
+#endif
+    led_set(LED_WIFI_AP);
+    beep(800, 20);
+  } else if (500 <= (now - wifi_last_check)) {
+    wifi_last_check = now;
+    /* Blink led */
+    led_set(led_state ? LED_WIFI_AP : LED_OFF);
+    led_state ^= 1;
   }
-  my_ipaddress_info_str = "My IP address = ";
-  my_ipaddress_info_str += my_ip.toString();
-  my_ipaddress_info_str += " (RST: ";
-  my_ipaddress_info_str += reset_reason;
-  my_ipaddress_info_str += ")";
+}
 
-#if defined(LATEST_COMMIT)
-  my_ipaddress_info_str += "\nCurrent version (SHA): ";
-  uint8_t commit_sha[] = {LATEST_COMMIT};
-  for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
-    my_ipaddress_info_str += String(commit_sha[iter], HEX);
-  }
-#endif // LATEST_COMMIT
-
-  //Serial.print("Connect to http://elrs_tx.local or http://");
-  //Serial.println(my_ip);
-
+void wifi_config_server(void)
+{
   server.on("/fs", handle_fs);
   server.on("/return", sendReturn);
   server.on("/mac", handleMacAddress);
@@ -1171,10 +1239,62 @@ void setup()
 
   webSocket.begin();
   webSocket.onEvent(webSocketEvent);
+}
 
-  beep(440, 30);
-  delay(100);
-  beep(440, 30);
+
+void setup()
+{
+  ESP.eraseConfig();
+
+  msp_handler.markPacketFree();
+
+  eeprom_storage.setup();
+
+  /* Reset values */
+  settings_rate = 1;
+  settings_power = 4;
+  settings_power_max = 8;
+  settings_tlm = 7;
+  settings_region = 255;
+  settings_valid = 0;
+#if CONFIG_HANDSET
+  handset_num_switches = 6;
+  handset_num_aux = 5;
+  handset_mixer_ok = 0;
+  handset_adjust_ok = 0;
+  batt_voltage = 0;
+  batt_voltage_warning_last_ms = millis();
+#endif
+
+#ifdef BUZZER_PIN
+  pinMode(BUZZER_PIN, OUTPUT);
+#endif
+
+  //Serial.setRxBufferSize(256);
+#ifdef INVERTED_SERIAL
+  // inverted serial
+  Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, true);
+#else
+  // non-inverted serial
+  Serial.begin(SERIAL_BAUD);
+#endif
+
+  led_init();
+  led_set(LED_INIT);
+  batt_voltage_init();
+
+#if (BOOT0_PIN == 2 || BOOT0_PIN == 0)
+  reset_stm32_to_app_mode();
+#endif
+
+  FILESYSTEM.begin();
+  //FILESYSTEM.format();
+
+  wifi_config();
+  wifi_config_server();
+
+  // wsnum does not matter because settings_valid == false
+  SettingsGet(0);
 }
 
 
@@ -1205,12 +1325,14 @@ int serialEvent()
             settings_region = payload[4];
             settings_valid = 1;
 
+#if 0
             if (settings_region != 255) {
               if (3 <= settings_region)
                 led_set(LED_FREQ_2400);
               else
                 led_set(LED_FREQ_900);
             }
+#endif
 
             handleSettingDomain(NULL);
             handleSettingRate(NULL);
@@ -1287,11 +1409,16 @@ int serialEvent()
 
 void loop()
 {
+  if (wifi_sta_connected == WIFI_STATE_NA)
+    wifi_check();
+
   ESP.wdtFeed();
+
   if (0 <= serialEvent()) {
     websocket_send(inputString);
     inputString = "";
   }
+  ESP.wdtFeed();
 
   server.handleClient();
   webSocket.loop();

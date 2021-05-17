@@ -5,7 +5,8 @@
 enum led_state_e {
   LED_OFF       = 0x000000,
   LED_INIT      = 0xffffff,
-  LED_WIFI_OK   = 0x00ff00,
+  LED_WIFI_STA  = 0x00ff00,
+  LED_WIFI_AP   = 0x0000ff,
 
   LED_FREQ_900  = 0xfc00b5,
   LED_FREQ_2400 = 0x1d00fc,

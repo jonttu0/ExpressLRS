@@ -111,6 +111,7 @@ void espnow_init(uint32_t channel)
             espnow_init_info += iter;
             espnow_init_info += " FAIL";
         }
+        ESP.wdtFeed();
     }
 #endif // ESP_NOW_PEERS
 
