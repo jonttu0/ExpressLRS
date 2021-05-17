@@ -1,7 +1,7 @@
 #include "crc.h"
 
-#define CRC16_POLY_NEW  15
-#define CRC16_PARITY    1
+#define CRC16_POLY_NEW  16
+//#define CRC16_POLY_NEW  15
 
 #if CRC16_POLY_TESTING
 uint8_t CRC16_POLY_PKT[5] = {0x11, 0x22, 0x33, 0x44, 0x55};
@@ -85,7 +85,8 @@ CalcCRC8len(uint8_t const *data, uint16_t length,
 }
 
 #if !CRC16_POLY_NEW
-#define CRC_REVERSED 1
+#define CRC_REVERSED    1
+#define CRC_LEN         16
 /*
  * This mysterious table is just the CRC of each possible byte. It can be
  * computed using the standard bit-at-a-time methods. The polynomial can
@@ -127,6 +128,8 @@ uint16_t DRAM_FORCE_ATTR crc16_table[256] = {
 	0x7bc7, 0x6a4e, 0x58d5, 0x495c, 0x3de3, 0x2c6a, 0x1ef1, 0x0f78
 };
 #elif (CRC16_POLY_NEW == 16) || (CRC16_POLY_NEW == 15)
+#define CRC_PARITY  (CRC16_POLY_NEW == 15)
+#define CRC_LEN     CRC16_POLY_NEW
 // https://users.ece.cmu.edu/~koopman/crc/c16/0x9eb2.txt
 // Poly: 0x3D65 (implicit+1 = 0x9EB2), reversed: FALSE, (HD=6 up to 135b)
 uint16_t DRAM_FORCE_ATTR crc16_table[256] = {
@@ -164,6 +167,7 @@ uint16_t DRAM_FORCE_ATTR crc16_table[256] = {
     0x1E73, 0x2316, 0x64B9, 0x59DC, 0xEBE7, 0xD682, 0x912D, 0xAC48,
 };
 #elif (CRC16_POLY_NEW == 14)
+#define CRC_LEN     CRC16_POLY_NEW
 // http://users.ece.cmu.edu/~koopman/crc/c14/0x372b.txt
 // Poly: 0x2E57 (implicit+1 = 0x372B), reversed: FALSE, (HD=6 up to 57b)
 uint16_t DRAM_FORCE_ATTR crc16_table[256] = {
@@ -204,9 +208,11 @@ uint16_t DRAM_FORCE_ATTR crc16_table[256] = {
 #error "INVALID CONFIG!"
 #endif
 
+#define CRC_MASK ((0x1 << CRC_LEN) - 1U)
+
 uint16_t FAST_CODE_1 CalcCRC16(uint8_t const *data, uint16_t length, uint16_t crc)
 {
-#if CRC16_PARITY
+#if CRC_PARITY
     uint16_t parity = 0;
 #endif
     uint8_t _byte;
@@ -215,14 +221,15 @@ uint16_t FAST_CODE_1 CalcCRC16(uint8_t const *data, uint16_t length, uint16_t cr
 #if CRC_REVERSED
         crc = (crc >> 8) ^ crc16_table[(crc ^ _byte) & 0xff];
 #else
-        crc = (crc << 8) ^ crc16_table[((crc >> 8) ^ _byte)];
+        crc = (crc << 8) ^ crc16_table[((crc >> (CRC_LEN - 8)) ^ _byte) & 0xff];
 #endif
-#if CRC16_PARITY
+#if CRC_PARITY
         parity ^= __builtin_parity(_byte);
 #endif
     }
-#if CRC16_PARITY
-    return ((crc & 0xFFFE) | parity);
+    crc &= CRC_MASK;
+#if CRC_PARITY
+    return ((crc << 1) | parity);
 #else
     return crc;
 #endif
