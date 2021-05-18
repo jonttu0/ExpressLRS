@@ -62,17 +62,22 @@ def parse_flags(path):
                                 continue
                             domains_found.append(define)
                     build_flags.append(define)
-
-        if len(domains_found) > 1 or len(domains_found_ism) > 1:
+        if len(domains_found_ism) > 2:
+            if "-DDRegulatory_Domain_ISM_2400_800kHz" in domains_found_ism and \
+                "-DRegulatory_Domain_ISM_2400" in domains_found_ism:
+                raise Exception("[ERROR] Only one 'Regulatory_Domain' is allowed")
+        if len(domains_found) > 1:
             raise Exception("[ERROR] Only one 'Regulatory_Domain' is allowed")
         if domains_found:
             build_flags.append("-DRADIO_SX127x=1")
         if domains_found_ism:
             build_flags.append("-DRADIO_SX128x=1")
-            if "_FLRC" in domains_found_ism[0]:
-                build_flags.append("-DRADIO_SX128x_FLRC=1")
-            elif "_800kHz" in domains_found_ism[0]:
-                build_flags.append("-DRADIO_SX128x_BW800=1")
+
+            for domain in domains_found_ism:
+                if "_FLRC" in domain:
+                    build_flags.append("-DRADIO_SX128x_FLRC=1")
+                elif "_800kHz" in domain:
+                    build_flags.append("-DRADIO_SX128x_BW800=1")
     except IOError:
         return False
     return True

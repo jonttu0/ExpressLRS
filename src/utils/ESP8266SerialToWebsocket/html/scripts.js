@@ -113,16 +113,24 @@ function setting_set(type, value) {
         if (type == "vtx_freq") {
             vtx_parse_freq(value);
         } else if (type == "region_domain") {
+            var rf_module = $id("rf_module");
             value = parseInt(value);
-            /* Check if handset */
+
             if (!(value & 0x80)) {
-                /* Disable tabs */
+                /* Disable RF selection if not dual module */
+                rf_module.disabled = true;
+            } else {
+                rf_module.disabled = false;
+            }
+
+            if (!(value & 0x70)) {
+                /* Disable tabs if not handset */
                 var tabs = $name('handset');
                 for (tab in tabs) {
                     tabs[tab].className += " disabled";
                 }
             }
-            value = value & 0x7F;
+            value = value & 0x3F;
 
             var domain_info = "Regulatory domain ";
             if (value == 0)
@@ -131,30 +139,34 @@ function setting_set(type, value) {
                 domain_info += "868MHz";
             else if (value == 2)
                 domain_info += "433MHz";
-            else if (value == 3)
-                domain_info += "ISM 2400 (BW 0.8MHz)";
-            else if (value == 4)
-                domain_info += "ISM 2400 (BW 1.6MHz)";
+            else if (value == 3 || value == 4)
+                domain_info += "2400MHz ISM (LoRa)";
+            else if (value == 5)
+                domain_info += "2400MHz ISM (FLRC)";
             else
                 domain_info += "UNKNOWN";
             elem.innerHTML = domain_info;
 
-            var rf_module = $id("rf_module");
             // update rate options
             var rates = $id("rates_input");
             while (rates.length > 0) {
                 rates.remove(rates.length-1);
             }
             var options = [];
-            if (3 <= value && value <= 4) {
-                options = ['250Hz', '125Hz', '50Hz'];
-                if (value == 4) {
-                    options.unshift('500Hz');
-                }
+            if (5 == value) {
+                options = ['500Hz'];
+                rf_module.selectedIndex = 3;
+            } else if (3 <= value && value <= 4) {
+                options = ['500Hz', '250Hz', '125Hz', '50Hz'];
+                /*if (value == 4) {
+                    options.unshift('800Hz');
+                }*/
                 rf_module.selectedIndex = 2;
-            } else {
+            } else if (value <= 2) {
                 options = ['200Hz', '100Hz', '50Hz'];
                 rf_module.selectedIndex = 1;
+            } else {
+                rf_module.selectedIndex = 0;
             }
             for (i = 0; i < options.length; i++) {
                 var option = document.createElement("option");

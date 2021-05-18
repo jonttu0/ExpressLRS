@@ -607,7 +607,7 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, GetInitialFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
-                  RADIO_SX128x_FLRC);
+                  config->type);
 
     // Measure RF noise
 #if 0 && defined(DEBUG_SERIAL) // TODO: Enable this when noize floor is used!
@@ -687,6 +687,15 @@ void gps_info_cb(GpsOta_t * gps)
     GpsTlm.pkt_cnt = 3;
 }
 
+void radio_prepare(uint8_t type)
+{
+    // Prepare radio
+    Radio = common_config_radio(type);
+    Radio->RXdoneCallback1 = ProcessRFPacketCallback;
+    Radio->TXdoneCallback1 = tx_done_cb;
+    Radio->SetOutputPower(0b1111); // default RX to max power for tlm
+}
+
 void setup()
 {
     uint8_t UID[6] = {MY_UID};
@@ -694,7 +703,11 @@ void setup()
 #if RADIO_SX127x
     radio_type = RADIO_TYPE_127x;
 #elif RADIO_SX128x
+#if RADIO_SX128x_FLRC
+    radio_type = RADIO_TYPE_128x_FLRC;
+#else
     radio_type = RADIO_TYPE_128x;
+#endif
 #endif
 
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
@@ -720,10 +733,7 @@ void setup()
     platform_setup();
 
     // Prepare radio
-    Radio = common_config_radio(radio_type);
-    Radio->RXdoneCallback1 = ProcessRFPacketCallback;
-    Radio->TXdoneCallback1 = tx_done_cb;
-    Radio->SetOutputPower(0b1111); // default RX to max power for tlm
+    radio_prepare(radio_type);
 
 #if (GPIO_PIN_ANTENNA_SELECT != UNDEF_PIN)
     gpio_out_setup(GPIO_PIN_ANTENNA_SELECT, 0);
@@ -787,10 +797,19 @@ void loop()
         if ((!ExpressLRS_currAirRate) ||
             (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RFmodeNextCycle))) {
             uint8_t max_rate = get_elrs_airRateMax();
-            SetRFLinkRate((scanIndex % max_rate)); //switch between rates
+#if RADIO_SX128x_FLRC
+            if (get_elrs_current_radio_type() == RADIO_TYPE_128x_FLRC && max_rate <= scanIndex) {
+                radio_prepare(RADIO_TYPE_128x);
+                scanIndex = 0;
+            }
+#endif
+            SetRFLinkRate((scanIndex % max_rate)); // switch between rates
             scanIndex++;
-            if (max_rate <= scanIndex)
-                platform_connection_state(STATE_search_iteration_done);
+#if RADIO_SX128x_FLRC
+            if (get_elrs_current_radio_type() == RADIO_TYPE_128x)
+#endif
+                if (max_rate <= scanIndex)
+                    platform_connection_state(STATE_search_iteration_done);
 
             RFmodeNextCycle = now;
         } else if (150 <= (uint32_t)(now - led_toggle_ms)) {

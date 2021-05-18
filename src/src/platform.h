@@ -53,7 +53,7 @@ static inline uint8_t read_u8(const void *addr) {
 * v1 - tlm added
 * v2 - power range changed (dynamic added)
 */
-#define ELRS_EEPROM_KEY 0x454c5207 // ELR + version nbr
+#define ELRS_EEPROM_KEY 0x454c5208 // ELR + version nbr
 
 struct platform_config
 {
@@ -63,7 +63,7 @@ struct platform_config
         uint32_t mode;
         uint32_t power;
         uint32_t tlm;
-    } rf[2]; // rf_mode: 0 = SX127x, 1 = SX128x
+    } rf[3]; // rf_mode: 0 = SX127x, 1 = SX128x, 2 = SX128x_FLRC
 
     /* Handset specific data */
     struct gimbal_limit gimbals[TX_NUM_ANALOGS];

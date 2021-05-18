@@ -8,7 +8,7 @@
   Original author: AlessandroAU.
 ]] --
 
-local version = 'v0.2'
+local version = 'v0.3'
 local gotFirstResp = false
 
 local SX127x_RATES = {
@@ -19,9 +19,9 @@ local SX128x_RATES = {
     list = {'500 Hz', '250 Hz', '125 Hz', '50 Hz'},
     values = {0x00, 0x01, 0x02, 0x03},
 }
-local SX128x_RATES_HIGH = {
-    list = {'800 Hz', '500 Hz', '250 Hz', '125 Hz', '50 Hz'},
-    values = {0x00, 0x01, 0x02, 0x03, 0x04},
+local SX128x_RATES_FLRC = {
+    list = {'500 Hz'},
+    values = {0x00},
 }
 
 local AirRate = {
@@ -59,9 +59,9 @@ local RFunit = {
     editable = false,
     name = 'RF unit',
     selected = 99,
-    list = {' 900 (SX127x)', '2400 (SX128x)'},
-    values = {0x00, 0x03},
-    max_allowed = 2,
+    list = {' 900 (LoRa)', '2400 (LoRa)', '2400 (FLRC)'},
+    values = {0x00, 0x03, 0x05},
+    max_allowed = 3,
 }
 
 local function binding(item, event)
@@ -271,25 +271,27 @@ local function processResp()
                 end
                 if data[7] ~= 0xff then
                     local rfmode = data[7]
-                    RFunit.selected = 2
+                    RFunit.selected = 99
                     if bit32.band(rfmode,0x80) == 0x80 then
                         RFunit.editable = true
-                        rfmode = bit32.band(rfmode,0x7f)
                     else
                         RFunit.editable = false
                     end
+                    rfmode = bit32.band(rfmode,0x3f)
 
                     if rfmode == 3 or rfmode == 4 then
-                        -- ISM 2400 band (SX128x)
+                        -- ISM 2400 band (SX128x), LoRa
+                        RFunit.selected = 2
                         AirRate.list = SX128x_RATES.list
                         AirRate.values = SX128x_RATES.values
                         AirRate.max_allowed = #SX128x_RATES.values
                     elseif rfmode == 5 then
-                        -- ISM 2400 band (SX128x) with 800Hz
-                        AirRate.list = SX128x_RATES_HIGH.list
-                        AirRate.values = SX128x_RATES_HIGH.values
-                        AirRate.max_allowed = #SX128x_RATES_HIGH.values
-                    else
+                        -- ISM 2400 band (SX128x), FLRC
+                        RFunit.selected = 3
+                        AirRate.list = SX128x_RATES_FLRC.list
+                        AirRate.values = SX128x_RATES_FLRC.values
+                        AirRate.max_allowed = #SX128x_RATES_FLRC.values
+                    elseif rfmode < 3 then
                         -- 433/868/915 (SX127x)
                         RFunit.selected = 1
                         AirRate.list = SX127x_RATES.list

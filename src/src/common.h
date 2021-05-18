@@ -33,12 +33,14 @@ enum {
     RADIO_RF_MODE_433_AU_EU,
     RADIO_RF_MODE_2400_ISM,
     RADIO_RF_MODE_2400_ISM_500Hz,
+    RADIO_RF_MODE_2400_ISM_FLRC,
     RADIO_RF_MODE_INVALID = 0xFF
 };
 
 enum {
     RADIO_TYPE_127x,
     RADIO_TYPE_128x,
+    RADIO_TYPE_128x_FLRC,
     RADIO_TYPE_MAX
 };
 
@@ -48,6 +50,12 @@ RadioInterface* common_config_radio(uint8_t type);
 extern RadioInterface DRAM_FORCE_ATTR *Radio;
 
 // *******************************************************************'
+enum
+{
+    RADIO_LORA = 0,
+    RADIO_FLRC,
+};
+
 enum
 {
     TLM_RATIO_NO_TLM = 0,
@@ -95,7 +103,7 @@ typedef enum
 
 typedef struct expresslrs_mod_settings_s
 {
-    uint32_t bw, sf, cr;
+    uint8_t type, bw, sf, cr;
     uint32_t interval;       // interval in us seconds that corresponds to that frequnecy
     uint16_t rate;           // rate in hz
     uint8_t TLMinterval;     // every X packets is a response TLM packet, should be a power of 2
@@ -113,6 +121,7 @@ extern uint8_t current_rate_config;
 const expresslrs_mod_settings_t *get_elrs_airRateConfig(uint8_t rate);
 uint8_t get_elrs_airRateIndex(void * current);
 uint8_t get_elrs_airRateMax(void);
+uint8_t get_elrs_current_radio_type(void);
 static inline uint8_t get_elrs_airRateOsd(void) {
     return ExpressLRS_currAirRate->rate_osd_num;
 }

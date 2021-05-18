@@ -163,9 +163,14 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
     _uid_crc = CalcCRC32(bytearray(_uid))
 
     DOMAIN = DOMAIN.replace("-D", "")
-    ISM_band = "_ISM_2400" in DOMAIN
+    ISM_band = 0
+    if "_ISM_2400" in DOMAIN:
+        ISM_band = 1
+        if "_FLRC" in DOMAIN:
+            ISM_band = 2
 
-    outfile_name = ['fhss_freqs_127x.h', 'fhss_freqs_128x.h'][ISM_band]
+
+    outfile_name = ['fhss_freqs_127x.h', 'fhss_freqs_128x.h', 'fhss_freqs_128x_flrc.h'][ISM_band]
 
     FREQ_OFFSET_UID = sum(_uid[3:])
 
@@ -260,7 +265,7 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
             _f.write(header)
             _f.write(FHSS_FREQS_HEAD)
 
-            namespace = ["SX127x", "SX128x"][ISM_band]
+            namespace = ["SX127x", "SX128x", "SX128x_FLRC"][ISM_band]
             _f.write("namespace %s {\n\n" % namespace)
 
             _f.write("constexpr uint32_t FREQ_OFFSET_UID = %u;\n" % FREQ_OFFSET_UID)

@@ -8,8 +8,7 @@ __pycache__
 *.pyc
 user_defines.txt
 src/fhss_freqs.h
-src/fhss_freqs_127x.h
-src/fhss_freqs_128x.h
+src/fhss_freqs_*.h
 firmware.map
 user_defines_private.txt
 .vscode

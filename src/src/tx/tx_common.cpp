@@ -105,7 +105,8 @@ void tx_common_init(void)
     if (!SetRadioType(pl_config.rf_mode)) {
 #if RADIO_SX127x && RADIO_SX128x
         /* Roll back to other module if first failed */
-        pl_config.rf_mode = (pl_config.rf_mode + 1) % RADIO_TYPE_MAX;
+        pl_config.rf_mode =
+            (pl_config.rf_mode == RADIO_TYPE_127x) ? RADIO_TYPE_128x : RADIO_TYPE_127x;
         if (!SetRadioType(pl_config.rf_mode))
 #endif
             /* Infinite loop in case of failure */
@@ -493,11 +494,17 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
 #elif defined(Regulatory_Domain_AU_433) || defined(Regulatory_Domain_EU_433)
         buff[4] = RADIO_RF_MODE_433_AU_EU;
 #endif
-    } else if (RADIO_SX128x && pl_config.rf_mode == RADIO_TYPE_128x) {
-        buff[4] = RADIO_RF_MODE_2400_ISM_500Hz;
+    } else if (RADIO_SX128x) {
+        if (pl_config.rf_mode == RADIO_TYPE_128x)
+            buff[4] = RADIO_RF_MODE_2400_ISM_500Hz;
+        else if (pl_config.rf_mode == RADIO_TYPE_128x_FLRC)
+            buff[4] = RADIO_RF_MODE_2400_ISM_FLRC;
     }
 #if DOMAIN_BOTH
     buff[4] |= 0x80;
+#endif
+#if TARGET_HANDSET
+    buff[4] |= 0x40;
 #endif
 
     buff += 5;

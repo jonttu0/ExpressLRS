@@ -10,6 +10,9 @@
 #endif
 #if RADIO_SX128x
 #include "fhss_freqs_128x.h"
+#if RADIO_SX128x_FLRC
+#include "fhss_freqs_128x_flrc.h"
+#endif
 #endif
 
 static uint32_t DRAM_FORCE_ATTR FHSSstep;
@@ -38,6 +41,15 @@ void FHSS_init(uint8_t mode)
         FHSSfreqs = SX128x::FHSSfreqs;
         FHSSstep = SX128x::FHSS_MY_STEP;
     }
+
+#if RADIO_SX128x_FLRC
+    if (mode == RADIO_TYPE_128x_FLRC) {
+        FHSSsequence = SX128x_FLRC::FHSSsequence;
+        FHSSsequenceLen = sizeof(SX128x_FLRC::FHSSsequence);
+        FHSSfreqs = SX128x_FLRC::FHSSfreqs;
+        FHSSstep = SX128x_FLRC::FHSS_MY_STEP;
+    }
+#endif
 #endif
     //FHSSrandomiseFHSSsequence();
     DEBUG_PRINTF("FHSS len %hu, step %hu\n",
