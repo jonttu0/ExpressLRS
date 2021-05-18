@@ -412,8 +412,9 @@ void FAST_CODE_1 SX127xDriver::SetMode(uint8_t mode)
 
 void SX127xDriver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
                           uint32_t freq, uint16_t PreambleLength,
-                          uint8_t crc)
+                          uint8_t crc, uint8_t flrc)
 {
+    (void)flrc;
     uint8_t newBandwidth, newSpreadingFactor, newCodingRate;
 
     if (freq == 0)

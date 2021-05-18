@@ -45,9 +45,15 @@ public:
     virtual void End(void) = 0;
     virtual void Config(uint32_t bw, uint32_t sf, uint32_t cr,
                         uint32_t freq, uint16_t PreambleLength,
-                        uint8_t crc = 0) = 0;
-    void SetSyncWord(uint8_t syncWord) {
+                        uint8_t crc = 0, uint8_t flrc = 0) = 0;
+    void SetSyncWord(uint8_t const syncWord) {
         _syncWord = syncWord;
+    };
+    void SetSyncWordLong(uint32_t const syncWord) {
+        _syncWordLong = syncWord;
+    };
+    void SetCaesarCipher(uint16_t const cipher) {
+        _cipher = cipher;
     };
     virtual void SetOutputPower(int8_t power, uint8_t init=0) = 0;
     virtual void setPPMoffsetReg(int32_t error_hz, uint32_t frf = 0) = 0;
@@ -97,6 +103,8 @@ protected:
 
     uint8_t module_type = MODULE_COUNT;
     uint8_t _syncWord;
+    uint32_t _syncWordLong;
+    uint16_t _cipher;
 
 private:
     volatile enum isr_states p_state_isr;

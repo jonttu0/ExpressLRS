@@ -52,7 +52,7 @@ public:
     void End(void);
     void Config(uint32_t bw, uint32_t sf, uint32_t cr,
                 uint32_t freq, uint16_t PreambleLength,
-                uint8_t crc = 0);
+                uint8_t crc = 0, uint8_t flrc = 0);
 
     void SetOutputPower(int8_t Power, uint8_t init=0);
     void SetFrequency(uint32_t freq, uint8_t mode);

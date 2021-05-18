@@ -9,6 +9,11 @@
 #define BUTTON_RESET_INTERVAL_RX  4000 // Hold button for 4 sec to reboot RX
 #define WEB_UPDATE_PRESS_INTERVAL 2000 // hold button for 2 sec to enable webupdate mode
 
+#ifndef RADIO_SX128x_FLRC
+#define RADIO_SX128x_FLRC 0
+#endif
+
+
 typedef enum
 {
     STATE_search_iteration_done = -2, // e.g. RX could start SW upgrade

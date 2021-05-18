@@ -6,6 +6,7 @@
 
 // speed up to 10 MHz, SX1280 can handle up to 18MHz
 #define SX128X_SPI_SPEED (10000000)
+//#define SX128X_SPI_SPEED (4000000)
 
 #define EFE_NO_DOUBLE 1
 
@@ -30,7 +31,7 @@ public:
     void SetMode(SX1280_RadioOperatingModes_t OPmode);
     void Config(uint32_t bw, uint32_t sf, uint32_t cr,
                 uint32_t freq, uint16_t PreambleLength,
-                uint8_t crc = 0);
+                uint8_t crc = 0, uint8_t flrc = 0);
     void SetOutputPower(int8_t power, uint8_t init=0);
     void SetFrequency(uint32_t freq);
     int32_t GetFrequencyError();
@@ -53,12 +54,17 @@ private:
     SX1280_RadioOperatingModes_t currOpmode;
     efe_scaler_t p_efe_scaler;
 
-    void ConfigModParams(uint8_t bw, uint8_t sf, uint8_t cr);
-    void SetPacketParams(uint8_t HeaderType,
-                         uint8_t crc,
-                         uint8_t InvertIQ,
-                         uint8_t PreambleLength,
-                         uint8_t PayloadLength);
+    void ConfigModParamsLoRa(uint8_t bw, uint8_t sf, uint8_t cr);
+    void ConfigModParamsFLRC(uint8_t bw, uint8_t cr, uint8_t bt=SX1280_FLRC_BT_0_5);
+    void SetPacketParamsLoRa(uint8_t HeaderType,
+                             uint8_t crc,
+                             uint8_t InvertIQ,
+                             uint8_t PreambleLength,
+                             uint8_t PayloadLength);
+    void SetPacketParamsFLRC(uint8_t HeaderType,
+                             uint8_t crc,
+                             uint8_t PreambleLength,
+                             uint8_t PayloadLength);
     void SetPacketType(uint8_t type);
     void SetAutoFs(uint8_t enabled);
     void SetHighSensitivityMode(uint8_t enabled);

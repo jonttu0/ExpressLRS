@@ -69,7 +69,9 @@ def parse_flags(path):
             build_flags.append("-DRADIO_SX127x=1")
         if domains_found_ism:
             build_flags.append("-DRADIO_SX128x=1")
-            if "_800kHz" in domains_found_ism[0]:
+            if "_FLRC" in domains_found_ism[0]:
+                build_flags.append("-DRADIO_SX128x_FLRC=1")
+            elif "_800kHz" in domains_found_ism[0]:
                 build_flags.append("-DRADIO_SX128x_BW800=1")
     except IOError:
         return False

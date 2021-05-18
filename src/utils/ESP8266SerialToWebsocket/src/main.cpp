@@ -1170,7 +1170,7 @@ void wifi_config(void)
   wifi_connect_started = millis();
 
 #elif WIFI_MANAGER
-#error "WiFi manager not supported anymore!"
+#warning "WiFi manager not supported anymore!"
   WiFiManager wifiManager;
   wifiManager.setConfigPortalTimeout(WIFI_TIMEOUT);
   if (wifiManager.autoConnect(WIFI_AP_SSID WIFI_AP_SUFFIX)) {

@@ -558,8 +558,10 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
     TxTimer.updateInterval(config->interval);
 
     FHSSsetCurrIndex(0);
+    Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, GetInitialFreq(),
-                  config->PreambleLen, (OTA_PACKET_CRC == 0));
+                  config->PreambleLen, (OTA_PACKET_CRC == 0),
+                  RADIO_SX128x_FLRC);
 
     //TODO: move...
 #if (GPIO_PIN_RCSIGNAL_RX != UNDEF_PIN) || (GPIO_PIN_RCSIGNAL_TX != UNDEF_PIN)

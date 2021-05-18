@@ -33,7 +33,7 @@ SX1280Driver::SX1280Driver(uint8_t payload_len):
     current_freq = 0; //2400000000;
     current_power = -100;
     currOpmode = SX1280_MODE_UNKNOWN_MAX;
-    _syncWord = 0;
+    _syncWord = _syncWordLong = _cipher = 0;
     module_type = MODULE_SX128x;
 }
 
@@ -97,47 +97,38 @@ int16_t SX1280Driver::MeasureNoiseFloor(uint32_t num_meas, uint32_t freq)
 
 void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
                           uint32_t freq, uint16_t PreambleLength,
-                          uint8_t crc)
+                          uint8_t crc, uint8_t flrc)
 {
     uint16_t irqs = (SX1280_IRQ_TX_DONE | SX1280_IRQ_RX_DONE | SX1280_IRQ_RX_TX_TIMEOUT);
-    //SetMode(SX1280_MODE_STDBY_XOSC);
+    uint8_t const mode = flrc ? SX1280_PACKET_TYPE_FLRC : SX1280_PACKET_TYPE_LORA;
     SetMode(SX1280_MODE_STDBY_RC);
     SetRegulatorMode(SX1280_USE_LDO);
-    SetPacketType(SX1280_PACKET_TYPE_LORA);
+    SetPacketType(mode);
     SetFrequency(freq);
-    ConfigModParams(bw, sf, cr);
-    SetPacketParams(SX1280_LORA_PACKET_IMPLICIT,
-                    (crc) ? SX1280_LORA_CRC_ON : SX1280_LORA_CRC_OFF,
-                    ((_syncWord & 0x1) ? SX1280_LORA_IQ_INVERTED : SX1280_LORA_IQ_NORMAL),
-                    PreambleLength, RX_buffer_size);
+    if (mode == SX1280_PACKET_TYPE_FLRC) {
+        DEBUG_PRINTF("SX1280: config FLRC\n");
+        ConfigModParamsFLRC(bw, cr, sf);
+        SetPacketParamsFLRC(SX1280_FLRC_PACKET_FIXED_LENGTH, /*crc=*/1,
+                            PreambleLength, RX_buffer_size);
+        irqs |= SX1280_IRQ_CRC_ERROR;
+    } else {
+        DEBUG_PRINTF("SX1280: config LoRa\n");
+        ConfigModParamsLoRa(bw, sf, cr);
+        SetPacketParamsLoRa(SX1280_LORA_PACKET_IMPLICIT,
+                        (crc) ? SX1280_LORA_CRC_ON : SX1280_LORA_CRC_OFF,
+                        ((_syncWord & 0x1) ? SX1280_LORA_IQ_INVERTED : SX1280_LORA_IQ_NORMAL),
+                        PreambleLength, RX_buffer_size);
+        if (crc)
+            irqs |= SX1280_IRQ_CRC_ERROR;
+    }
     SetAutoFs(1);
     SetHighSensitivityMode(1);
-    if (crc)
-        irqs |= SX1280_IRQ_CRC_ERROR;
     // Config IRQs
     SetDioIrqParams(SX1280_IRQ_RADIO_ALL,
                     irqs,
                     SX1280_IRQ_RADIO_NONE,
                     SX1280_IRQ_RADIO_NONE);
     ClearIrqStatus(SX1280_IRQ_RADIO_ALL);
-}
-
-void SX1280Driver::SetPacketParams(uint8_t HeaderType,
-                                   uint8_t crc,
-                                   uint8_t InvertIQ,
-                                   uint8_t PreambleLength,
-                                   uint8_t PayloadLength)
-{
-    uint8_t buf[8];
-    buf[0] = SX1280_RADIO_SET_PACKETPARAMS;
-    buf[1] = PreambleLength;
-    buf[2] = HeaderType;
-    buf[3] = PayloadLength;
-    buf[4] = crc;
-    buf[5] = InvertIQ;
-    buf[6] = 0x00;
-    buf[7] = 0x00;
-    TransferBuffer(buf, sizeof(buf), 0);
 }
 
 void SX1280Driver::SetPacketType(uint8_t type)
@@ -243,7 +234,7 @@ void FAST_CODE_2 SX1280Driver::SetMode(SX1280_RadioOperatingModes_t OPmode)
     currOpmode = OPmode;
 }
 
-void SX1280Driver::ConfigModParams(uint8_t bw, uint8_t sf, uint8_t cr)
+void SX1280Driver::ConfigModParamsLoRa(uint8_t bw, uint8_t sf, uint8_t cr)
 {
     // Care must therefore be taken to ensure that modulation parameters are set using the command
     // SetModulationParam() only after defining the packet type SetPacketType() to be used
@@ -305,6 +296,77 @@ void SX1280Driver::ConfigModParams(uint8_t bw, uint8_t sf, uint8_t cr)
             break;
     }
 #endif // EFE_NO_DOUBLE
+}
+
+void SX1280Driver::ConfigModParamsFLRC(uint8_t bw, uint8_t cr, uint8_t bt)
+{
+    uint8_t rfparams[] = {SX1280_RADIO_SET_MODULATIONPARAMS, bw, cr, bt};
+    TransferBuffer(rfparams, sizeof(rfparams), 0);
+}
+
+void SX1280Driver::SetPacketParamsLoRa(uint8_t HeaderType,
+                                       uint8_t crc,
+                                       uint8_t InvertIQ,
+                                       uint8_t PreambleLength,
+                                       uint8_t PayloadLength)
+{
+    uint8_t buf[8];
+    buf[0] = SX1280_RADIO_SET_PACKETPARAMS;
+    buf[1] = PreambleLength;
+    buf[2] = HeaderType;
+    buf[3] = PayloadLength;
+    buf[4] = crc;
+    buf[5] = InvertIQ;
+    buf[6] = 0x00;
+    buf[7] = 0x00;
+    TransferBuffer(buf, sizeof(buf), 0);
+}
+
+void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
+                                       uint8_t crc,
+                                       uint8_t PreambleLength,
+                                       uint8_t PayloadLength)
+{
+    if (PreambleLength < 8) PreambleLength = 8;
+        PreambleLength = ((PreambleLength / 4) - 1) << 4;
+    crc = (crc) ? SX1280_FLRC_CRC_2_BYTE : SX1280_FLRC_CRC_OFF;
+
+    uint8_t buf[8];
+    buf[0] = SX1280_RADIO_SET_PACKETPARAMS;
+    buf[1] = PreambleLength;                    // AGCPreambleLength
+    buf[2] = SX1280_FLRC_SYNC_WORD_LEN_P32S;    // SyncWordLength
+    buf[3] = SX1280_FLRC_RX_MATCH_SYNC_WORD_1;  // SyncWordMatch
+    buf[4] = HeaderType;                        // PacketType
+    buf[5] = PayloadLength;                     // PayloadLength
+    buf[6] = (crc << 4);                        // CrcLength
+    buf[7] = 0x08;                              // Must be whitening disabled
+    TransferBuffer(buf, sizeof(buf), 0);
+
+    /*** Write register values ***/
+    buf[0] = SX1280_RADIO_WRITE_REGISTER;
+
+    // CRC seed (use dedicated cipher)
+    buf[1] = 0x9; // MSB address = 0x9c8
+    buf[2] = 0xC8;
+    buf[3] = (uint8_t)(_cipher >> 8);
+    buf[4] = (uint8_t)_cipher;
+    TransferBuffer(buf, 5, 0);
+
+    // CRC POLY 0x3D65
+    buf[1] = 0x9; // MSB address = 0x9c6
+    buf[2] = 0xC6;
+    buf[3] = 0x3D;
+    buf[4] = 0x65;
+    TransferBuffer(buf, 5, 0);
+
+    // Set SyncWord1
+    buf[1] = 0x9; // MSB address = 0x09CF
+    buf[2] = 0xCF;
+    buf[3] = (uint8_t)(_syncWordLong >> 24);
+    buf[4] = (uint8_t)(_syncWordLong >> 16);
+    buf[5] = (uint8_t)(_syncWordLong >> 8);
+    buf[6] = (uint8_t)_syncWordLong;
+    TransferBuffer(buf, 7, 0);
 }
 
 void SX1280Driver::SetOutputPower(int8_t power, uint8_t init)

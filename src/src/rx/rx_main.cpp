@@ -37,7 +37,7 @@ uint32_t print_rate_cnt_fail;
 uint32_t print_Rate_cnt_time;
 #endif
 #if PRINT_TIMING
-static volatile uint32_t DRAM_ATTR print_rx_isr_end_time;
+static uint32_t DRAM_ATTR print_rx_isr_end_time;
 #endif
 
 ///////////////////
@@ -254,7 +254,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     rx_last_valid_us = 0;
 
     /* do adjustment */
-    if (unlikely(last_rx_us != 0))
+    if (last_rx_us != 0)
     {
 #if 1 //!USE_TIMER_KICK
         diff_us = (int32_t)((uint32_t)(us - last_rx_us));
@@ -334,7 +334,7 @@ hw_tmr_isr_exit:
 #if (PRINT_TIMING)
     uint32_t now = micros();
     DEBUG_PRINTF("RX:%u (t:%u) HW:%u diff:%d (t:%u)\n",
-                 last_rx_us, (last_rx_us - print_rx_isr_end_time),
+                 last_rx_us, (print_rx_isr_end_time - last_rx_us),
                  us, diff_us, (uint32_t)(now - us));
 #endif
 
@@ -415,6 +415,7 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
 
     /* Error in reception (CRC etc), kick hw timer */
     if (!rx_buffer) {
+        DEBUG_PRINTF("_");
 #if USE_TIMER_KICK
         TxTimer.triggerSoon(); // Trigger FHSS ISR
 #endif
@@ -426,7 +427,7 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
 #endif
 
     //DEBUG_PRINTF("I");
-    uint32_t freq_err;
+    int32_t freq_err;
     const connectionState_e _conn_state = connectionState;
     const uint16_t crc = CalcCRC16(rx_buffer, OTA_PACKET_PAYLOAD, CRCCaesarCipher);
     const uint16_t crc_in = ((uint16_t)rx_buffer[OTA_PACKET_PAYLOAD] << 8) + rx_buffer[OTA_PACKET_PAYLOAD+1];
@@ -440,11 +441,12 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
 #if USE_TIMER_KICK
         TxTimer.triggerSoon(); // Trigger FHSS ISR
 #endif
-        DEBUG_PRINTF(" !");
+        DEBUG_PRINTF("!");
         return;
     }
 
     freq_err = Radio->GetFrequencyError();
+    //DEBUG_PRINTF("E%d ", freq_err);
 
     rx_last_valid_us = current_us;
     LastValidPacket = millis();
@@ -544,6 +546,7 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
 
         case UL_PACKET_UNKNOWN:
         default:
+            //DEBUG_PRINTF(" _");
             /* Not a valid packet, ignore it */
             rx_last_valid_us = 0;
             freq_err = 0;
@@ -601,8 +604,10 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
 
     handle_tlm_ratio(TLM_RATIO_NO_TLM);
 
+    Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, GetInitialFreq(),
-                  config->PreambleLen, (OTA_PACKET_CRC == 0));
+                  config->PreambleLen, (OTA_PACKET_CRC == 0),
+                  RADIO_SX128x_FLRC);
 
     // Measure RF noise
 #if 0 && defined(DEBUG_SERIAL) // TODO: Enable this when noize floor is used!

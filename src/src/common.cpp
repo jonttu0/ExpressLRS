@@ -26,7 +26,16 @@ static expresslrs_mod_settings_t * current_settings;
 #if RADIO_SX128x
 static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x[] = {
     // NOTE! Preamble len is calculate MANT*2^EXP when MANT is bits [3:0] and EXP is bits [7:4]
-#if RADIO_SX128x_BW800
+#if RADIO_SX128x_FLRC
+    /* 500Hz */
+    {SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 500, TLM_RATIO_1_128, FHSS_1, OSD_MODE_500Hz, 32, 1000, 750, 250000u}, // 0.78ms
+    /* 250Hz */
+    {SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 4000, 250, TLM_RATIO_1_64,  FHSS_1, OSD_MODE_250Hz, 32, 1000, 750, 250000u}, // 0.78ms
+    /* 125Hz */
+    {SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 8000, 125, TLM_RATIO_1_32,  FHSS_1, OSD_MODE_125Hz, 32, 1000, 1200, 500000u}, // 0.78ms
+    /* 50Hz */
+    {SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 20000, 50, TLM_RATIO_1_16,  FHSS_1, OSD_MODE_50Hz,  32, 1000, 1500, 750000u}, // 0.78ms
+#elif RADIO_SX128x_BW800
     /* 500Hz */
     //{SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_5, 2000, 500, TLM_RATIO_1_128, FHSS_1, OSD_MODE_500Hz, 0b01100 /*12*/, 1000, 750, 250000u}, // 1.35ms
     {SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6, 2000, 500, TLM_RATIO_1_128, FHSS_1, OSD_MODE_500Hz, 0b01100 /*12*/, 1000, 750, 250000u}, // 1.51ms
@@ -125,6 +134,11 @@ uint8_t getSyncWord(void)
     return CalcCRC8len(UID, sizeof(UID));
 }
 
+uint32_t getSyncWord32(void)
+{
+    uint8_t UID[6] = {MY_UID};
+    return CalcCRC32(UID, sizeof(UID));
+}
 
 typedef struct {
     int rst, dio0, dio1, dio2;
@@ -204,6 +218,7 @@ RadioInterface* common_config_radio(uint8_t type)
                            config->busy, config->txen, config->rxen, config->nss,
                            config->pactrl);
             radio->SetSyncWord(getSyncWord());
+            radio->SetSyncWordLong(getSyncWord32());
             //radio->End();
         }
     }

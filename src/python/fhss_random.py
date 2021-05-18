@@ -229,6 +229,11 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
         FHSSfreqs = [f for f in range(2400400000, 2480000000, 850000)]
         SYNC_INTERVAL = 65
 
+    elif DOMAIN == "Regulatory_Domain_ISM_2400_FLRC":
+        # These are for 300kHz band
+        FHSSfreqs = [f for f in range(2400400000, 2480000000, 330000)]
+        SYNC_INTERVAL = 65
+
     else:
         raise Exception("[error] No regulatory domain defined, please define one in common.h")
         return
