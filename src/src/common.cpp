@@ -27,7 +27,7 @@ static expresslrs_mod_settings_t * current_settings;
 #if RADIO_SX128x_FLRC
 static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x_FLRC[] = {
     /* 500Hz */
-    {RADIO_FLRC, SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 500, TLM_RATIO_1_128, FHSS_1, OSD_MODE_500Hz, 32, 1000, 750, 250000u}, // 0.78ms
+    {RADIO_FLRC, SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 500, TLM_RATIO_1_128, FHSS_2, OSD_MODE_500Hz, 32, 1000, 750, 250000u}, // 0.78ms
 };
 #endif
 
@@ -219,8 +219,9 @@ uint8_t common_config_get_radio_type(uint8_t mode)
             return RADIO_TYPE_127x;
         case RADIO_RF_MODE_2400_ISM:
         case RADIO_RF_MODE_2400_ISM_500Hz:
-        case RADIO_RF_MODE_2400_ISM_FLRC:
             return RADIO_TYPE_128x;
+        case RADIO_RF_MODE_2400_ISM_FLRC:
+            return RADIO_TYPE_128x_FLRC;
     };
     return RADIO_TYPE_MAX;
 }

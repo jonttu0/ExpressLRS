@@ -30,7 +30,7 @@
 #define DEBUG_SERIAL CrsfSerial
 #warning "CRSF serial debug enabled! No real connection to FC!"
 #else
-#define DEBUG_SERIAL CrsfSerial
+//#define DEBUG_SERIAL CrsfSerial
 #endif
 
 #endif // ifndef DEBUG_SERIAL

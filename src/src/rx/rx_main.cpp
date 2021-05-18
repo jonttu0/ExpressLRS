@@ -607,7 +607,7 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, GetInitialFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
-                  config->type);
+                  config->pkt_type);
 
     // Measure RF noise
 #if 0 && defined(DEBUG_SERIAL) // TODO: Enable this when noize floor is used!
@@ -798,8 +798,8 @@ void loop()
             (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RFmodeNextCycle))) {
             uint8_t max_rate = get_elrs_airRateMax();
 #if RADIO_SX128x_FLRC
-            if (get_elrs_current_radio_type() == RADIO_TYPE_128x_FLRC && max_rate <= scanIndex) {
-                radio_prepare(RADIO_TYPE_128x);
+            if (max_rate <= scanIndex) {
+                radio_prepare((get_elrs_current_radio_type() == RADIO_TYPE_128x_FLRC) ? RADIO_TYPE_128x : RADIO_TYPE_128x_FLRC);
                 scanIndex = 0;
             }
 #endif

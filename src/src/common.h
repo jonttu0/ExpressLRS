@@ -103,7 +103,7 @@ typedef enum
 
 typedef struct expresslrs_mod_settings_s
 {
-    uint8_t type, bw, sf, cr;
+    uint8_t pkt_type, bw, sf, cr;
     uint32_t interval;       // interval in us seconds that corresponds to that frequnecy
     uint16_t rate;           // rate in hz
     uint8_t TLMinterval;     // every X packets is a response TLM packet, should be a power of 2

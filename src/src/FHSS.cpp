@@ -52,8 +52,7 @@ void FHSS_init(uint8_t mode)
 #endif
 #endif
     //FHSSrandomiseFHSSsequence();
-    DEBUG_PRINTF("FHSS len %hu, step %hu\n",
-        FHSSsequenceLen, FHSSstep);
+    //DEBUG_PRINTF("FHSS len %u, step %u\n", FHSSsequenceLen, FHSSstep);
 }
 
 void FAST_CODE_1 FHSSfreqCorrectionReset(void)
