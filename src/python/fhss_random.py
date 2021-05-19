@@ -4,6 +4,7 @@ import os
 DEBUG = 0
 
 CALC_MY_STEP = 1
+SCRIPT_VERSION = "1.0_flrs"
 
 FHSS_FREQS_HEAD = '''
 #pragma once
@@ -251,8 +252,8 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
 
     rngSeed(_uid_crc)
 
-    header = "// MY_UID=%s; DOMAIN=%s; RAND=%u.%u; SYNC_INTERVAL=%s; CALC_MY_STEP=%u\n" % (
-        MY_UID, DOMAIN, rand_version, use_local_rand, SYNC_INTERVAL, CALC_MY_STEP)
+    header = "//VERSION=%s; MY_UID=%s; DOMAIN=%s; RAND=%u.%u; SYNC_INTERVAL=%s; CALC_MY_STEP=%u;\n" % (
+        SCRIPT_VERSION, MY_UID, DOMAIN, rand_version, use_local_rand, SYNC_INTERVAL, CALC_MY_STEP)
     write_out = False
     try:
         with open(os.path.join('src', outfile_name), "r") as _f:
