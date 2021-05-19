@@ -253,6 +253,10 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     uint_fast8_t nonce = NonceRXlocal;
     rx_last_valid_us = 0;
 
+#if PRINT_TIMING
+    uint32_t freq_now = FHSSgetCurrFreq();
+#endif
+
     /* do adjustment */
     if (last_rx_us != 0)
     {
@@ -333,9 +337,9 @@ hw_tmr_isr_exit:
 
 #if (PRINT_TIMING)
     uint32_t now = micros();
-    DEBUG_PRINTF("RX:%u (t:%u) HW:%u diff:%d (t:%u)\n",
+    DEBUG_PRINTF("RX:%u (t:%u) HW:%u diff:%d (t:%u) [f %u]\n",
                  last_rx_us, (print_rx_isr_end_time - last_rx_us),
-                 us, diff_us, (uint32_t)(now - us));
+                 us, diff_us, (uint32_t)(now - us), freq_now);
 #endif
 
     rx_hw_isr_running = 0;
