@@ -1094,8 +1094,6 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
 #if WIFI_DBG
   wifi_log += "Wifi_STA_diconnect();\n";
 #endif
-  wifi_sta_connected = WIFI_STATE_NA;
-  mdns.end();
 }
 
 void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
