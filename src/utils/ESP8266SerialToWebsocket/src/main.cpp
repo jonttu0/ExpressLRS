@@ -1149,9 +1149,9 @@ void wifi_config(void)
   WiFi.mode(WIFI_OFF);
   WiFi.forceSleepBegin();
   delay(10);
-  WiFi.setAutoConnect(false);
+  WiFi.setAutoConnect(true);
   WiFi.setAutoReconnect(true);
-  WiFi.persistent(false);
+  WiFi.persistent(true);
   WiFi.disconnect(true);
 
   /* STA mode callbacks */
@@ -1192,7 +1192,7 @@ void wifi_check(void)
     IPAddress subnet(255, 255, 255, 0);
 
     // WiFi not connected, Start access point
-    WiFi.setAutoReconnect(false);
+    WiFi.setAutoReconnect(true);
     WiFi.disconnect(true);
     WiFi.forceSleepWake();
     WiFi.mode(WIFI_AP);
@@ -1204,7 +1204,7 @@ void wifi_check(void)
     wifi_log += "WifiAP started\n";
 #endif
     led_set(LED_WIFI_AP);
-    beep(800, 20);
+    beep(400, 20);
   } else if (500 <= (now - wifi_last_check)) {
     wifi_last_check = now;
     /* Blink led */
@@ -1242,7 +1242,7 @@ void wifi_config_server(void)
 
 void setup()
 {
-  ESP.eraseConfig();
+  //ESP.eraseConfig();
 
   msp_handler.markPacketFree();
 
