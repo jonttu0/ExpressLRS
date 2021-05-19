@@ -22,6 +22,8 @@
 
 #-DRegulatory_Domain_ISM_2400
 #-DRegulatory_Domain_ISM_2400_800kHz
+# Enable this for FLRC support together with regular SX1280 LoRa support (above)
+#-DRegulatory_Domain_ISM_2400_FLRC
 
 ################################
 ### CRSFshot sync
