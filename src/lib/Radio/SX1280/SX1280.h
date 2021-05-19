@@ -21,7 +21,6 @@ class SX1280Driver: public RadioInterface
 {
 public:
     /////////////Packet Stats//////////
-    //uint8_t LastRadioStatus = 0;
 
     ////////////////Configuration Functions/////////////
     SX1280Driver(uint8_t payload_len = RX_BUFFER_LEN);
@@ -53,6 +52,8 @@ public:
 private:
     SX1280_RadioOperatingModes_t currOpmode;
     efe_scaler_t p_efe_scaler;
+    uint8_t packet_mode;
+    uint8_t LastRadioStatus;
 
     void ConfigModParamsLoRa(uint8_t bw, uint8_t sf, uint8_t cr);
     void ConfigModParamsFLRC(uint8_t bw, uint8_t cr, uint8_t bt=SX1280_FLRC_BT_0_5);
@@ -73,7 +74,7 @@ private:
     void SetFIFOaddr(uint8_t txBaseAddr, uint8_t rxBaseAddr);
     void SetDioIrqParams(uint16_t irqMask, uint16_t dio1Mask, uint16_t dio2Mask, uint16_t dio3Mask);
     int32_t GetRxBufferAddr(void);
-    void GetLastRssiSnr(void);
+    uint8_t GetLastPacketStatus(void);
 
     ///////// SPI Interface
     void WriteBuffer(uint8_t offset, uint8_t *buffer, uint8_t size) const;

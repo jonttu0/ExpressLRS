@@ -131,16 +131,17 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
     ClearIrqStatus(SX1280_IRQ_RADIO_ALL);
 }
 
-void SX1280Driver::SetPacketType(uint8_t type)
+void SX1280Driver::SetPacketType(uint8_t const type)
 {
     uint8_t cmd[] = {
         SX1280_RADIO_SET_PACKETTYPE,
         type
     };
     TransferBuffer(cmd, sizeof(cmd), 0);
+    packet_mode = type;
 }
 
-void SX1280Driver::SetAutoFs(uint8_t enabled)
+void SX1280Driver::SetAutoFs(uint8_t const enabled)
 {
     uint8_t cmd[] = {
         SX1280_RADIO_SET_AUTOFS,
@@ -460,11 +461,16 @@ void FAST_CODE_2 SX1280Driver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
 
 void FAST_CODE_1 SX1280Driver::TXnbISR(uint16_t irqs)
 {
+    uint8_t const status = LastRadioStatus;
+
+    //currOpmode = SX1280_MODE_FS;
+    currOpmode = (SX1280_RadioOperatingModes_t)(
+        (status & SX1280_STATUS_MODE_MASK) >> SX1280_STATUS_MODE_SHIFT);
+
     // Ignore if not a TX DONE ISR
     if (!(irqs & SX1280_IRQ_TX_DONE))
         return;
 
-    currOpmode = SX1280_MODE_FS;
     TXdoneCallback1();
 }
 
@@ -486,14 +492,26 @@ static uint8_t DMA_ATTR RXdataBuffer[16];
 void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
 {
     int32_t FIFOaddr;
-    // Ignore if not a RX DONE ISR, CRC fail or timeout
-    if (!(irqs & SX1280_IRQ_RX_DONE) ||
-            (irqs & (SX1280_IRQ_CRC_ERROR | SX1280_IRQ_RX_TX_TIMEOUT))) {
+    uint8_t status = LastRadioStatus;
+
+    //currOpmode = SX1280_MODE_FS;
+    currOpmode = (SX1280_RadioOperatingModes_t)(
+        (status & SX1280_STATUS_MODE_MASK) >> SX1280_STATUS_MODE_SHIFT);
+
+    // Check current status for data ready
+    if ((status & SX1280_STATUS_CMD_STATUS_MASK) != SX1280_STATUS_CMD_STATUS_DATA_AVAILABLE) {
         RXdoneCallback1(NULL, rx_us); // Error!
         return;
     }
-    currOpmode = SX1280_MODE_FS;
-    GetLastRssiSnr();
+    status = GetLastPacketStatus();
+
+    // Ignore if not a RX DONE ISR, CRC fail or timeout
+    if (!(irqs & SX1280_IRQ_RX_DONE) ||
+            (irqs & (SX1280_IRQ_CRC_ERROR | SX1280_IRQ_RX_TX_TIMEOUT)) ||
+            (status & ~(SX1280_FLRC_PKT_ERROR_PKT_RCVD | SX1280_FLRC_PKT_ERROR_HDR_RCVD))) {
+        RXdoneCallback1(NULL, rx_us); // Error!
+        return;
+    }
     FIFOaddr = GetRxBufferAddr();
     if (FIFOaddr < 0) // RX len is not correct!
         return;
@@ -544,7 +562,7 @@ uint16_t FAST_CODE_2 SX1280Driver::GetIRQFlags()
     uint16_t irqs;
     uint8_t buff[] = {SX1280_RADIO_GET_IRQSTATUS, 0, 0, 0};
     TransferBuffer(buff, sizeof(buff), 1);
-    //LastRadioStatus = buff[1];
+    LastRadioStatus = buff[1];
     irqs = buff[2];
     irqs <<= 8;
     irqs += buff[3];
@@ -583,15 +601,24 @@ int32_t FAST_CODE_1 SX1280Driver::GetRxBufferAddr(void)
     return status[3];
 }
 
-void FAST_CODE_1 SX1280Driver::GetLastRssiSnr(void)
+uint8_t FAST_CODE_1 SX1280Driver::GetLastPacketStatus(void)
 {
-    // RSSI value latched upon the detection of the sync address
-    // SNR on last packet received (estimation)
-    uint8_t buff[] = {SX1280_RADIO_GET_PACKETSTATUS, 0, 0, 0};
-    TransferBuffer(buff, sizeof(buff), 1);
-    //LastRadioStatus = buff[1];
-    LastPacketRSSI = -(int8_t)(buff[2] / 2);
-    LastPacketSNR = (int8_t)buff[3] / 4;
+    if (packet_mode == SX1280_PACKET_TYPE_FLRC) {
+        uint8_t buff[] = {SX1280_RADIO_GET_PACKETSTATUS, 0, 0, 0, 0, 0, 0};
+        TransferBuffer(buff, sizeof(buff), 1);
+        LastPacketRSSI = -(int8_t)(buff[3] / 2);
+        LastPacketSNR = 0;
+        return buff[4];
+    } else {
+        uint8_t buff[] = {SX1280_RADIO_GET_PACKETSTATUS, 0, 0, 0};
+        TransferBuffer(buff, sizeof(buff), 1);
+        // RSSI value latched upon the detection of the sync address
+        // SNR on last packet received (estimation)
+        //LastRadioStatus = buff[1];
+        LastPacketRSSI = -(int8_t)(buff[2] / 2);
+        LastPacketSNR = (int8_t)buff[3] / 4;
+        return 0;
+    }
 }
 
 ///////// SPI Interface
