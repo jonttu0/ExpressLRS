@@ -245,6 +245,9 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
 
     num_of_fhss = len(FHSSfreqs)
     print("Number of FHSS frequencies = %u" % num_of_fhss)
+    freq_base = FHSSfreqs[0]
+    bandwidth = FHSSfreqs[1] - FHSSfreqs[0]
+    print("Freq base: %u, BW: %u" % (freq_base, bandwidth))
 
     rngSeed(_uid_crc)
 
@@ -269,6 +272,9 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
             _f.write("namespace %s {\n\n" % namespace)
 
             _f.write("constexpr uint32_t FREQ_OFFSET_UID = %u;\n" % FREQ_OFFSET_UID)
+            _f.write("constexpr uint32_t FREQ_BASE = %u;\n" % (freq_base + FREQ_OFFSET_UID))
+            _f.write("constexpr uint32_t FREQ_BANDWIDTH = %u;\n" % bandwidth)
+            _f.write("constexpr uint32_t FREQ_BAND_COUNT = %u;\n" % num_of_fhss)
             _f.write("constexpr uint32_t NR_SEQUENCE_ENTRIES = %u;\n" % NR_SEQUENCE_ENTRIES)
             _f.write("constexpr uint32_t UID_CRC32 = 0x%08X;\n" % _uid_crc)
 
@@ -277,12 +283,6 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
                 my_step = _uid_crc % 8
             my_step |= 1
             _f.write("constexpr uint32_t FHSS_MY_STEP = %u;\n\n" % (my_step))
-
-            _f.write("/* Note: UID offset included */\n")
-            _f.write('static uint32_t DRAM_FORCE_ATTR FHSSfreqs[%u] = {\n' % num_of_fhss)
-            freqs = ["    %u" % (freq + FREQ_OFFSET_UID) for freq in FHSSfreqs]
-            _f.write(",\n".join(freqs))
-            _f.write("\n};\n\n")
 
             _f.write('static uint8_t DRAM_FORCE_ATTR FHSSsequence[NR_SEQUENCE_ENTRIES] = {\n')
             if rand_version == 1:
@@ -294,7 +294,16 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
             hops = print_fhss(FHSSsequence, num_of_fhss)
             for line in hops:
                 _f.write("    %s,\n" % line)
-            _f.write("};\n")
+            _f.write("};\n\n")
+
+            _f.write("/* Note: UID offset included */\n")
+            _f.write("/*\n")
+            _f.write('static uint32_t DRAM_FORCE_ATTR FHSSfreqs[%u] = {\n' % num_of_fhss)
+            freqs = ["    %u" % (freq + FREQ_OFFSET_UID) for freq in FHSSfreqs]
+            _f.write(",\n".join(freqs))
+            _f.write("\n};\n")
+            _f.write("//*/\n\n")
+
             _f.write('/*\n Usage per freq:\n')
             for iter in range(num_of_fhss):
                 _f.write("    index %2d: %3u\n" % (iter, FHSSsequence.count(iter)))

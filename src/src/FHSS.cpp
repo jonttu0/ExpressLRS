@@ -17,11 +17,14 @@
 
 static uint32_t DRAM_FORCE_ATTR FHSSstep;
 static uint32_t DRAM_FORCE_ATTR FHSSsequenceLen;
+//static uint32_t DRAM_FORCE_ATTR FHSS_freq_offset;
+static uint32_t DRAM_FORCE_ATTR FHSS_freq_base;
+static uint32_t DRAM_FORCE_ATTR FHSS_bandwidth;
+static uint32_t DRAM_FORCE_ATTR FHSS_band_count;
 static uint8_t * DRAM_FORCE_ATTR FHSSsequence;
-static uint32_t * DRAM_FORCE_ATTR FHSSfreqs;
 
 
-volatile uint32_t DRAM_ATTR FHSSptr;
+volatile uint32_t DRAM_ATTR FHSSindex;
 volatile int_fast32_t DRAM_ATTR FreqCorrection;
 
 void FHSS_init(uint8_t mode)
@@ -30,24 +33,33 @@ void FHSS_init(uint8_t mode)
     if (mode == RADIO_TYPE_127x) {
         FHSSsequence = SX127x::FHSSsequence;
         FHSSsequenceLen = sizeof(SX127x::FHSSsequence);
-        FHSSfreqs = SX127x::FHSSfreqs;
         FHSSstep = SX127x::FHSS_MY_STEP;
+        //FHSS_freq_offset = SX127x::FREQ_OFFSET_UID;
+        FHSS_freq_base = SX127x::FREQ_BASE;
+        FHSS_bandwidth = SX127x::FREQ_BANDWIDTH;
+        FHSS_band_count = SX127x::FREQ_BAND_COUNT;
     }
 #endif
 #if RADIO_SX128x
     if (mode == RADIO_TYPE_128x) {
         FHSSsequence = SX128x::FHSSsequence;
         FHSSsequenceLen = sizeof(SX128x::FHSSsequence);
-        FHSSfreqs = SX128x::FHSSfreqs;
         FHSSstep = SX128x::FHSS_MY_STEP;
+        //FHSS_freq_offset = SX128x::FREQ_OFFSET_UID;
+        FHSS_freq_base = SX128x::FREQ_BASE;
+        FHSS_bandwidth = SX128x::FREQ_BANDWIDTH;
+        FHSS_band_count = SX128x::FREQ_BAND_COUNT;
     }
 
 #if RADIO_SX128x_FLRC
     if (mode == RADIO_TYPE_128x_FLRC) {
         FHSSsequence = SX128x_FLRC::FHSSsequence;
         FHSSsequenceLen = sizeof(SX128x_FLRC::FHSSsequence);
-        FHSSfreqs = SX128x_FLRC::FHSSfreqs;
         FHSSstep = SX128x_FLRC::FHSS_MY_STEP;
+        //FHSS_freq_offset = SX128x_FLRC::FREQ_OFFSET_UID;
+        FHSS_freq_base = SX128x_FLRC::FREQ_BASE;
+        FHSS_bandwidth = SX128x_FLRC::FREQ_BANDWIDTH;
+        FHSS_band_count = SX128x_FLRC::FREQ_BAND_COUNT;
     }
 #endif
 #endif
@@ -67,34 +79,37 @@ void FAST_CODE_1 FHSSfreqCorrectionSet(int32_t error)
 
 void FAST_CODE_1 FHSSsetCurrIndex(uint32_t value)
 { // set the current index of the FHSS pointer
-    FHSSptr = value % FHSSsequenceLen;
+    FHSSindex = value % FHSSsequenceLen;
 }
 
 uint32_t FAST_CODE_1 FHSSgetCurrIndex()
 { // get the current index of the FHSS pointer
-    return FHSSptr;
+    return FHSSindex;
 }
 
 void FAST_CODE_1 FHSSincCurrIndex()
 {
 #if !STAY_ON_INIT_CHANNEL
-    FHSSptr = (FHSSptr + FHSSstep) % FHSSsequenceLen;
+    FHSSindex = (FHSSindex + FHSSstep) % FHSSsequenceLen;
 #endif
 }
 
 uint8_t FAST_CODE_1 FHSSgetCurrSequenceIndex()
 {
-    return FHSSsequence[FHSSptr];
+    return FHSSsequence[FHSSindex];
 }
 
 uint32_t FAST_CODE_1 GetInitialFreq()
 {
-    return FHSSfreqs[0] - FreqCorrection;
+
+    return FHSS_freq_base - FreqCorrection;
 }
 
 uint32_t FAST_CODE_1 FHSSgetCurrFreq()
 {
-    return FHSSfreqs[FHSSsequence[FHSSptr]] - FreqCorrection;
+    uint32_t freq = FHSS_freq_base;
+    freq += (FHSS_bandwidth * FHSSsequence[FHSSindex]);
+    return (freq - FreqCorrection);
 }
 
 uint32_t FAST_CODE_1 FHSSgetNextFreq()
@@ -139,7 +154,7 @@ Approach:
 */
 void FHSSrandomiseFHSSsequence(uint8_t mode)
 {
-    const uint32_t nbr_fhss_seq = (sizeof(FHSSfreqs) / sizeof(FHSSfreqs[0]));
+    const uint32_t nbr_fhss_seq = FHSS_band_count;
 
     if (RADIO_SX127x && mode == RADIO_TYPE_127x) {
 #if defined(Regulatory_Domain_AU_915) || defined(Regulatory_Domain_FCC_915)
