@@ -257,18 +257,6 @@ local function processResp()
             return
         else
             if (command == 0x2D) and (data[1] == 0xEA) and (data[2] == 0xEE) then
-                if data[3] < #AirRate.list then
-                    AirRate.selected = data[3] + 1
-                end
-                if data[4] < #TLMinterval.list then
-                    TLMinterval.selected = data[4] + 1
-                end
-                if data[5] < #MaxPower.list then
-                    MaxPower.selected = data[5] + 1
-                end
-                if data[6] < #MaxPower.list then
-                    MaxPower.max_allowed = data[6] + 1 -- limit power list
-                end
                 if data[7] ~= 0xff then
                     local rfmode = data[7]
                     RFunit.selected = 99
@@ -301,6 +289,19 @@ local function processResp()
                 else
                     AirRate.max_allowed = 0
                     AirRate.selected = 99
+                end
+
+                if data[3] < #AirRate.list then
+                    AirRate.selected = data[3] + 1
+                end
+                if data[4] < #TLMinterval.list then
+                    TLMinterval.selected = data[4] + 1
+                end
+                if data[5] < #MaxPower.list then
+                    MaxPower.selected = data[5] + 1
+                end
+                if data[6] < #MaxPower.list then
+                    MaxPower.max_allowed = data[6] + 1 -- limit power list
                 end
 
                 gotFirstResp = true -- detect when first contact is made with TX module
