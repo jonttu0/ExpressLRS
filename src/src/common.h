@@ -34,7 +34,12 @@ enum {
     RADIO_RF_MODE_2400_ISM,
     RADIO_RF_MODE_2400_ISM_500Hz,
     RADIO_RF_MODE_2400_ISM_FLRC,
-    RADIO_RF_MODE_INVALID = 0xFF
+    RADIO_RF_MODE_MAX, // 0x1f = 32 values!
+    ExLRS_RF_MODE_FLRC      = 0x80,
+    ExLRS_RF_MODE_HANDSET   = 0x40,
+    ExLRS_RF_MODE_DUAL      = 0x80,
+    ExLRS_RF_MODE_MASK      = 0x3F,
+    RADIO_RF_MODE_INVALID   = 0xFF,
 };
 
 enum {

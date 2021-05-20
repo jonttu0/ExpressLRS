@@ -501,12 +501,14 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
             buff[4] = RADIO_RF_MODE_2400_ISM_FLRC;
     }
 #if DOMAIN_BOTH
-    buff[4] |= 0x80;
+    buff[4] |= ExLRS_RF_MODE_DUAL;
 #endif
 #if TARGET_HANDSET
-    buff[4] |= 0x40;
+    buff[4] |= ExLRS_RF_MODE_HANDSET;
 #endif
-
+#if RADIO_SX128x && RADIO_SX128x_FLRC
+    buff[4] |= ExLRS_RF_MODE_FLRC;
+#endif
     buff += 5;
 
     /* TODO: fill version info etc */
