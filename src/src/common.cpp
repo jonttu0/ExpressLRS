@@ -213,15 +213,23 @@ static RadioParameters_t* get_radio_type_cfg(uint8_t type)
 uint8_t common_config_get_radio_type(uint8_t mode)
 {
     switch (mode) {
+#if RADIO_SX127x
         case RADIO_RF_MODE_915_AU_FCC:
         case RADIO_RF_MODE_868_EU:
         case RADIO_RF_MODE_433_AU_EU:
             return RADIO_TYPE_127x;
+#endif
+#if RADIO_SX128x
         case RADIO_RF_MODE_2400_ISM:
         case RADIO_RF_MODE_2400_ISM_500Hz:
             return RADIO_TYPE_128x;
+#if RADIO_SX128x_FLRC
         case RADIO_RF_MODE_2400_ISM_FLRC:
             return RADIO_TYPE_128x_FLRC;
+#endif
+#endif
+        default:
+            break;
     };
     return RADIO_TYPE_MAX;
 }
