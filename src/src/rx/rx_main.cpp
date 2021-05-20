@@ -368,7 +368,7 @@ void FAST_CODE_1 LostConnection()
 
     // Reset FHSS
     FHSSfreqCorrectionReset();
-    FHSSsetCurrIndex(0);
+    FHSSresetCurrIndex();
     LPF_FreqError.init(0);
 
     connectionState = STATE_lost; //set lost connection
@@ -601,7 +601,7 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
     LQ_reset();
     // Reset FHSS
     FHSSfreqCorrectionReset();
-    FHSSsetCurrIndex(0);
+    FHSSresetCurrIndex();
 
     handle_tlm_ratio(TLM_RATIO_NO_TLM);
 

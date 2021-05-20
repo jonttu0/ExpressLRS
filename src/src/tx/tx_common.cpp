@@ -364,7 +364,7 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
     freq = FHSSgetCurrFreq();
 
     //only send sync when its time and only on channel 0;
-    if (!arm_state && (FHSSgetCurrSequenceIndex() == 0) &&
+    if (!arm_state && (FHSSgetCurrSequenceIndex() == FHSS_SYNC_CHANNEL) &&
         (sync_send_interval <= (uint32_t)(current_us - SyncPacketNextSend)))
     {
         GenerateSyncPacketData(tx_buffer, rxtx_counter);
@@ -566,7 +566,7 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
     ExpressLRS_currAirRate = config;
     TxTimer.updateInterval(config->interval);
 
-    FHSSsetCurrIndex(0);
+    FHSSresetCurrIndex();
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, GetInitialFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
