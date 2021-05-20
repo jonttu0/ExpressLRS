@@ -417,6 +417,10 @@ void FAST_CODE_2 SX1280Driver::SetFrequency(uint32_t Reqfreq)
 
 int32_t FAST_CODE_2 SX1280Driver::GetFrequencyError()
 {
+    /* FEI applies to LoRa only */
+    if (packet_mode == SX1280_PACKET_TYPE_FLRC)
+        return 0;
+
 #if EFE_NO_DOUBLE
     int32_t efe;
 #else
