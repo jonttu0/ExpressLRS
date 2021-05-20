@@ -24,10 +24,10 @@ static uint32_t DRAM_FORCE_ATTR FHSS_band_count;
 static uint8_t * DRAM_FORCE_ATTR FHSSsequence;
 
 
-volatile uint32_t DRAM_ATTR FHSSindex;
+static volatile uint32_t DRAM_ATTR FHSSindex;
 volatile int_fast32_t DRAM_ATTR FreqCorrection;
 
-void FHSS_init(uint8_t mode)
+void FHSS_init(uint8_t const mode)
 {
 #if RADIO_SX127x
     if (mode == RADIO_TYPE_127x) {
@@ -72,12 +72,12 @@ void FAST_CODE_1 FHSSfreqCorrectionReset(void)
     FreqCorrection = 0;
 }
 
-void FAST_CODE_1 FHSSfreqCorrectionSet(int32_t error)
+void FAST_CODE_1 FHSSfreqCorrectionSet(int32_t const error)
 {
     FreqCorrection += error;
 }
 
-void FAST_CODE_1 FHSSsetCurrIndex(uint32_t value)
+void FAST_CODE_1 FHSSsetCurrIndex(uint32_t const value)
 { // set the current index of the FHSS pointer
     FHSSindex = value % FHSSsequenceLen;
 }
