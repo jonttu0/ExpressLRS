@@ -420,9 +420,6 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
     /* Error in reception (CRC etc), kick hw timer */
     if (!rx_buffer) {
         DEBUG_PRINTF("_");
-#if USE_TIMER_KICK
-        TxTimer.triggerSoon(); // Trigger FHSS ISR
-#endif
         return;
     }
 
@@ -441,9 +438,6 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
     {
 #if (DBG_PIN_RX_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_rx, 0);
-#endif
-#if USE_TIMER_KICK
-        TxTimer.triggerSoon(); // Trigger FHSS ISR
 #endif
         DEBUG_PRINTF("!");
         return;
@@ -482,6 +476,7 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
                     else if (2 < (tentative_cnt++))
                     {
                         LostConnection();
+                        return;
                     }
                 } else if (no_sync_armed && ((CRSF_CHANNEL_OUT_VALUE_MIN + 100) < CrsfChannels.ch4)) {
                     /* Sync should not be received, ignore it */
@@ -489,6 +484,8 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
                     freq_err = 0;
                     return;
                 }
+
+                //DEBUG_PRINTF("nonce: %u <= %u\n", NonceRXlocal, sync->rxtx_counter);
 
                 handle_tlm_ratio(sync->tlm_interval);
                 FHSSsetCurrIndex(sync->fhssIndex);

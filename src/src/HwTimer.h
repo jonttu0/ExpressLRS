@@ -12,7 +12,7 @@
 #endif
 
 #define TIMER_OFFSET_KICK  100
-#define TIMER_OFFSET       250
+#define TIMER_OFFSET       300 //250
 #define TIMER_OFFSET_LIMIT 50
 
 class HwTimer
