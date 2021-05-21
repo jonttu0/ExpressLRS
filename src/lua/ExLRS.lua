@@ -10,6 +10,8 @@
 
 local version = 'v0.3'
 local gotFirstResp = false
+local GIT_SHA = '?????? '
+local HEX_TO_STR = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'}
 
 local SX127x_RATES = {
     list = {'200 Hz', '100 Hz', '50 Hz'},
@@ -187,7 +189,7 @@ local function refreshLCD()
     local lOffset = radio_data.leftOffset;
 
     lcd.clear()
-    lcd.drawText(lOffset, yOffset, 'ExpressLRS CFG ' .. version, INVERS)
+    lcd.drawText(lOffset, yOffset, 'ExLRS ' .. version .. ' ' .. GIT_SHA, INVERS)
     yOffset = radio_data.yOffset_val
 
     for idx,item in pairs(menu.list) do
@@ -302,6 +304,14 @@ local function processResp()
                 end
                 if data[6] < #MaxPower.list then
                     MaxPower.max_allowed = data[6] + 1 -- limit power list
+                end
+
+                -- Check if git sha included
+                if ((2+5+6) <= #data) then
+                    GIT_SHA = HEX_TO_STR[data[8]+1] .. HEX_TO_STR[data[9]+1] .. HEX_TO_STR[data[10]+1] .. HEX_TO_STR[data[11]+1] .. HEX_TO_STR[data[12]+1] .. HEX_TO_STR[data[13]+1]
+                    if ((2+5+6+1) <= #data) then
+                        GIT_SHA = GIT_SHA .. '!'
+                    end
                 end
 
                 gotFirstResp = true -- detect when first contact is made with TX module
