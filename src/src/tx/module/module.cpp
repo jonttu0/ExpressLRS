@@ -23,7 +23,7 @@ static void rc_data_cb(uint8_t const *const channels)
 static void ParamWriteHandler(uint8_t const *msg, uint16_t len)
 {
     // Called from UART handling loop (main loop)
-    uint8_t resp[5], outlen = sizeof(resp);
+    uint8_t resp[ELRS_LUA_BUFF_SIZE], outlen = sizeof(resp);
     if (0 > SettingsCommandHandle(msg, resp, len, outlen))
         return;
     crsf.sendLUAresponseToRadio(resp, outlen);

@@ -100,6 +100,18 @@ void tx_common_init_globals(void) {
 
 void tx_common_init(void)
 {
+#if defined(LATEST_COMMIT)
+    uint8_t commit_sha[] = {LATEST_COMMIT};
+    DEBUG_PRINTF("Current version (SHA): ");
+    for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
+        DEBUG_PRINTF("%X", commit_sha[iter]);
+    }
+#if defined(LATEST_COMMIT_DIRTY)
+    DEBUG_PRINTF("-dirty");
+#endif
+    DEBUG_PRINTF("\n");
+#endif
+
     platform_config_load(pl_config);
     TxTimer.callbackTock = &SendRCdataToRF;
     if (!SetRadioType(pl_config.rf_mode)) {
@@ -415,7 +427,10 @@ send_to_rf_exit:
 int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
                              uint8_t const inlen, uint8_t &outlen)
 {
-    uint8_t settings_buff[16];
+#if defined(LATEST_COMMIT)
+    uint8_t commit_sha[] = {LATEST_COMMIT};
+#endif
+    uint8_t settings_buff[5 + sizeof(commit_sha) + 1];
     uint8_t * buff = settings_buff;
     uint8_t const cmd = in[0];
     uint8_t value = in[1];
@@ -512,6 +527,14 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
     buff += 5;
 
     /* TODO: fill version info etc */
+#if defined(LATEST_COMMIT)
+    for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
+        *buff++ = commit_sha[iter];
+    }
+#if defined(LATEST_COMMIT_DIRTY)
+    *buff++ = '!';
+#endif
+#endif
 
 #ifdef CTRL_SERIAL
     msp_packet_parser.sendPacket(
@@ -520,9 +543,9 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
 #endif /* CTRL_SERIAL */
 
     // Fill response
-    if (out && 5 <= outlen) {
-        outlen = 5;
-        memcpy(out, settings_buff, 5);
+    if (out && (buff - settings_buff) <= outlen) {
+        outlen = (buff - settings_buff);
+        memcpy(out, settings_buff, outlen);
     }
 
     if (cmd && modified) {
