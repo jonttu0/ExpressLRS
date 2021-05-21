@@ -13,9 +13,8 @@ except ImportError:
 
 #print(env.Dump())
 
-def parse_flags(path):
-    domains_found = []
-    domains_found_ism = []
+
+def validate_domains():
     build_flags = env['BUILD_FLAGS']
     ISM2400 = DUAL_MODE = False
     for flag in build_flags:
@@ -23,6 +22,47 @@ def parse_flags(path):
             ISM2400 = True
         elif "DOMAIN_BOTH" in flag:
             DUAL_MODE = True
+    domains_found = []
+    domains_found_ism = []
+    for flag in build_flags:
+        if "Regulatory_Domain" in flag:
+            if "_ISM_2400" in flag:
+                if not DUAL_MODE and not ISM2400:
+                    continue
+                domains_found_ism.append(flag)
+            else:
+                if not DUAL_MODE and ISM2400:
+                    continue
+                domains_found.append(flag)
+
+    if len(domains_found_ism) > 2:
+        if "-DDRegulatory_Domain_ISM_2400_800kHz" in domains_found_ism and \
+            "-DRegulatory_Domain_ISM_2400" in domains_found_ism:
+            raise Exception("[ERROR] Only one 'Regulatory_Domain' is allowed")
+    if len(domains_found) > 1:
+        raise Exception("[ERROR] Only one 'Regulatory_Domain' is allowed")
+    if domains_found:
+        build_flags.append("-DRADIO_SX127x=1")
+    if domains_found_ism:
+        build_flags.append("-DRADIO_SX128x=1")
+
+        for domain in domains_found_ism:
+            if "_FLRC" in domain:
+                build_flags.append("-DRADIO_SX128x_FLRC=1")
+            elif "_800kHz" in domain:
+                build_flags.append("-DRADIO_SX128x_BW800=1")
+
+
+def parse_env_defines():
+    build_flags = env['BUILD_FLAGS']
+    elrs_flags = env.get('ENV', {}).get('EXPRESSLRS_FLAGS', "")
+    if elrs_flags:
+        elrs_flags = elrs_flags.split()
+        for flag in elrs_flags:
+            build_flags.append(flag)
+
+def parse_flags(path):
+    build_flags = env['BUILD_FLAGS']
     try:
         with open(path, "r") as _f:
             for line in _f:
@@ -53,41 +93,20 @@ def parse_flags(path):
                         print("Calculated UID[6] = {%s}" % ",".join(my_uid))
                     elif "MY_UID" in define and len(define.split(",")) != 6:
                         raise Exception("UID must be 6 bytes long")
-                    elif "Regulatory_Domain" in define:
-                        if "_ISM_2400" in define:
-                            if not DUAL_MODE and not ISM2400:
-                                continue
-                            domains_found_ism.append(define)
-                        else:
-                            if not DUAL_MODE and ISM2400:
-                                continue
-                            domains_found.append(define)
                     build_flags.append(define)
-        if len(domains_found_ism) > 2:
-            if "-DDRegulatory_Domain_ISM_2400_800kHz" in domains_found_ism and \
-                "-DRegulatory_Domain_ISM_2400" in domains_found_ism:
-                raise Exception("[ERROR] Only one 'Regulatory_Domain' is allowed")
-        if len(domains_found) > 1:
-            raise Exception("[ERROR] Only one 'Regulatory_Domain' is allowed")
-        if domains_found:
-            build_flags.append("-DRADIO_SX127x=1")
-        if domains_found_ism:
-            build_flags.append("-DRADIO_SX128x=1")
-
-            for domain in domains_found_ism:
-                if "_FLRC" in domain:
-                    build_flags.append("-DRADIO_SX128x_FLRC=1")
-                elif "_800kHz" in domain:
-                    build_flags.append("-DRADIO_SX128x_BW800=1")
     except IOError:
         return False
     return True
+
 
 if not parse_flags("user_defines.txt"):
     err = "\n\033[91m[ERROR] File 'user_defines.txt' does not exist\n"
     raise Exception(err)
 # try to parse user private params
 parse_flags("user_defines_private.txt")
+parse_env_defines()
+validate_domains()
+
 
 sha = None
 if git:
