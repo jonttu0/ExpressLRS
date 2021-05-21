@@ -93,6 +93,7 @@ enum
     OSD_MODE_200Hz,
     OSD_MODE_250Hz,
     OSD_MODE_500Hz,
+    OSD_MODE_500Hz_FLRC,
     OSD_MODE_800Hz,
 };
 

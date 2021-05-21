@@ -27,7 +27,7 @@ static expresslrs_mod_settings_t * current_settings;
 #if RADIO_SX128x_FLRC
 static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x_FLRC[] = {
     /* 500Hz */
-    {RADIO_FLRC, SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 500, TLM_RATIO_1_128, FHSS_2, OSD_MODE_500Hz, 32, 1000, 1000, 250000u}, // 0.78ms
+    {RADIO_FLRC, SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 500, TLM_RATIO_1_128, FHSS_2, OSD_MODE_500Hz_FLRC, 32, 1000, 1000, 250000u}, // 0.78ms
 };
 #endif
 
