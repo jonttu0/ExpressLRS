@@ -18,5 +18,5 @@ jobs:
         mkdir -p ~/artifcats
         cd src
         rm -rf .pio
-        echo 'export EXPRESSLRS_FLAGS="-DRegulatory_Domain_EU_868 -DRegulatory_Domain_ISM_2400_800kHz -DRegulatory_Domain_ISM_2400_FLRC"'
+        export EXPRESSLRS_FLAGS="-DRegulatory_Domain_EU_868 -DRegulatory_Domain_ISM_2400_800kHz -DRegulatory_Domain_ISM_2400_FLRC"
         platformio run
