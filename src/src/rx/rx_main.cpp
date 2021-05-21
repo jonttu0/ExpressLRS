@@ -373,8 +373,8 @@ void FAST_CODE_1 LostConnection()
 
     connectionState = STATE_lost; //set lost connection
 
-    led_set_state(0);             // turn off led
-    Radio->RXnb(GetInitialFreq()); // in conn lost state we always want to listen on freq index 0
+    led_set_state(0); // turn off led
+    Radio->RXnb(FHSSgetCurrFreq());
     DEBUG_PRINTF("lost conn\n");
 
     platform_connection_state(connectionState);
@@ -478,11 +478,13 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
                         LostConnection();
                         return;
                     }
+#if 1
                 } else if (no_sync_armed && ((CRSF_CHANNEL_OUT_VALUE_MIN + 100) < CrsfChannels.ch4)) {
                     /* Sync should not be received, ignore it */
                     rx_last_valid_us = 0;
                     freq_err = 0;
                     return;
+#endif
                 }
 
                 //DEBUG_PRINTF("nonce: %u <= %u\n", NonceRXlocal, sync->rxtx_counter);
@@ -595,8 +597,6 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
     ExpressLRS_currAirRate = config;
     current_rate_config = rate;
 
-    DEBUG_PRINTF("Set RF rate: %u\n", config->rate);
-
     // Init CRC aka LQ array
     LQ_reset();
     // Reset FHSS
@@ -605,14 +605,16 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
 
     handle_tlm_ratio(TLM_RATIO_NO_TLM);
 
+    DEBUG_PRINTF("Set RF rate: %u (sync ch: %u)\n", config->rate, FHSScurrSequenceIndex());
+
     Radio->SetCaesarCipher(CRCCaesarCipher);
-    Radio->Config(config->bw, config->sf, config->cr, GetInitialFreq(),
+    Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
                   config->pkt_type);
 
     // Measure RF noise
 #if 0 && defined(DEBUG_SERIAL) // TODO: Enable this when noize floor is used!
-    int RFnoiseFloor = Radio->MeasureNoiseFloor(10, GetInitialFreq());
+    int RFnoiseFloor = Radio->MeasureNoiseFloor(10, FHSSgetCurrFreq());
     DEBUG_PRINTF("RF noise floor: %d dBm\n", RFnoiseFloor);
     (void)RFnoiseFloor;
 #endif

@@ -22,6 +22,7 @@ static uint32_t DRAM_FORCE_ATTR FHSS_freq_base;
 static uint32_t DRAM_FORCE_ATTR FHSS_bandwidth;
 static uint32_t DRAM_FORCE_ATTR FHSS_band_count;
 static uint8_t * DRAM_FORCE_ATTR FHSSsequence;
+static uint32_t DRAM_FORCE_ATTR FHSS_sync_channel;
 
 
 static volatile uint32_t DRAM_ATTR FHSSindex;
@@ -38,6 +39,7 @@ void FHSS_init(uint8_t const mode)
         FHSS_freq_base = SX127x::FREQ_BASE;
         FHSS_bandwidth = SX127x::FREQ_BANDWIDTH;
         FHSS_band_count = SX127x::FREQ_BAND_COUNT;
+        FHSS_sync_channel = SX127x::SYNC_CHANNEL;
     }
 #endif
 #if RADIO_SX128x
@@ -49,6 +51,7 @@ void FHSS_init(uint8_t const mode)
         FHSS_freq_base = SX128x::FREQ_BASE;
         FHSS_bandwidth = SX128x::FREQ_BANDWIDTH;
         FHSS_band_count = SX128x::FREQ_BAND_COUNT;
+        FHSS_sync_channel = SX128x::SYNC_CHANNEL;
     }
 
 #if RADIO_SX128x_FLRC
@@ -60,6 +63,7 @@ void FHSS_init(uint8_t const mode)
         FHSS_freq_base = SX128x_FLRC::FREQ_BASE;
         FHSS_bandwidth = SX128x_FLRC::FREQ_BANDWIDTH;
         FHSS_band_count = SX128x_FLRC::FREQ_BAND_COUNT;
+        FHSS_sync_channel = SX128x_FLRC::SYNC_CHANNEL;
     }
 #endif
 #endif
@@ -94,15 +98,14 @@ void FAST_CODE_1 FHSSincCurrIndex()
 #endif
 }
 
-uint8_t FAST_CODE_1 FHSSgetCurrSequenceIndex()
+uint8_t FAST_CODE_1 FHSScurrSequenceIndex()
 {
-    return FHSSsequence[FHSSindex];
+    return (FHSSsequence[FHSSindex]);
 }
 
-uint32_t FAST_CODE_1 GetInitialFreq()
+uint8_t FAST_CODE_1 FHSScurrSequenceIndexIsSyncChannel()
 {
-
-    return FHSS_freq_base - FreqCorrection;
+    return (FHSSsequence[FHSSindex] == FHSS_sync_channel);
 }
 
 uint32_t FAST_CODE_1 FHSSgetCurrFreq()

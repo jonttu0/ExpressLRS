@@ -4,7 +4,7 @@ import os
 DEBUG = 0
 
 CALC_MY_STEP = 1
-SCRIPT_VERSION = "1.0_flrs"
+SCRIPT_VERSION = "1.1_flrs"
 
 FHSS_FREQS_HEAD = '''
 #pragma once
@@ -92,32 +92,30 @@ def print_fhss(vals, num_of_fhss):
     return buffer
 
 
-def FHSSrandomiseFHSSsequence_v1(num_of_fhss, sync_interval):
+def FHSSrandomiseFHSSsequence_v1(num_of_fhss, sync_interval, sync_channel=0):
 
     def resetIsAvailable():
         l = [1] * num_of_fhss
         if sync_interval is not None:
-            l[0] = 0
+            l[sync_channel] = 0
         return l
 
     isAvailable = resetIsAvailable()
     FHSSsequence = [0] * NR_SEQUENCE_ENTRIES
-    prev = 0 # needed to prevent repeats of the same index
+    prev = sync_channel # needed to prevent repeats of the same index
 
     # for each slot in the sequence table
     for i in range(NR_SEQUENCE_ENTRIES):
         if sync_interval is not None and ((i % sync_interval) == 0):
-            # assign sync channel 0
-            FHSSsequence[i] = 0
-            prev = 0
+            # assign sync channel
+            FHSSsequence[i] = prev = sync_channel
         else:
             # pick one of the available channels. May need to loop to avoid repeats
             index = prev
             while (index == prev): # can't use index if it repeats the previous value
                 c = rngN(isAvailable.count(1)) # returnc 0<c<nLeft
                 # find the c'th entry in the isAvailable array
-                # can skip 0 as that's the sync channel and is never available for normal allocation
-                index = 1 if sync_interval is not None else 0
+                index = 0
                 found = 0
                 while (index < num_of_fhss):
                     if (isAvailable[index]):
@@ -128,11 +126,7 @@ def FHSSrandomiseFHSSsequence_v1(num_of_fhss, sync_interval):
 
                 if (index == num_of_fhss):
                     # This should never happen
-                    print("FAILED to find the available entry for '%s'!" % c)
-                    # What to do? We don't want to hang as that will stop us getting to the wifi hotspot
-                    # Use the sync channel
-                    index = 0
-                    break
+                    raise Exception("FAILED to find the available entry for '%s'!" % c)
 
             FHSSsequence[i] = index  # assign the value to the sequence array
             isAvailable[index] = 0   # clear the flag
@@ -143,7 +137,7 @@ def FHSSrandomiseFHSSsequence_v1(num_of_fhss, sync_interval):
     return FHSSsequence
 
 
-def FHSSrandomiseFHSSsequence_v2(num_of_fhss, sync_interval):
+def FHSSrandomiseFHSSsequence_v2(num_of_fhss, sync_interval, sync_channel=0):
     vals = [-1] * NR_SEQUENCE_ENTRIES
     index = -1
     for iter in range(NR_SEQUENCE_ENTRIES):
@@ -226,12 +220,10 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
     elif DOMAIN == "Regulatory_Domain_ISM_2400":
         # These are for 1625kHz band
         FHSSfreqs = [f for f in range(2400400000, 2480000000, 1650000)]
-        SYNC_INTERVAL = 65 #49
+        SYNC_INTERVAL = 65
 
     elif DOMAIN == "Regulatory_Domain_ISM_2400_800kHz":
         # These are for 812.5kHz band
-        #FHSSfreqs = [f for f in range(2400400000, 2480000000, 1000000)]
-        #FHSSfreqs = [f for f in range(2400400000, 2480000000, 900000)]
         FHSSfreqs = [f for f in range(2400400000, 2480000000, 850000)]
         SYNC_INTERVAL = 65
 
@@ -249,6 +241,8 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
     freq_base = FHSSfreqs[0]
     bandwidth = FHSSfreqs[1] - FHSSfreqs[0]
     print("Freq base: %u, BW: %u" % (freq_base, bandwidth))
+    sync_channel = int(num_of_fhss / 2)
+    print("Sync channel: %u" % (sync_channel,))
 
     rngSeed(_uid_crc)
 
@@ -278,6 +272,7 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
             _f.write("constexpr uint32_t FREQ_BAND_COUNT = %u;\n" % num_of_fhss)
             _f.write("constexpr uint32_t NR_SEQUENCE_ENTRIES = %u;\n" % NR_SEQUENCE_ENTRIES)
             _f.write("constexpr uint32_t UID_CRC32 = 0x%08X;\n" % _uid_crc)
+            _f.write("constexpr uint32_t SYNC_CHANNEL = %u;\n" % sync_channel)
 
             my_step = 0
             if CALC_MY_STEP:
@@ -287,9 +282,9 @@ def check_fhss_freqs_h(DOMAIN, MY_UID):
 
             _f.write('static uint8_t DRAM_FORCE_ATTR FHSSsequence[NR_SEQUENCE_ENTRIES] = {\n')
             if rand_version == 1:
-                FHSSsequence = FHSSrandomiseFHSSsequence_v1(num_of_fhss, SYNC_INTERVAL)
+                FHSSsequence = FHSSrandomiseFHSSsequence_v1(num_of_fhss, SYNC_INTERVAL, sync_channel)
             elif rand_version == 2:
-                FHSSsequence = FHSSrandomiseFHSSsequence_v2(num_of_fhss, SYNC_INTERVAL)
+                FHSSsequence = FHSSrandomiseFHSSsequence_v2(num_of_fhss, SYNC_INTERVAL, sync_channel)
             else:
                 raise Exception("Unknown FHSS rand version!")
             hops = print_fhss(FHSSsequence, num_of_fhss)
