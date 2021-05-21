@@ -106,7 +106,7 @@ void tx_common_init(void)
     for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
         DEBUG_PRINTF("%X", commit_sha[iter]);
     }
-#if defined(LATEST_COMMIT_DIRTY)
+#if LATEST_COMMIT_DIRTY
     DEBUG_PRINTF("-dirty");
 #endif
     DEBUG_PRINTF("\n");
@@ -531,7 +531,7 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
     for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
         *buff++ = commit_sha[iter];
     }
-#if defined(LATEST_COMMIT_DIRTY)
+#if LATEST_COMMIT_DIRTY
     *buff++ = '!';
 #endif
 #endif

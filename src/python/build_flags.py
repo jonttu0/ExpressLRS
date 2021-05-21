@@ -11,6 +11,7 @@ except ImportError:
     except ImportError:
         git = None
 
+#print(env.Dump())
 
 def parse_flags(path):
     domains_found = []
@@ -96,7 +97,12 @@ if git:
             search_parent_directories=False)
         git_root = git_repo.git.rev_parse("--show-toplevel")
         ExLRS_Repo = git.Repo(git_root)
-        hexsha = ExLRS_Repo.head.object.hexsha
+        # git describe --match=NeVeRmAtCh --always --abbrev=6 --dirty
+        hexsha = ExLRS_Repo.git.describe('--dirty', '--abbrev=6', '--always', '--match=NeVeRmAtCh')
+        print("hexsha: '%s'" % hexsha)
+        if 'dirty' in hexsha:
+            env['BUILD_FLAGS'].append("-DLATEST_COMMIT_DIRTY=1")
+        #hexsha = ExLRS_Repo.head.object.hexsha
         sha = ",".join(["0x%s" % x for x in hexsha[:6]])
     except git.InvalidGitRepositoryError:
         pass
