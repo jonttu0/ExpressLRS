@@ -787,6 +787,9 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
       info_str += String(commit_sha[iter], HEX);
     }
+#if LATEST_COMMIT_DIRTY
+    info_str += "-dirty";
+#endif
     websocket_send(info_str, num);
 #endif // LATEST_COMMIT
 #if WIFI_DBG
