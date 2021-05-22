@@ -10,7 +10,7 @@ import SerialHelper
 import re
 import bootloader
 
-SCRIPT_DEBUG = 1
+SCRIPT_DEBUG = 0
 BAUDRATE_DEFAULT = 420000
 
 
@@ -202,9 +202,10 @@ def uart_upload(port, filename, baudrate, ghst=False, key=None):
 
 
 def on_upload(source, target, env):
+    envkey = None
     ghst = False
     firmware_path = str(source[0])
-    envkey = None #env.get('PIOENV', '').upper()
+
     upload_port = env.get('UPLOAD_PORT', None)
     if upload_port is None:
         upload_port = serials_find.get_serial_port()
@@ -221,7 +222,12 @@ def on_upload(source, target, env):
             elif "BL_KEY=" in flag:
                 envkey = flag.split("=")[1]
 
-    uart_upload(upload_port, firmware_path, upload_speed, ghst, key=envkey)
+    try:
+        uart_upload(upload_port, firmware_path, upload_speed, ghst, key=envkey)
+    except Exception as e:
+        dbg_print("{0}\n".format(e))
+        return -1
+    return 0
 
 
 if __name__ == '__main__':

@@ -9,10 +9,8 @@ platform = env.get('PIOPLATFORM', '')
 stm = platform in ['ststm32']
 
 target_name = env['PIOENV'].upper()
-target_board = env.get('BOARD').upper()
 print("PLATFORM : '%s'" % platform)
 print("BUILD ENV: '%s'" % target_name)
-print("BOARD:     '%s'" % target_board)
 
 # don't overwrite if custom command defined
 if stm and "$UPLOADER $UPLOADERFLAGS" in env.get('UPLOADCMD', '$UPLOADER $UPLOADERFLAGS'):

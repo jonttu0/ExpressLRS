@@ -25,7 +25,7 @@ def _validate_serialrx(rl, config, expected):
         expected = [expected]
     rl.set_delimiters(["# "])
     rl.clear()
-    rl.write("get serialrx_%s\r\n" % config)
+    rl.write_str("get serialrx_%s" % config)
     line = rl.read_line(1.).strip()
     for key in expected:
         key = " = %s" % key
@@ -49,13 +49,13 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
     rl = SerialHelper.SerialHelper(s, 3., ['CCC', "# "])
     rl.clear()
     # Send start command '#'
-    rl.write("#\r\n", half_duplex)
+    rl.write_str("#", half_duplex)
     start = rl.read_line(2.).strip()
     #dbg_print("BF INIT: '%s'" % start.replace("\r", ""))
     if "CCC" in start:
         raise PassthroughEnabled("Passthrough already enabled and bootloader active")
     elif not start or not start.endswith("#"):
-        raise PassthroughEnabled("No CLI available. Already in passthrough mode?")
+        raise PassthroughEnabled("No CLI available. Already in passthrough mode?, If this fails reboot FC and try again!")
 
     serial_check = []
     if not _validate_serialrx(rl, "provider", [["CRSF", "ELRS"], "GHST"][half_duplex]):
@@ -79,7 +79,7 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
 
     rl.set_delimiters(["\n"])
     rl.clear()
-    rl.write("serial\r\n")
+    rl.write_str("serial")
 
     while True:
         line = rl.read_line().strip()
@@ -104,10 +104,27 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
 
     dbg_print("Enabling serial passthrough...")
     dbg_print("  CMD: '%s'" % cmd)
-    rl.write(cmd + '\n')
+    rl.write_str(cmd)
     time.sleep(.2)
     s.close()
     dbg_print("======== PASSTHROUGH DONE ========")
+
+
+def reset_to_bootloader(args):
+    dbg_print("======== RESET TO BOOTLOADER ========")
+    s = serial.Serial(port=args.port, baudrate=args.baud,
+        bytesize=8, parity='N', stopbits=1,
+        timeout=1, xonxoff=0, rtscts=0)
+    if args.half_duplex:
+        BootloaderInitSeq = bootloader.get_init_seq('GHST', args.type)
+        dbg_print("  * Using half duplex (GHST)")
+    else:
+        BootloaderInitSeq = bootloader.get_init_seq('CRSF', args.type)
+        dbg_print("  * Using full duplex (CFSF)")
+    s.write(BootloaderInitSeq)
+    s.flush()
+    time.sleep(.5)
+    s.close()
 
 
 if __name__ == '__main__':
@@ -121,6 +138,8 @@ if __name__ == '__main__':
         dest="reset_to_bl", help="Do not send reset_to_bootloader command sequence")
     parser.add_argument("-hd", "--half-duplex", action="store_true",
         dest="half_duplex", help="Use half duplex mode")
+    parser.add_argument("-t", "--type", type=str, default="ESP82",
+        help="Defines flash target type which is sent to target in reboot command")
     args = parser.parse_args()
 
     if (args.port == None):
@@ -132,18 +151,4 @@ if __name__ == '__main__':
         dbg_print(str(err))
 
     if args.reset_to_bl:
-        key = "ESP82"
-        dbg_print("======== RESET TO BOOTLOADER ========")
-        s = serial.Serial(port=args.port, baudrate=args.baud,
-            bytesize=8, parity='N', stopbits=1,
-            timeout=1, xonxoff=0, rtscts=0)
-        if args.half_duplex:
-            BootloaderInitSeq = bootloader.get_init_seq('GHST', key)
-            dbg_print("  * Using half duplex (GHST)")
-        else:
-            BootloaderInitSeq = bootloader.get_init_seq('CRSF', key)
-            dbg_print("  * Using full duplex (CFSF)")
-        s.write(BootloaderInitSeq)
-        s.flush()
-        time.sleep(.5)
-        s.close()
+        reset_to_bootloader(args)
