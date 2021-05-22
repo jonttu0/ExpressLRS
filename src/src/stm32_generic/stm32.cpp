@@ -273,12 +273,31 @@ struct bootloader {
 
 void platform_restart(void)
 {
+    NVIC_SystemReset();
+}
+
+void platform_reboot_into_bootloader(const uint8_t * info)
+{
+#ifdef TARGET_INDENTIFIER
+    if (info) {
+        const char id[] = TARGET_INDENTIFIER;
+        uint8_t *ptr = (uint8_t*)id;
+        uint32_t count = sizeof(*id);
+        while (count--) {
+            if (*ptr++ != *info++)
+                return;
+        }
+    }
+#endif // TARGET_INDENTIFIER
+
+    DEBUG_PRINTF("Jumping to Bootloader...\n");
+    delay(200);
     /* Fill reset info into RAM for bootloader */
     extern __IO uint32_t _bootloader_data;
     volatile struct bootloader * blinfo = ((struct bootloader*)&_bootloader_data) + 0;
     blinfo->key = 0x454c5253; // ELRS
     blinfo->reset_type = 0xACDC;
-    NVIC_SystemReset();
+    platform_restart();
 }
 
 void platform_wifi_start(void)

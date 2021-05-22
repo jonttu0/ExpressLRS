@@ -6,6 +6,9 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#define ELRS_BOOT_CMD_DEST 'b' //0x62
+#define ELRS_BOOT_CMD_ORIG 'l' //0x6c
+
 #ifndef __section
 #define __section(S)
 #endif
@@ -79,6 +82,7 @@ void platform_loop(int state);
 void platform_connection_state(int state);
 void platform_set_led(uint8_t state);
 void platform_restart(void);
+void platform_reboot_into_bootloader(const uint8_t * info);
 void platform_wd_feed(void);
 void platform_wifi_start(void);
 void platform_radio_force_stop(void);

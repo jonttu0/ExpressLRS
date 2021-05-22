@@ -170,6 +170,13 @@ void platform_restart(void)
     ESP.restart();
 }
 
+void platform_reboot_into_bootloader(const uint8_t * info)
+{
+    DEBUG_PRINTF("Jumping to Bootloader... IGNORED\n");
+    (void)info;
+    //ESP.rebootIntoUartDownloadMode();
+}
+
 void platform_wifi_start(void)
 {
 #if WIFI_LOGGER || WIFI_UPDATER

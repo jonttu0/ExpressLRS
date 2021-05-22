@@ -111,6 +111,8 @@
 
 #define GPIO_PIN_LED         PB15
 
+#define TARGET_INDENTIFIER   "2020_GNICE"
+
 
 #elif defined(TARGET_SX1280_RX_NANO_v05)
 #define GPIO_PIN_NSS         PA4
@@ -129,6 +131,8 @@
 
 #define GPIO_PIN_LED         PB5
 
+#define TARGET_INDENTIFIER   "CCG_PP"
+
 
 #elif defined(TARGET_SX1280_RX_PICO_G0)
 #define GPIO_PIN_NSS         PA4
@@ -144,6 +148,8 @@
 #define GPIO_PIN_RCSIGNAL_TX PB6  // USART1, AFAIO
 
 #define GPIO_PIN_LED         PA2
+
+#define TARGET_INDENTIFIER   "PICO_G0"
 
 
 /******************************************************************************************/
@@ -203,6 +209,8 @@
 //#define GPIO_PIN_DEBUG_RX    PA3 // USART2, PIN??
 //#define GPIO_PIN_DEBUG_TX    PA2 // USART2, PIN??
 
+#define TARGET_INDENTIFIER   "RHF76"
+
 
 #elif defined(TARGET_RAK4200)
 
@@ -242,6 +250,8 @@
 //#define DBG_PIN_TMR_ISR      PB6  // SCL
 //#define DBG_PIN_RX_ISR       PB7  // SDA
 
+#define TARGET_INDENTIFIER   "RAK4200"
+
 
 /******************************************************************************************/
 /*                                        R9 CONFIGS                                      */
@@ -273,10 +283,12 @@ https://github.com/jaxxzer
 #  define GPIO_PIN_RCSIGNAL_TX PA9  // USART1
 #endif
 #if defined(TARGET_R9MX)
+#  define TARGET_INDENTIFIER   "R9MX"
 #  define GPIO_PIN_LED_RED   PB2
 #  define GPIO_PIN_LED_GREEN PB3
 //#  define GPIO_PIN_BUTTON    PB0  // pullup e.g. LOW when pressed
 #elif defined(TARGET_R9SLIM_PLUS)
+#  define TARGET_INDENTIFIER   "R9SLIM+"
 #  define GPIO_PIN_LED_RED   PA11
 #  define GPIO_PIN_LED_GREEN PA12
 //#  define GPIO_PIN_BUTTON    PC13 // pullup e.g. LOW when pressed
@@ -287,10 +299,12 @@ https://github.com/jaxxzer
  * Note: Right Antenna is selected by default, LOW */
 #  define GPIO_PIN_ANTENNA_SELECT PB9
 #elif defined(TARGET_R900MINI_RX)
+#  define TARGET_INDENTIFIER   "R900MINI"
 #  define GPIO_PIN_LED_RED   PA11
 #  define GPIO_PIN_LED_GREEN PA12
 //#  define GPIO_PIN_BUTTON    PC13 // pullup e.g. LOW when pressed
 #else
+#  define TARGET_INDENTIFIER   "R9MM"
 #  define GPIO_PIN_LED_RED   PC1
 #  define GPIO_PIN_LED_GREEN PB3
 //#  define GPIO_PIN_BUTTON    PC13 // pullup e.g. LOW when pressed
@@ -559,6 +573,7 @@ Designed by NamimnoRC
 Designed by NamimnoRC
 */
 #if DOMAIN_24GHZ
+    #define TARGET_INDENTIFIER  "NRC_FLASH"
     #define GPIO_PIN_RST        PB4
     #define GPIO_PIN_BUSY       PB5
     #define GPIO_PIN_DIO0       PB6
@@ -569,6 +584,7 @@ Designed by NamimnoRC
     #define GPIO_PIN_SCK        PA5
     #define GPIO_PIN_LED_RED    PA1
 #else // !DOMAIN_24GHZ
+    #define TARGET_INDENTIFIER  "NRC_VOYAGER"
     #define GPIO_PIN_RST        PC14
     #define GPIO_PIN_DIO0       PA15
     #define GPIO_PIN_DIO1       PA1
@@ -640,6 +656,7 @@ ImmersionRC Ghost ATTO RX Module
 // LED
 #define GPIO_PIN_LED_RGB     PA7 // WS2812 RGB
 
+#define TARGET_INDENTIFIER   "GHST_ATTO"
 
 #endif
 

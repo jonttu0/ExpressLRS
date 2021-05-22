@@ -164,10 +164,8 @@ void GHST::processPacket(uint8_t const *data)
 {
     switch (data[0]) {
         case CRSF_FRAMETYPE_COMMAND: {
-            if (data[1] == 0x62 && data[2] == 0x6c) {
-                DEBUG_PRINTF("Jumping to Bootloader...\n");
-                delay(200);
-                platform_restart();
+            if (data[1] == ELRS_BOOT_CMD_DEST && data[2] == ELRS_BOOT_CMD_ORIG) {
+                platform_reboot_into_bootloader(&data[3]);
             }
             break;
         }

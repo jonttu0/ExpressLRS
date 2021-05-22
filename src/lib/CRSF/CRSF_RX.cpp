@@ -147,9 +147,7 @@ void CRSF_RX::processPacket(uint8_t const *data)
 
             } else if ((msg->command.dest_addr == ELRS_BOOT_CMD_DEST) &&
                        (msg->command.orig_addr == ELRS_BOOT_CMD_ORIG)) {
-                DEBUG_PRINTF("Jumping to Bootloader...\n");
-                delay(200);
-                platform_restart();
+                platform_reboot_into_bootloader(&msg->command.command);
             }
             break;
         }

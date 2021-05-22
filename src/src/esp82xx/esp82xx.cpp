@@ -109,7 +109,13 @@ void platform_set_led(uint8_t state)
 
 void platform_restart(void)
 {
-    //ESP.restart();
+    ESP.restart();
+}
+
+void platform_reboot_into_bootloader(const uint8_t * info)
+{
+    DEBUG_PRINTF("Jumping to Bootloader...\n");
+    delay(200);
     ESP.rebootIntoUartDownloadMode();
 }
 

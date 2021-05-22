@@ -2,6 +2,7 @@ import serial, time, sys, re
 import argparse
 import serials_find
 import SerialHelper
+import bootloader
 
 SCRIPT_DEBUG = 0
 
@@ -131,18 +132,17 @@ if __name__ == '__main__':
         dbg_print(str(err))
 
     if args.reset_to_bl:
+        dbg_print("======== RESET TO BOOTLOADER ========")
         s = serial.Serial(port=args.port, baudrate=args.baud,
             bytesize=8, parity='N', stopbits=1,
             timeout=1, xonxoff=0, rtscts=0)
-
-        dbg_print("======== RESET TO BOOTLOADER ========")
         if args.half_duplex:
-            BootloaderInitSeq1 = bytes([0x89,0x04,0x32,0x62,0x6c,0x0A]) # GHST
+            BootloaderInitSeq = bootloader.get_init_seq('GHST', key)
             dbg_print("  * Using half duplex (GHST)")
         else:
-            BootloaderInitSeq1 = bytes([0xEC,0x04,0x32,0x62,0x6c,0x0A]) # CRSF
-
-        s.write(BootloaderInitSeq1)
+            BootloaderInitSeq = bootloader.get_init_seq('CRSF', key)
+            dbg_print("  * Using full duplex (CFSF)")
+        s.write(BootloaderInitSeq)
         s.flush()
         time.sleep(.5)
         s.close()
