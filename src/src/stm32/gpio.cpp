@@ -23,7 +23,7 @@ void gpio_out_reset(struct gpio_out g, uint32_t val)
 
 void gpio_out_toggle_noirq(struct gpio_out g)
 {
-    digitalWriteFast(g.pin, digitalReadFast(g.pin));
+    digitalWriteFast(g.pin, !!!digitalReadFast(g.pin));
 }
 
 void gpio_out_toggle(struct gpio_out g)

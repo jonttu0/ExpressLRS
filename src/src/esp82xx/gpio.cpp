@@ -1,7 +1,7 @@
 #include "gpio.h"
 #include <Arduino.h>
 
-struct gpio_out ICACHE_RAM_ATTR gpio_out_setup(uint32_t pin, uint32_t val)
+struct gpio_out IRAM_ATTR gpio_out_setup(uint32_t pin, uint32_t val)
 {
     if (160 <= pin)
         return {.pin = GPIO_PIN_IVALID};
@@ -10,29 +10,29 @@ struct gpio_out ICACHE_RAM_ATTR gpio_out_setup(uint32_t pin, uint32_t val)
     return g;
 }
 
-void ICACHE_RAM_ATTR gpio_out_reset(struct gpio_out g, uint32_t val)
+void IRAM_ATTR gpio_out_reset(struct gpio_out g, uint32_t val)
 {
     pinMode(g.pin, OUTPUT);
     digitalWrite(g.pin, val);
 }
 
-void ICACHE_RAM_ATTR gpio_out_toggle_noirq(struct gpio_out g)
+void IRAM_ATTR gpio_out_toggle_noirq(struct gpio_out g)
 {
-    digitalWrite(g.pin, digitalRead(g.pin));
+    digitalWrite(g.pin, !digitalRead(g.pin));
 }
 
-void ICACHE_RAM_ATTR gpio_out_toggle(struct gpio_out g)
+void IRAM_ATTR gpio_out_toggle(struct gpio_out g)
 {
-    digitalWrite(g.pin, digitalRead(g.pin));
+    digitalWrite(g.pin, !digitalRead(g.pin));
 }
 
-void ICACHE_RAM_ATTR gpio_out_write(struct gpio_out g, uint32_t val)
+void IRAM_ATTR gpio_out_write(struct gpio_out g, uint32_t val)
 {
     digitalWrite(g.pin, val);
 }
 
 
-struct gpio_in ICACHE_RAM_ATTR gpio_in_setup(uint32_t pin, int32_t pull_up)
+struct gpio_in IRAM_ATTR gpio_in_setup(uint32_t pin, int32_t pull_up)
 {
     if (160 <= pin)
         return {.pin = GPIO_PIN_IVALID};
@@ -41,22 +41,22 @@ struct gpio_in ICACHE_RAM_ATTR gpio_in_setup(uint32_t pin, int32_t pull_up)
     return g;
 }
 
-void ICACHE_RAM_ATTR gpio_in_reset(struct gpio_in g, int32_t pull_up)
+void IRAM_ATTR gpio_in_reset(struct gpio_in g, int32_t pull_up)
 {
     pinMode(g.pin, (pull_up) ? INPUT_PULLUP : INPUT);
 }
 
-uint8_t ICACHE_RAM_ATTR gpio_in_read(struct gpio_in g)
+uint8_t IRAM_ATTR gpio_in_read(struct gpio_in g)
 {
     return digitalRead(g.pin);
 }
 
-void ICACHE_RAM_ATTR gpio_in_isr(struct gpio_in g, isr_cb_t func, uint8_t type)
+void IRAM_ATTR gpio_in_isr(struct gpio_in g, isr_cb_t func, uint8_t type)
 {
     attachInterrupt(digitalPinToInterrupt(g.pin), func, type);
 }
 
-void ICACHE_RAM_ATTR gpio_in_isr_remove(struct gpio_in g)
+void IRAM_ATTR gpio_in_isr_remove(struct gpio_in g)
 {
     detachInterrupt(digitalPinToInterrupt(g.pin));
 }

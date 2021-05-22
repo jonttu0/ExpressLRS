@@ -18,12 +18,12 @@ void IRAM_ATTR gpio_out_reset(struct gpio_out g, uint32_t val)
 
 void IRAM_ATTR gpio_out_toggle_noirq(struct gpio_out g)
 {
-    digitalWrite(g.pin, digitalRead(g.pin));
+    digitalWrite(g.pin, !digitalRead(g.pin));
 }
 
 void IRAM_ATTR gpio_out_toggle(struct gpio_out g)
 {
-    digitalWrite(g.pin, digitalRead(g.pin));
+    digitalWrite(g.pin, !digitalRead(g.pin));
 }
 
 void IRAM_ATTR gpio_out_write(struct gpio_out g, uint32_t val)
