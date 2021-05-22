@@ -463,7 +463,8 @@ https://github.com/jaxxzer
 #define GPIO_PIN_DIO0_127x PB0
 #define GPIO_PIN_RST_127x  PB2
 
-//#define GPIO_PIN_LED_RGB   PB15 // WS2812 RGB
+// V0.2
+#define GPIO_PIN_LED_RGB   PA11 // WS2812 RGB
 
 // ESPbackpack logger (USART1)
 #define CTRL_SERIAL Serial1
