@@ -30,8 +30,7 @@ if stm and "$UPLOADER $UPLOADERFLAGS" in env.get('UPLOADCMD', '$UPLOADER $UPLOAD
     else: # "_STLINK"
         env.Replace(UPLOADCMD=stlink.on_upload)
 elif platform in ['espressif8266']:
-    if target_board != 'ESP8285':
-        env.AddPostAction("buildprog", esp_compress.compressFirmware)
+    env.AddPostAction("buildprog", esp_compress.compressFirmware)
     env.AddPreAction("${BUILD_DIR}/spiffs.bin",
                      [esp_compress.compress_files])
     env.AddPreAction("${BUILD_DIR}/${ESP8266_FS_IMAGE_NAME}.bin",
