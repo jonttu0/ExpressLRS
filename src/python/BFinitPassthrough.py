@@ -1,5 +1,5 @@
 import serial, time, sys, re
-from xmodem import XMODEM
+import argparse
 import serials_find
 import SerialHelper
 
@@ -106,17 +106,43 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
     rl.write(cmd + '\n')
     time.sleep(.2)
     s.close()
-
     dbg_print("======== PASSTHROUGH DONE ========")
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(
+        description="Initialize BetaFlight passthrough and optionally send a reboot comamnd sequence")
+    parser.add_argument("-b", "--baud", type=int, default=420000,
+        help="Baud rate for passthrough communication")
+    parser.add_argument("-p", "--port", type=str,
+        help="Override serial port autodetection and use PORT")
+    parser.add_argument("-nr", "--no-reset", action="store_false",
+        dest="reset_to_bl", help="Do not send reset_to_bootloader command sequence")
+    parser.add_argument("-hd", "--half-duplex", action="store_true",
+        dest="half_duplex", help="Use half duplex mode")
+    args = parser.parse_args()
+
+    if (args.port == None):
+        args.port = serials_find.get_serial_port()
+
     try:
-        requestedBaudrate = int(sys.argv[1])
-    except:
-        requestedBaudrate = 420000
-    port = serials_find.get_serial_port()
-    try:
-        bf_passthrough_init(port, requestedBaudrate)
+        bf_passthrough_init(args.port, args.baud)
     except PassthroughEnabled as err:
         dbg_print(str(err))
+
+    if args.reset_to_bl:
+        s = serial.Serial(port=args.port, baudrate=args.baud,
+            bytesize=8, parity='N', stopbits=1,
+            timeout=1, xonxoff=0, rtscts=0)
+
+        dbg_print("======== RESET TO BOOTLOADER ========")
+        if args.half_duplex:
+            BootloaderInitSeq1 = bytes([0x89,0x04,0x32,0x62,0x6c,0x0A]) # GHST
+            dbg_print("  * Using half duplex (GHST)")
+        else:
+            BootloaderInitSeq1 = bytes([0xEC,0x04,0x32,0x62,0x6c,0x0A]) # CRSF
+
+        s.write(BootloaderInitSeq1)
+        s.flush()
+        time.sleep(.5)
+        s.close()
