@@ -22,10 +22,10 @@ void HwSerial::Begin(uint32_t baud, uint32_t config)
     enable_receiver();
 }
 
-void ICACHE_RAM_ATTR HwSerial::enable_receiver(void)
+void IRAM_ATTR HwSerial::enable_receiver(void)
 {
 }
 
-void ICACHE_RAM_ATTR HwSerial::enable_transmitter(void)
+void IRAM_ATTR HwSerial::enable_transmitter(void)
 {
 }

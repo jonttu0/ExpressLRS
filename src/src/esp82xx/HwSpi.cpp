@@ -5,7 +5,7 @@
 
 SPIClass SpiBus;
 
-struct spi_config ICACHE_RAM_ATTR
+struct spi_config IRAM_ATTR
 spi_setup(uint32_t speed, int sck, int miso, int mosi, uint8_t mode)
 {
     uint8_t datamode[4] = {SPI_MODE0, SPI_MODE1, SPI_MODE2, SPI_MODE3};
@@ -20,13 +20,13 @@ spi_setup(uint32_t speed, int sck, int miso, int mosi, uint8_t mode)
     return {.spi = NULL};
 }
 
-void ICACHE_RAM_ATTR
+void IRAM_ATTR
 spi_prepare(struct spi_config config)
 {
     (void)config;
 }
 
-void ICACHE_RAM_ATTR
+void IRAM_ATTR
 spi_transfer(struct spi_config config, uint8_t receive_data,
              uint8_t len, uint8_t *data)
 {

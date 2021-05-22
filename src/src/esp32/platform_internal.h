@@ -12,10 +12,6 @@
 #define likely(x) (x)
 #define unlikely(x) (x)
 
-#if !defined(ICACHE_RAM_ATTR)
-#define ICACHE_RAM_ATTR IRAM_ATTR
-#endif // !defined(ICACHE_RAM_ATTR)
-
 #define DRAM_FORCE_ATTR DRAM_ATTR
 
 #define FAST_CODE_1 IRAM_ATTR

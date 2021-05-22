@@ -6,7 +6,7 @@
 
 #include <Arduino.h>
 
-#define WEB_UPDATE_LED_FLASH_INTERVAL 25
+#define WEB_UPDATE_LED_FLASH_INTERVAL 50
 
 uint32_t webUpdateLedFlashIntervalNext = 0;
 
@@ -14,7 +14,7 @@ uint32_t webUpdateLedFlashIntervalNext = 0;
 struct gpio_out led_pin; // Invert led
 #endif
 
-void ICACHE_RAM_ATTR Printf::_putchar(char character)
+void IRAM_ATTR Printf::_putchar(char character)
 {
 #ifdef DEBUG_SERIAL
     DEBUG_SERIAL.print(character);
@@ -88,10 +88,11 @@ void platform_loop(int state)
     }
 }
 
+static uint8_t loop_cnt;
 void platform_connection_state(int state)
 {
 #ifdef AUTO_WIFI_ON_BOOT
-    if (state == STATE_search_iteration_done && millis() < 30000)
+    if (state == STATE_search_iteration_done && millis() < 30000 && 2 <= ++loop_cnt)
     {
         /* state is disconnect at this point and update can be started */
         beginWebsever(STATE_disconnected);
@@ -108,7 +109,8 @@ void platform_set_led(uint8_t state)
 
 void platform_restart(void)
 {
-    ESP.restart();
+    //ESP.restart();
+    ESP.rebootIntoUartDownloadMode();
 }
 
 void platform_wd_feed(void)
