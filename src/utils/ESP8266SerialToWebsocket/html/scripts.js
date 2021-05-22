@@ -178,8 +178,7 @@ function setting_set(type, value) {
             value = value.split(",");
             if (1 < value.length) {
                 var max_value = parseInt(value[1], 10);
-                if (elem.options[0].value == "R")
-                    max_value = max_value + 1; // include reset
+                max_value = max_value + 2; // include reset and dummy
                 var i;
                 // enable all
                 for (i = 0; i < elem.length; i++) {
