@@ -9,8 +9,10 @@ platform = env.get('PIOPLATFORM', '')
 stm = platform in ['ststm32']
 
 target_name = env['PIOENV'].upper()
+target_board = env.get('BOARD').upper()
 print("PLATFORM : '%s'" % platform)
 print("BUILD ENV: '%s'" % target_name)
+print("BOARD:     '%s'" % target_board)
 
 # don't overwrite if custom command defined
 if stm and "$UPLOADER $UPLOADERFLAGS" in env.get('UPLOADCMD', '$UPLOADER $UPLOADERFLAGS'):
@@ -28,7 +30,8 @@ if stm and "$UPLOADER $UPLOADERFLAGS" in env.get('UPLOADCMD', '$UPLOADER $UPLOAD
     else: # "_STLINK"
         env.Replace(UPLOADCMD=stlink.on_upload)
 elif platform in ['espressif8266']:
-    env.AddPostAction("buildprog", esp_compress.compressFirmware)
+    if target_board != 'ESP8285':
+        env.AddPostAction("buildprog", esp_compress.compressFirmware)
     env.AddPreAction("${BUILD_DIR}/spiffs.bin",
                      [esp_compress.compress_files])
     env.AddPreAction("${BUILD_DIR}/${ESP8266_FS_IMAGE_NAME}.bin",
