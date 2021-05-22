@@ -804,6 +804,7 @@ void loop()
             if (max_rate <= scanIndex) {
                 radio_prepare((get_elrs_current_radio_type() == RADIO_TYPE_128x_FLRC) ? RADIO_TYPE_128x : RADIO_TYPE_128x_FLRC);
                 scanIndex = 0;
+                max_rate = get_elrs_airRateMax();
             }
 #endif
             SetRFLinkRate((scanIndex % max_rate)); // switch between rates
