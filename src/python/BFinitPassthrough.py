@@ -132,6 +132,7 @@ if __name__ == '__main__':
         dbg_print(str(err))
 
     if args.reset_to_bl:
+        key = "ESP82"
         dbg_print("======== RESET TO BOOTLOADER ========")
         s = serial.Serial(port=args.port, baudrate=args.baud,
             bytesize=8, parity='N', stopbits=1,
