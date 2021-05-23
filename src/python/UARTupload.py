@@ -31,13 +31,14 @@ def uart_upload(port, filename, baudrate, ghst=False, key=None):
     logging.basicConfig(level=logging.ERROR)
 
     if ghst:
-        BootloaderInitSeq1 = bootloader.get_init_seq('GHST', key)
+        cmd_reboot_to_bootloader = bootloader.get_init_seq('GHST', key)
         half_duplex = True
         dbg_print("  Using GHST (half duplex)!\n")
     else:
-        BootloaderInitSeq1 = bootloader.get_init_seq('CRSF', key)
+        cmd_reboot_to_bootloader = bootloader.get_init_seq('CRSF', key)
         dbg_print("  Using CRSF (full duplex)!\n")
-    BootloaderInitSeq2 = bytes([0x62,0x62,0x62,0x62,0x62,0x62])
+
+    cmd_start_upload = bytes([ord('b')] * 6)
 
     if not os.path.exists(filename):
         msg = "[FAILED] file '%s' does not exist\n" % filename
@@ -103,7 +104,7 @@ def uart_upload(port, filename, baudrate, ghst=False, key=None):
                 # clear RX buffer before continuing
                 rl.clear()
                 # request reboot
-                rl.write(BootloaderInitSeq1)
+                rl.write(cmd_reboot_to_bootloader)
 
                 start = time.time()
                 while ((time.time() - start) < 2.):
@@ -130,7 +131,7 @@ def uart_upload(port, filename, baudrate, ghst=False, key=None):
 
                     elif "hold down button" in line:
                         time.sleep(delay_seq2)
-                        rl.write(BootloaderInitSeq2)
+                        rl.write(cmd_start_upload)
                         gotBootloader = True
                         break
 
