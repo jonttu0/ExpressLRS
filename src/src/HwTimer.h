@@ -5,15 +5,9 @@
 
 #define TimerIntervalUSDefault 20000
 
-#define TIMER_SOON 40 // 40us
-
-#if (PLATFORM_STM32 && !defined(ARDUINO)) || PLATFORM_ESP8266
-#define USE_TIMER_KICK  1
-#endif
-
-#define TIMER_OFFSET_KICK  100
+#define TIMER_SOON         40 // 40us
 #define TIMER_OFFSET       300 //250
-#define TIMER_OFFSET_LIMIT 50
+
 
 class HwTimer
 {

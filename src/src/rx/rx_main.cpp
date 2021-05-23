@@ -26,17 +26,18 @@ void FAST_CODE_1 LostConnection();
 
 //// CONSTANTS ////
 #define SEND_LINK_STATS_TO_FC_INTERVAL 100
-#define PRINT_FREQ_ERROR               0
-//#define NUM_FAILS_TO_RESYNC            100
-#define PRINT_RATE 1
-#define PRINT_TIMING 0
+
+/* Debug variables */
+#define PRINT_FREQ_ERROR    0
+#define PRINT_RATE          1
+#define PRINT_TIMING        0
 
 #if PRINT_RATE && NO_DATA_TO_FC
 uint32_t print_rate_cnt;
 uint32_t print_rate_cnt_fail;
 uint32_t print_Rate_cnt_time;
 #endif
-#if PRINT_TIMING
+#if PRINT_TIMING && NO_DATA_TO_FC
 static uint32_t DRAM_ATTR print_rx_isr_end_time;
 #endif
 
@@ -50,9 +51,6 @@ static uint8_t DRAM_ATTR TLMinterval;
 static volatile uint32_t DRAM_ATTR tlm_check_ratio;
 static volatile uint32_t DRAM_ATTR rx_last_valid_us; //Time the last valid packet was recv
 static volatile int32_t DRAM_ATTR rx_freqerror;
-#if NUM_FAILS_TO_RESYNC
-static uint32_t rx_lost_packages;
-#endif
 static volatile int32_t DRAM_ATTR rx_hw_isr_running;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
@@ -156,20 +154,13 @@ uint8_t FAST_CODE_1 RadioFreqErrorCorr(void)
     if (!freqerror)
         return 0;
 
-#if PRINT_FREQ_ERROR
+#if PRINT_FREQ_ERROR && NO_DATA_TO_FC
     DEBUG_PRINTF(" > freqerror:%u", freqerror);
 #endif
 
-#define MAX_ERROR 0 //3000
-#if MAX_ERROR
-    if (freqerror < -MAX_ERROR)
-        freqerror = -MAX_ERROR;
-    else if (freqerror > MAX_ERROR)
-        freqerror = MAX_ERROR;
-#endif
     freqerror = LPF_FreqError.update(freqerror);
 
-#if PRINT_FREQ_ERROR
+#if PRINT_FREQ_ERROR && NO_DATA_TO_FC
     DEBUG_PRINTF(" smooth:%u", freqerror);
 #endif
 
@@ -179,7 +170,7 @@ uint8_t FAST_CODE_1 RadioFreqErrorCorr(void)
         Radio->setPPMoffsetReg(freqerror, 0);
         retval = 1;
     }
-#if PRINT_FREQ_ERROR
+#if PRINT_FREQ_ERROR && NO_DATA_TO_FC
     //extern int_fast32_t FreqCorrection;
     //DEBUG_PRINTF(" local:%u", FreqCorrection);
 #endif
@@ -254,34 +245,21 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     uint_fast8_t nonce = NonceRXlocal;
     rx_last_valid_us = 0;
 
-#if PRINT_TIMING
+#if PRINT_TIMING && NO_DATA_TO_FC
     uint32_t freq_now = FHSSgetCurrFreq();
 #endif
 
     /* do adjustment */
     if (last_rx_us != 0)
     {
-#if 1 //!USE_TIMER_KICK
         diff_us = (int32_t)((uint32_t)(us - last_rx_us));
 
-#if 0
-        int32_t const interval = ExpressLRS_currAirRate->interval;
-        if (diff_us > (interval >> 1))
-        {
-            /* the timer was called too early */
-            diff_us %= interval;
-            diff_us -= interval;
-        }
-#else
         if (diff_us < -TIMER_OFFSET) diff_us = -TIMER_OFFSET;
         else if (diff_us > TIMER_OFFSET) diff_us = TIMER_OFFSET;
-#endif
+
         /* Adjust the timer */
-        //if ((TIMER_OFFSET_LIMIT < diff_us) || (diff_us < 0))
-            TxTimer.reset(diff_us - TIMER_OFFSET);
-#else // USE_TIMER_KICK
-        TxTimer.reset(-TIMER_OFFSET_KICK);
-#endif // USE_TIMER_KICK
+        TxTimer.reset(diff_us - TIMER_OFFSET);
+
 #if PRINT_RATE && NO_DATA_TO_FC
         print_rate_cnt++;
 #endif
@@ -291,11 +269,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #if PRINT_RATE && NO_DATA_TO_FC
         print_rate_cnt_fail++;
 #endif
-#if !USE_TIMER_KICK
-        TxTimer.setTime(); // Reset timer interval
-#else
         TxTimer.reset(0); // Reset timer interval
-#endif
     }
 
     fhss_config_rx |= RadioFreqErrorCorr();
@@ -316,17 +290,6 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #endif
         goto hw_tmr_isr_exit;
     }
-#if NUM_FAILS_TO_RESYNC
-    else if (!last_rx_us)
-    {
-        if (NUM_FAILS_TO_RESYNC < (++rx_lost_packages)) {
-            // consecutive losts => trigger connection lost to resync
-            LostConnection();
-            DEBUG_PRINTF("RESYNC!");
-            goto hw_tmr_isr_exit;
-        }
-    }
-#endif
 
     /* Configure next reception if needed */
     if (fhss_config_rx) {
@@ -336,7 +299,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 hw_tmr_isr_exit:
     NonceRXlocal = nonce;
 
-#if (PRINT_TIMING)
+#if PRINT_TIMING && NO_DATA_TO_FC
     uint32_t now = micros();
     DEBUG_PRINTF("RX:%u (t:%u) HW:%u diff:%d (t:%u) [f %u]\n",
                  last_rx_us, (print_rx_isr_end_time - last_rx_us),
@@ -393,9 +356,6 @@ void FAST_CODE_1 TentativeConnection(int32_t freqerror)
     connectionState = STATE_tentative;
     DEBUG_PRINTF("tentative\n");
     TxTimer.start();     // Start local sync timer
-#if !USE_TIMER_KICK
-    TxTimer.setTime(80); // Trigger isr right after reception
-#endif
     led_set_state(1); // turn on led
 }
 
@@ -479,13 +439,11 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
                         LostConnection();
                         return;
                     }
-#if 1
                 } else if (no_sync_armed && ((CRSF_CHANNEL_OUT_VALUE_MIN + 100) < CrsfChannels.ch4)) {
                     /* Sync should not be received, ignore it */
                     rx_last_valid_us = 0;
                     freq_err = 0;
                     return;
-#endif
                 }
 
                 //DEBUG_PRINTF("nonce: %u <= %u\n", NonceRXlocal, sync->rxtx_counter);
@@ -560,22 +518,17 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
 
     rx_freqerror = freq_err;
 
-#if NUM_FAILS_TO_RESYNC
-    rx_lost_packages = 0;
-#endif
     LQ_packetAck();
     FillLinkStats();
 
-#if PRINT_TIMING
+#if PRINT_TIMING && NO_DATA_TO_FC
     print_rx_isr_end_time = micros();
 #endif
 #if (DBG_PIN_RX_ISR != UNDEF_PIN)
     gpio_out_write(dbg_pin_rx, 0);
 #endif
 
-#if USE_TIMER_KICK
     TxTimer.triggerSoon(); // Trigger FHSS ISR
-#endif
 }
 
 void forced_stop(void)
