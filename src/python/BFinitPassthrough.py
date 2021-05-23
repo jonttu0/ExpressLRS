@@ -121,6 +121,8 @@ def reset_to_bootloader(args):
     else:
         BootloaderInitSeq = bootloader.get_init_seq('CRSF', args.type)
         dbg_print("  * Using full duplex (CFSF)")
+    # Let the CRSFv3 to fallback to 420k baud
+    time.sleep(1.5)
     s.write(BootloaderInitSeq)
     s.flush()
     time.sleep(.5)
