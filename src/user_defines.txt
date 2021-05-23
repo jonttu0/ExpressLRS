@@ -115,3 +115,7 @@
 
 ## Example PHRASE
 -DMY_PHRASE="This is my private phrase and will be used as a UID"
+
+################################
+### Use CRSF v3 prtocol if FC supports it
+-DPROTOCOL_CRSF_V3_TO_FC=1
