@@ -12,6 +12,7 @@ import bootloader
 
 SCRIPT_DEBUG = 0
 BAUDRATE_DEFAULT = 420000
+BAUDRATE_ELRS_PROTO = 691200
 
 
 def dbg_print(line=''):
@@ -205,6 +206,12 @@ def on_upload(source, target, env):
     envkey = None
     ghst = False
     firmware_path = str(source[0])
+
+    flags = env.get('BUILD_FLAGS', [])
+    for flag in flags:
+        if 'PROTOCOL_ELRS_TO_FC=1' in flag:
+            print("ELRS protocol detected. Change upload speed to %u" % BAUDRATE_ELRS_PROTO)
+            env['UPLOAD_SPEED'] = BAUDRATE_ELRS_PROTO
 
     upload_port = env.get('UPLOAD_PORT', None)
     if upload_port is None:

@@ -110,7 +110,7 @@ void FAST_CODE_1 CRSF_RX::sendMSPFrameToFC(mspPacket_t & msp) const
 
 void CRSF_RX::negotiate_baud(void) const
 {
-#if PROTOCOL_CRSF_V3_TO_FC
+#if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
     /* Skip if already negotiated */
     if (configured_baudrate == CRSF_RX_BAUDRATE_V3)
         return;
@@ -137,7 +137,7 @@ void CRSF_RX::change_baudrate(uint32_t const baud)
     if (configured_baudrate == baud)
         return;
 
-#if PROTOCOL_CRSF_V3_TO_FC
+#if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
     _dev->end();
     _dev->Begin(baud);
     Begin();
@@ -162,7 +162,7 @@ void CRSF_RX::processPacket(uint8_t const *data)
                     crsf_v3_speed_control_resp_t const * const resp =
                         (crsf_v3_speed_control_resp_t*)msg->command.payload;
                     if (resp->portID == CRSF_v3_PORT_ID) {
-#if PROTOCOL_CRSF_V3_TO_FC
+#if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
                         // Baudrate accepted, configure new baud
                         change_baudrate((resp->status) ? CRSF_RX_BAUDRATE_V3 : CRSF_RX_BAUDRATE);
 #endif // PROTOCOL_CRSF_V3_TO_FC
@@ -274,7 +274,7 @@ void CRSF_RX::handleUartIn(void)
     int available = _dev->available();
     uint8_t *ptr;
 
-#if PROTOCOL_CRSF_V3_TO_FC
+#if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
     if (1000 <= (millis() - last_rx_from_fc)) {
         change_baudrate(CRSF_RX_BAUDRATE); // reset back to default
     }

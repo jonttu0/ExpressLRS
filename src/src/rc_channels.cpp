@@ -148,7 +148,7 @@ void FAST_CODE_1 RcChannels_channels_extract(uint8_t const *const input,
 #define RC_SCALE 1
 #endif // PROTOCOL_ELRS_TO_FC
 
-#if PROTOCOL_CRSF_V3_TO_FC
+#if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
     PackedRCdataOut.ch_idx = 0;
 #endif
 
