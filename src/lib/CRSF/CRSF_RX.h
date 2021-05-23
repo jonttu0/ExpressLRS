@@ -9,7 +9,9 @@
 class CRSF_RX : public CRSF
 {
 public:
-    CRSF_RX(HwSerial &dev) : CRSF(&dev) {}
+    CRSF_RX(HwSerial &dev) : CRSF(&dev) {
+        configured_baudrate = CRSF_RX_BAUDRATE;
+    }
 
     void Begin(void);
 
@@ -19,16 +21,19 @@ public:
     void LinkStatisticsSend(LinkStatsLink_t & stats) const;
     void sendMSPFrameToFC(mspPacket_t & msp) const;
 
-    void negotiate_baud(uint32_t baudrate) const;
-    uint8_t negotiate_accepted(void) const {
-        return new_baud_ok;
+    uint32_t current_baudrate(void) const {
+        return configured_baudrate;
     }
 
 private:
     void sendFrameToFC(uint8_t *buff, uint8_t size) const;
     void processPacket(uint8_t const *data);
+    void negotiate_baud(void) const;
+    void change_baudrate(uint32_t baud = CRSF_RX_BAUDRATE);
 
-    uint8_t new_baud_ok;
+    uint32_t last_rx_from_fc;
+    uint32_t successful_packets_from_fc;
+    uint32_t configured_baudrate;
 };
 
 #endif /* CRSF_RX_H_ */

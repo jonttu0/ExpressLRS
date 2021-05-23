@@ -5,6 +5,15 @@
 #include "POWERMGNT.h"
 #include "gpio.h"
 #include "ws2812.h"
+#if defined(RX_MODULE)
+#if RX_GHST_ENABLED
+#include "GHST.h"
+#define RX_BAUDRATE GHST_RX_BAUDRATE
+#else
+#include "CRSF.h"
+#define RX_BAUDRATE CRSF_RX_BAUDRATE
+#endif
+#endif // RX_MODULE
 #include <stm32_eeprom.h>
 
 uint8_t rate_config_dips = 0xff;
@@ -266,9 +275,17 @@ void platform_set_led(uint8_t state)
 #endif
 }
 
+enum {
+    BL_FLAG_KEY = 0x626C0000,
+    /* 16bits */
+    BL_FLAG_BAUDRATE = 1,
+};
+
 struct bootloader {
     uint32_t key;
     uint32_t reset_type;
+    uint32_t flags;
+    uint32_t baudrate;
 };
 
 void platform_restart(void)
@@ -278,6 +295,7 @@ void platform_restart(void)
 
 void platform_reboot_into_bootloader(const uint8_t * info)
 {
+#if defined(RX_MODULE)
 #ifdef TARGET_INDENTIFIER
     if (info) {
         const char id[] = TARGET_INDENTIFIER;
@@ -297,6 +315,9 @@ void platform_reboot_into_bootloader(const uint8_t * info)
     volatile struct bootloader * blinfo = ((struct bootloader*)&_bootloader_data) + 0;
     blinfo->key = 0x454c5253; // ELRS
     blinfo->reset_type = 0xACDC;
+    blinfo->flags = BL_FLAG_KEY | BL_FLAG_BAUDRATE;
+    blinfo->baudrate = RX_BAUDRATE;
+#endif // RX_MODULE
     platform_restart();
 }
 

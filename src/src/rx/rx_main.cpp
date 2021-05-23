@@ -129,6 +129,7 @@ static void FAST_CODE_1 handle_tlm_ratio(uint8_t interval)
     TLMinterval = interval;
     DEBUG_PRINTF("TLM: %u\n", interval);
 }
+
 ///////////////////////////////////////
 
 void FAST_CODE_1 FillLinkStats()
@@ -755,26 +756,15 @@ void setup()
     crsf.BattInfoCallback = battery_info_cb;
     crsf.GpsCallback = gps_info_cb;
     crsf.Begin();
-#if PROTOCOL_CRSF_V3_TO_FC
-    crsf.negotiate_baud(CRSF_RX_BAUDRATE_V3);
-#endif
 #endif
 }
 
 static uint32_t led_toggle_ms = 0;
 void loop()
 {
-    uint32_t now = millis();
+    uint32_t const now = millis();
 
     const connectionState_e _conn_state = (connectionState_e)read_u32(&connectionState);
-
-#if !SERVO_OUTPUTS_ENABLED && PROTOCOL_CRSF_V3_TO_FC
-    if (crsf.negotiate_accepted()) {
-        CrsfSerial.end();
-        CrsfSerial.Begin(CRSF_RX_BAUDRATE_V3);
-        crsf.Begin();
-    }
-#endif
 
     if (STATE_lost < _conn_state) {
         // check if connection is lost or in very bad shape

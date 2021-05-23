@@ -16,6 +16,8 @@ crsfLinkStatisticsMsg_t DMA_ATTR link_stat_packet;
 
 void CRSF_RX::Begin(void)
 {
+    successful_packets_from_fc = 0;
+
     link_stat_packet.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     link_stat_packet.header.frame_size = sizeof(link_stat_packet) - CRSF_FRAME_START_BYTES;
 #if PROTOCOL_ELRS_TO_FC
@@ -42,9 +44,9 @@ void CRSF_RX::Begin(void)
     p_crsf_channels.header.type = CRSF_FRAMETYPE_RC_CHANNELS_PACKED;
 #endif // PROTOCOL_ELRS_TO_FC
 
-    new_baud_ok = false;
-
     CRSF::Begin();
+
+    negotiate_baud();
 }
 
 void FAST_CODE_1 CRSF_RX::sendFrameToFC(uint8_t *buff, uint8_t const size) const
@@ -106,9 +108,13 @@ void FAST_CODE_1 CRSF_RX::sendMSPFrameToFC(mspPacket_t & msp) const
     sendFrameToFC((uint8_t*)&msp_packet, sizeof(msp_packet));
 }
 
-void CRSF_RX::negotiate_baud(uint32_t baudrate) const
+void CRSF_RX::negotiate_baud(void) const
 {
 #if PROTOCOL_CRSF_V3_TO_FC
+    /* Skip if already negotiated */
+    if (configured_baudrate == CRSF_RX_BAUDRATE_V3)
+        return;
+
     crsf_speed_req req;
     req.header.device_addr = CRSF_ADDRESS_BROADCAST;
     req.header.frame_size = sizeof(req) - CRSF_FRAME_START_BYTES;
@@ -121,13 +127,31 @@ void CRSF_RX::negotiate_baud(uint32_t baudrate) const
     req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
     req.crc_cmd = CalcCRC8len(&req.header.type, (sizeof(req) - 4), 0, CRSF_CMD_POLY);
     sendFrameToFC((uint8_t*)&req, sizeof(req));
-    delay(20);
+    delay(20); // Wait DMA to finish its job
+#endif // PROTOCOL_CRSF_V3_TO_FC
+}
+
+void CRSF_RX::change_baudrate(uint32_t const baud)
+{
+    /* Skip if already set */
+    if (configured_baudrate == baud)
+        return;
+
+#if PROTOCOL_CRSF_V3_TO_FC
+    _dev->end();
+    _dev->Begin(baud);
+    Begin();
+    configured_baudrate = baud;
 #endif // PROTOCOL_CRSF_V3_TO_FC
 }
 
 void CRSF_RX::processPacket(uint8_t const *data)
 {
     crsf_buffer_t const * const msg = (crsf_buffer_t*)data;
+
+    last_rx_from_fc = millis();
+    successful_packets_from_fc++;
+
     switch (msg->type) {
         case CRSF_FRAMETYPE_COMMAND: {
             if ((msg->command.dest_addr == CRSF_ADDRESS_CRSF_RECEIVER) &&
@@ -137,10 +161,10 @@ void CRSF_RX::processPacket(uint8_t const *data)
                 if (msg->command.sub_command == CRSF_COMMAND_SUBCMD_GENERAL_CRSF_SPEED_RESPONSE) {
                     crsf_v3_speed_control_resp_t const * const resp =
                         (crsf_v3_speed_control_resp_t*)msg->command.payload;
-                    if ((resp->portID == CRSF_v3_PORT_ID) && (resp->status)) {
+                    if (resp->portID == CRSF_v3_PORT_ID) {
 #if PROTOCOL_CRSF_V3_TO_FC
                         // Baudrate accepted, configure new baud
-                        new_baud_ok = true;
+                        change_baudrate((resp->status) ? CRSF_RX_BAUDRATE_V3 : CRSF_RX_BAUDRATE);
 #endif // PROTOCOL_CRSF_V3_TO_FC
                     }
                 }
@@ -152,8 +176,14 @@ void CRSF_RX::processPacket(uint8_t const *data)
             break;
         }
 
+        case CRSF_FRAMETYPE_DISPLAYPORT_CMD:
         case CRSF_FRAMETYPE_DEVICE_INFO: {
-            // Use this to detect whether the FC is connected
+            /* These are sent after startup */
+            negotiate_baud();
+            break;
+        }
+
+        case CRSF_FRAMETYPE_FLIGHT_MODE: {
             break;
         }
 
@@ -231,12 +261,24 @@ void CRSF_RX::processPacket(uint8_t const *data)
         default:
             break;
     }
+
+    if (10 < successful_packets_from_fc) {
+        /* Try to increase speed */
+        negotiate_baud();
+        successful_packets_from_fc = 0;
+    }
 }
 
 void CRSF_RX::handleUartIn(void)
 {
     int available = _dev->available();
     uint8_t *ptr;
+
+#if PROTOCOL_CRSF_V3_TO_FC
+    if (1000 <= (millis() - last_rx_from_fc)) {
+        change_baudrate(CRSF_RX_BAUDRATE); // reset back to default
+    }
+#endif // PROTOCOL_CRSF_V3_TO_FC
 
     if (16 < available) available = 16;
     else if (available < 0) available = 0;
