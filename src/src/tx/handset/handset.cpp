@@ -8,6 +8,7 @@
 #include "HwTimer.h"
 #include "gimbals.h"
 #include "switches.h"
+#include "rc_channels.h"
 #include <stdlib.h>
 
 #define RC_CH_PRINT_INTERVAL    2000
@@ -45,16 +46,16 @@ rc_data_collect(uint32_t const current_us)
     for (iter = 0; iter < NUM_ANALOGS; iter++) {
         index = pl_config.mixer[iter].index;
         if (pl_config.mixer[iter].inv) {
-            gimbals[index] = CRSF_CHANNEL_OUT_VALUE_MIN +
-                (CRSF_CHANNEL_OUT_VALUE_MAX - gimbals[index]);
+            gimbals[index] = ANALOG_MIN_VAL +
+                (ANALOG_MAX_VAL - gimbals[index]);
         }
         scale = pl_config.mixer[iter].scale;
         if (scale) {
-            scale = (((uint32_t)CRSF_CHANNEL_OUT_VALUE_MAX * scale) / 100U);
+            scale = (((uint32_t)ANALOG_MAX_VAL * scale) / 100U);
             gimbals[index] =
                 MAP_U16(gimbals[index],
-                CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX,
-                CRSF_CHANNEL_OUT_VALUE_MIN, scale);
+                    ANALOG_MIN_VAL, ANALOG_MAX_VAL,
+                    ANALOG_MIN_VAL, scale);
         }
     }
     rc_data.ch0 = gimbals[pl_config.mixer[0].index];
@@ -65,7 +66,7 @@ rc_data_collect(uint32_t const current_us)
     for (iter = 0; iter < NUM_SWITCHES; iter++) {
         if (pl_config.mixer[(iter + 4)].inv) {
             index = pl_config.mixer[(iter + 4)].index;
-            aux[index] = CRSF_CHANNEL_OUT_VALUE_MAX - aux[index];
+            aux[index] = SWITCH_MAX - aux[index];
         }
     }
     rc_data.ch4 = aux[pl_config.mixer[4].index];
@@ -220,6 +221,7 @@ void setup()
     /* Start TX */
     hw_timer_init();
 }
+
 
 void loop()
 {

@@ -27,7 +27,20 @@
 
 
 /*************************************************
- *    Data conversion macros
+ *    Data conversion macros [HANDSET]
+ *************************************************/
+/* Note: this must match to OTA bits */
+#define ANALOG_BITS     10U
+#define ANALOG_MIN_VAL  0U
+#define ANALOG_MID_VAL  (1U << (ANALOG_BITS - 1))
+#define ANALOG_MAX_VAL  ((1U << ANALOG_BITS) - 1)
+
+#define SWITCH_MIN      0U
+#define SWITCH_MID      1U
+#define SWITCH_MAX      2U
+
+/*************************************************
+ *    Data conversion macros [CRSF]
  *************************************************/
 /** NOTE
  * CRSF input range is [0...992...1984]
@@ -43,6 +56,7 @@
 #define CRSF_CHANNEL_IN_VALUE_MID 992
 #define CRSF_CHANNEL_IN_VALUE_MAX 1984
 
+#define CRSFv3_BITS ANALOG_BITS
 
 #define UINT10_to_CRSF(val) MAP_U16((val), 0, 1024, CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX)
 #define CRSF_to_UINT10(val) MAP_U16((val), CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX, 0, 1023)
@@ -51,12 +65,20 @@
 // 1984 / 6 = 330 => taken down a bit to align result more evenly
 // (1811-172) / 6 = 273
 #define CRSF_to_SWITCH3b(val) ((val) / 300)
+#if PROTOCOL_CRSF_V3_TO_FC && CRSFv3_BITS == 10
+#define SWITCH3b_to_CRSF(val) ((val) * 170) // round down 170.5 to 170
+#else
 #define SWITCH3b_to_CRSF(val) ((val) * 273 + CRSF_CHANNEL_OUT_VALUE_MIN)
+#endif
 
 // 3 state aka 2b switches use 0, 1 and 2 as values to represent low, middle and high
 // 819 = (1811-172) / 2
 #define CRSF_to_SWITCH2b(val) ((val) / 819)
+#if PROTOCOL_CRSF_V3_TO_FC && CRSFv3_BITS == 10
+#define SWITCH2b_to_CRSF(val) ((val)*511) // round down 511.5 to 511
+#else
 #define SWITCH2b_to_CRSF(val) ((val)*819 + CRSF_CHANNEL_OUT_VALUE_MIN)
+#endif
 
 #define CRSF_to_BIT(val) (((val) > 1000) ? 1 : 0)
 #define BIT_to_CRSF(val) ((val) ? CRSF_CHANNEL_OUT_VALUE_MAX : CRSF_CHANNEL_OUT_VALUE_MIN)
@@ -64,21 +86,26 @@
 #define SWITCH2b_to_3b(_D) ((_D) ? ((2 == (_D)) ? 6 : 3) : 0)
 
 
-// expresslrs packet header types
-// 00 -> standard 4 channel data packet
-// 01 -> switch data packet
-// 10 -> sync packet with hop data
-// 11 -> tlm packet (MSP)
-enum
-{
+/* This can be used to check if switch is set or not */
+#if PROTOCOL_ELRS_TO_FC
+#define SWITCH_IS_SET(val) (0 < (val))
+#elif PROTOCOL_CRSF_V3_TO_FC
+#define SWITCH_IS_SET(val) (100 < (val))
+#else
+#define SWITCH_IS_SET(val) ((CRSF_CHANNEL_OUT_VALUE_MIN+100) < (val))
+#endif
+
+
+// ExpressLRS packet header types for uplink OTA packets
+enum {
     UL_PACKET_UNKNOWN = 0b00,
     UL_PACKET_RC_DATA = 0b01,
     UL_PACKET_SYNC = 0b10,
     UL_PACKET_MSP = 0b11,
 };
 
-enum
-{
+// ExpressLRS packet header types for downlink OTA packets
+enum {
     DL_PACKET_FREE1 = 0b00,
     DL_PACKET_TLM_MSP = 0b01,
     DL_PACKET_GPS = 0b10,
@@ -142,10 +169,10 @@ typedef struct rc_channels_s
 #if PROTOCOL_ELRS_TO_FC
 typedef struct rc_channels_rx_s {
     // 64 bits of data (4 x 10 bits + 8 x 3 bits channels) = 8 bytes.
-    unsigned int ch0 : 10;
-    unsigned int ch1 : 10;
-    unsigned int ch2 : 10;
-    unsigned int ch3 : 10;
+    unsigned int ch0 : ANALOG_BITS;
+    unsigned int ch1 : ANALOG_BITS;
+    unsigned int ch2 : ANALOG_BITS;
+    unsigned int ch3 : ANALOG_BITS;
     unsigned int ch4 : 3;
     unsigned int ch5 : 3;
     unsigned int ch6 : 3;
@@ -156,44 +183,53 @@ typedef struct rc_channels_rx_s {
     unsigned int ch11 : 3;
 } PACKED rc_channels_rx_t;
 #elif PROTOCOL_CRSF_V3_TO_FC
+
+enum {
+    CRSFv3_RES_10B = 0,
+    CRSFv3_RES_11B,
+    CRSFv3_RES_12B,
+    CRSFv3_RES_13B,
+};
+
 typedef struct rc_channels_rx_s {
     /* CRSF V3 supports up to 24 channels */
-    uint16_t ch_idx : 5, ch0 : 11;
-    uint32_t ch1 : 11;
-    uint32_t ch2 : 11;
-    uint32_t ch3 : 11;
+    uint8_t ch_idx : 5, ch_res : 2, ch_reserved : 1;
+    uint32_t ch0 : CRSFv3_BITS;
+    uint32_t ch1 : CRSFv3_BITS;
+    uint32_t ch2 : CRSFv3_BITS;
+    uint32_t ch3 : CRSFv3_BITS;
     // switches:
-    uint32_t ch4 : 11;
-    uint32_t ch5 : 11;
+    uint32_t ch4 : CRSFv3_BITS;
+    uint32_t ch5 : CRSFv3_BITS;
 #if 2 < N_SWITCHES
-    uint32_t ch6 : 11;
+    uint32_t ch6 : CRSFv3_BITS;
 #endif
 #if 3 < N_SWITCHES
-    uint32_t ch7 : 11;
+    uint32_t ch7 : CRSFv3_BITS;
 #endif
 #if 4 < N_SWITCHES
-    uint32_t ch8 : 11;
+    uint32_t ch8 : CRSFv3_BITS;
 #endif
 #if 5 < N_SWITCHES
-    uint32_t ch9 : 11;
+    uint32_t ch9 : CRSFv3_BITS;
 #endif
 #if 6 < N_SWITCHES
-    uint32_t ch10 : 11;
+    uint32_t ch10 : CRSFv3_BITS;
 #endif
 #if 7 < N_SWITCHES
-    uint32_t ch11 : 11;
+    uint32_t ch11 : CRSFv3_BITS;
 #endif
 #if 8 < N_SWITCHES
-    uint32_t ch12 : 11;
+    uint32_t ch12 : CRSFv3_BITS;
 #endif
 #if 9 < N_SWITCHES
-    uint32_t ch13 : 11;
+    uint32_t ch13 : CRSFv3_BITS;
 #endif
 #if 10 < N_SWITCHES
-    uint32_t ch14 : 11;
+    uint32_t ch14 : CRSFv3_BITS;
 #endif
 #if 11 < N_SWITCHES
-    uint32_t ch15 : 11;
+    uint32_t ch15 : CRSFv3_BITS;
 #endif
 } PACKED rc_channels_rx_t;
 #else // !PROTOCOL_ELRS_TO_FC
@@ -203,6 +239,8 @@ typedef rc_channels_t rc_channels_rx_t;
 
 void
 RcChannels_processChannels(rc_channels_t const *const channels);
+void
+RcChannels_processChannelsCrsf(rc_channels_t const *const channels);
 void FAST_CODE_1
 RcChannels_get_packed_data(uint8_t *const output);
 uint8_t FAST_CODE_1

@@ -439,7 +439,7 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
                         LostConnection();
                         return;
                     }
-                } else if (no_sync_armed && ((CRSF_CHANNEL_OUT_VALUE_MIN + 100) < CrsfChannels.ch4)) {
+                } else if (no_sync_armed && SWITCH_IS_SET(CrsfChannels.ch4)) {
                     /* Sync should not be received, ignore it */
                     rx_last_valid_us = 0;
                     freq_err = 0;
@@ -491,7 +491,7 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
             break;
 
         case UL_PACKET_MSP: {
-            if (no_sync_armed && ((CRSF_CHANNEL_OUT_VALUE_MIN + 100) > CrsfChannels.ch4)) {
+            if (no_sync_armed && SWITCH_IS_SET(CrsfChannels.ch4)) {
                 /* Not a valid packet, ignore it */
                 rx_last_valid_us = 0;
                 freq_err = 0;

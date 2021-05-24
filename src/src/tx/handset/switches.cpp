@@ -123,12 +123,12 @@ void FAST_CODE_1 switches_collect(uint16_t * const out)
     uint8_t iter;
     for (iter = 0; iter < num_switches; iter++) {
         if (!gpio_in_read(switches[iter].low))
-            value = CRSF_CHANNEL_OUT_VALUE_MIN;
+            value = SWITCH_MIN;
         else if (!gpio_in_valid(switches[iter].high) ||
                  !gpio_in_read(switches[iter].high))
-            value = CRSF_CHANNEL_OUT_VALUE_MAX;
+            value = SWITCH_MAX;
         else
-            value = CRSF_CHANNEL_OUT_VALUE_MID;
+            value = SWITCH_MID;
         out[iter] = value;
     }
 }

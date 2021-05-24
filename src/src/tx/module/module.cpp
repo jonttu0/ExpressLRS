@@ -17,7 +17,7 @@ static uint32_t DRAM_ATTR TlmSentToRadioTime;
 
 static void rc_data_cb(uint8_t const *const channels)
 {
-    RcChannels_processChannels((rc_channels_t*)channels);
+    RcChannels_processChannelsCrsf((rc_channels_t*)channels);
 }
 
 static void ParamWriteHandler(uint8_t const *msg, uint16_t len)

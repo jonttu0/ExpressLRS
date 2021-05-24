@@ -21,14 +21,17 @@
 #if (16 < N_CHANNELS)
 #error "CRSF Channels Config is not OK"
 #endif
+#if ANALOG_BITS != 10
+#error "Configuration issue!"
+#endif
 
 typedef struct
 {
     // The analog channels
-    unsigned rc1 : 10;
-    unsigned rc2 : 10;
-    unsigned rc3 : 10;
-    unsigned rc4 : 10;
+    unsigned rc1 : ANALOG_BITS;
+    unsigned rc2 : ANALOG_BITS;
+    unsigned rc3 : ANALOG_BITS;
+    unsigned rc4 : ANALOG_BITS;
     // Packet type
     unsigned pkt_type : 2;
     // The round-robin switch
@@ -110,15 +113,15 @@ FORCED_INLINE void
 channels_pack(uint16_t ch1, uint16_t ch2, uint16_t ch3, uint16_t ch4)
 {
     // find the next switch to send
-    uint8_t ch_idx = getNextSwitchIndex();
+    uint8_t const ch_idx = getNextSwitchIndex();
 
     uint32_t irq = _SAVE_IRQ();
-    RcDataPacket_s *rcdata = (RcDataPacket_s *)&packed_buffer[0];
+    RcDataPacket_s * const rcdata = (RcDataPacket_s *)&packed_buffer[0];
     // The analog channels, scale down to 10bits
-    rcdata->rc1 = (ch1 >> 1);
-    rcdata->rc2 = (ch2 >> 1);
-    rcdata->rc3 = (ch3 >> 1);
-    rcdata->rc4 = (ch4 >> 1);
+    rcdata->rc1 = ch1;
+    rcdata->rc2 = ch2;
+    rcdata->rc3 = ch3;
+    rcdata->rc4 = ch4;
     // The round-robin switch
 #if N_SWITCHES <= 5
     rcdata->aux0 = currentSwitches[0];
@@ -142,21 +145,38 @@ void FAST_CODE_1 RcChannels_channels_extract(uint8_t const *const input,
     uint16_t switchValue;
     uint8_t switchIndex;
 
-#if PROTOCOL_ELRS_TO_FC
-#define RC_SCALE 0
-#else // PROTOCOL_ELRS_TO_FC
-#define RC_SCALE 1
-#endif // PROTOCOL_ELRS_TO_FC
-
 #if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
     PackedRCdataOut.ch_idx = 0;
+#if (CRSFv3_BITS == 10)
+    PackedRCdataOut.ch_res = CRSFv3_RES_10B;
+#elif (CRSFv3_BITS == 11)
+    PackedRCdataOut.ch_res = CRSFv3_RES_11B;
+#else
+#error "CRSFv3: only 10b or 11b"
+#endif
 #endif
 
-    // The analog channels, scale packet to 11bit
-    PackedRCdataOut.ch0 = ((uint16_t)rcdata->rc1 << RC_SCALE);
-    PackedRCdataOut.ch1 = ((uint16_t)rcdata->rc2 << RC_SCALE);
-    PackedRCdataOut.ch2 = ((uint16_t)rcdata->rc3 << RC_SCALE);
-    PackedRCdataOut.ch3 = ((uint16_t)rcdata->rc4 << RC_SCALE);
+#if PROTOCOL_ELRS_TO_FC || PROTOCOL_CRSF_V3_TO_FC
+    // The analog channels are sent as is
+    PackedRCdataOut.ch0 = rcdata->rc1;
+    PackedRCdataOut.ch1 = rcdata->rc2;
+    PackedRCdataOut.ch2 = rcdata->rc3;
+    PackedRCdataOut.ch3 = rcdata->rc4;
+#else
+    // The CRSF analog channels are 11bit
+    PackedRCdataOut.ch0 = MAP_U16(
+        (uint16_t)rcdata->rc1, ANALOG_MIN_VAL, ANALOG_MAX_VAL,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX);
+    PackedRCdataOut.ch1 = MAP_U16(
+        (uint16_t)rcdata->rc2, ANALOG_MIN_VAL, ANALOG_MAX_VAL,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX);
+    PackedRCdataOut.ch2 = MAP_U16(
+        (uint16_t)rcdata->rc3, ANALOG_MIN_VAL, ANALOG_MAX_VAL,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX);
+    PackedRCdataOut.ch3 = MAP_U16(
+        (uint16_t)rcdata->rc4, ANALOG_MIN_VAL, ANALOG_MAX_VAL,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX);
+#endif
     // The round-robin switch
     switchIndex = rcdata->aux_n_idx;
 #if PROTOCOL_ELRS_TO_FC
@@ -246,10 +266,80 @@ void FAST_CODE_1 RcChannels_channels_extract(uint8_t const *const input,
 }
 
 /**
+ * Store channels input to local buffers for OTA packet.
+ * Note: this does not do any scaling!!
+ */
+void RcChannels_processChannels(rc_channels_t const *const rcChannels)
+{
+    // channels input range: 0...2048
+    uint16_t ChannelDataIn[N_SWITCHES] = {
+        (uint16_t)rcChannels->ch4,
+        (uint16_t)rcChannels->ch5,
+#if 2 < N_SWITCHES
+        (uint16_t)rcChannels->ch6,
+#endif
+#if 3 < N_SWITCHES
+        (uint16_t)rcChannels->ch7,
+#endif
+#if 4 < N_SWITCHES
+        (uint16_t)rcChannels->ch8,
+#endif
+#if 5 < N_SWITCHES
+        (uint16_t)rcChannels->ch9,
+#endif
+#if 6 < N_SWITCHES
+        (uint16_t)rcChannels->ch10,
+#endif
+#if 7 < N_SWITCHES
+        (uint16_t)rcChannels->ch11
+#endif
+#if 8 < N_SWITCHES
+    , (uint16_t)rcChannels->ch12
+#endif
+#if 9 < N_SWITCHES
+    , (uint16_t)rcChannels->ch13
+#endif
+#if 10 < N_SWITCHES
+    , (uint16_t)rcChannels->ch14
+#endif
+#if 11 < N_SWITCHES
+    , (uint16_t)rcChannels->ch15
+#endif
+    };
+    uint8_t switch_state;
+
+    /**
+     * Convert the rc data corresponding to switches to 2 bit values.
+     *
+     * I'm defining channels 4 through 11 inclusive as representing switches
+     * Take the input values and convert them to the range 0 - 2.
+     * (not 0-3 because most people use 3 way switches and expect the middle
+     *  position to be represented by a middle numeric value)
+     */
+    for (uint8_t idx = 0; idx < N_SWITCHES; idx++) {
+#if N_SWITCHES <= 5 || 8 < N_SWITCHES
+        switch_state = ChannelDataIn[idx];
+        if (0b11 < switch_state) switch_state = 0b11;
+#else
+        // input is 0 - 2048, output is 0 - 7
+        switch_state = SWITCH2b_to_3b(ChannelDataIn[idx]);
+        if (0b111 < switch_state) switch_state = 0b111;
+#endif
+        // Check if state is changed
+        if (switch_state != currentSwitches[idx]) {
+            p_auxChannelsChanged |= (0x1 << idx);
+            currentSwitches[idx] = switch_state;
+        }
+    }
+
+    channels_pack(rcChannels->ch0, rcChannels->ch1, rcChannels->ch2, rcChannels->ch3);
+}
+
+/**
  * Convert received CRSF serial packet from handset and
  * store it to local buffers for OTA packet
  */
-void RcChannels_processChannels(rc_channels_t const *const rcChannels)
+void RcChannels_processChannelsCrsf(rc_channels_t const *const rcChannels)
 {
     // channels input range: 0...2048
     uint16_t ChannelDataIn[N_SWITCHES] = {
@@ -311,8 +401,20 @@ void RcChannels_processChannels(rc_channels_t const *const rcChannels)
             currentSwitches[idx] = switch_state;
         }
     }
-
-    channels_pack(rcChannels->ch0, rcChannels->ch1, rcChannels->ch2, rcChannels->ch3);
+    // Map CRSF channel inputs to OTA bits
+    ChannelDataIn[0] = MAP_U16((uint16_t)rcChannels->ch0,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX,
+        ANALOG_MIN_VAL, ANALOG_MAX_VAL);
+    ChannelDataIn[1] = MAP_U16((uint16_t)rcChannels->ch1,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX,
+        ANALOG_MIN_VAL, ANALOG_MAX_VAL);
+    ChannelDataIn[2] = MAP_U16((uint16_t)rcChannels->ch2,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX,
+        ANALOG_MIN_VAL, ANALOG_MAX_VAL);
+    ChannelDataIn[3] = MAP_U16((uint16_t)rcChannels->ch3,
+        CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX,
+        ANALOG_MIN_VAL, ANALOG_MAX_VAL);
+    channels_pack(ChannelDataIn[0], ChannelDataIn[1], ChannelDataIn[2], ChannelDataIn[3]);
 }
 
 void FAST_CODE_1 RcChannels_get_packed_data(uint8_t *const output)

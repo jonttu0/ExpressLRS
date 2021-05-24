@@ -439,12 +439,10 @@ gimbals_get(uint16_t * const out)
         curr = filters[iter].getCurrent();
         if (curr <= limit->mid)
             out[iter] = MAP_U16((uint16_t)curr, limit->low, limit->mid,
-                                CRSF_CHANNEL_OUT_VALUE_MIN,
-                                CRSF_CHANNEL_OUT_VALUE_MID);
+                                ANALOG_MIN_VAL, ANALOG_MID_VAL);
         else
             out[iter] = MAP_U16((uint16_t)curr, limit->mid+1, limit->high,
-                                CRSF_CHANNEL_OUT_VALUE_MID,
-                                CRSF_CHANNEL_OUT_VALUE_MAX);
+                                ANALOG_MID_VAL, ANALOG_MAX_VAL);
     }
 }
 
