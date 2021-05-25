@@ -122,10 +122,10 @@ uint8_t eeprom_write(uint8_t * input, uint32_t len)
   FLASH_EraseInitTypeDef EraseInitStruct;
   uint32_t offset = 0;
   uint32_t address = (uint32_t)EEPROM_START_ADDR;
-  uint32_t address_end = address + EEPROM_SIZE - 1;
+  uint32_t const address_end = address + len - 1;
 
   /* Check whether the save is needed or not */
-  if (memcmp(input, EEPROM_START_ADDR, len) == 0) {
+  if (memcmp(input, (void*)address, len) == 0) {
     /* Content is same */
     return 1;
   }
@@ -172,6 +172,10 @@ uint8_t eeprom_write(uint8_t * input, uint32_t len)
 #endif
 
     if (HAL_FLASHEx_Erase(&EraseInitStruct, &pageError) == HAL_OK) {
+#if defined (STM32F3xx)
+      __HAL_FLASH_CLEAR_FLAG(FLASH_FLAG_EOP | FLASH_FLAG_WRPERR | FLASH_FLAG_PGERR);
+#endif
+
       while (address <= address_end) {
 #if defined (STM32G0xx) || defined (STM32G4xx) || defined (STM32L4xx) || defined (STM32WBxx)
         /* 64bit write */
@@ -179,17 +183,21 @@ uint8_t eeprom_write(uint8_t * input, uint32_t len)
         if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_DOUBLEWORD, address, data) == HAL_OK) {
           address += 8;
           offset += 8;
+        }
 #else
         /* 32bit write */
         memcpy(&data, input + offset, sizeof(uint32_t));
         if (HAL_FLASH_Program(FLASH_TYPEPROGRAM_WORD, address, data) == HAL_OK) {
           address += 4;
           offset += 4;
+        }
 #endif
-        } else {
-          address = address_end + 1;
+        else {
+          DEBUG_PRINTF("FLASH WRITE FAILED!\n");
         }
       }
+    } else {
+      DEBUG_PRINTF("FLASH ERASE FAILED!\n");
     }
     HAL_FLASH_Lock();
   }
@@ -232,7 +240,6 @@ uint8_t eeprom_write(uint8_t * input, uint32_t len)
 #endif
       else {
         DEBUG_PRINTF("FLASH WRITE FAILED!\n");
-        address = address_end + 100;
       }
     }
   } else {
@@ -243,5 +250,5 @@ uint8_t eeprom_write(uint8_t * input, uint32_t len)
 
 #endif /* EEPROM_RETRAM_MODE */
 
-  return (address < EEPROM_SIZE);
+  return (address_end <= address);
 }
