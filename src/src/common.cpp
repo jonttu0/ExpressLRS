@@ -8,6 +8,8 @@
 #include "helpers.h"
 #include "debug_elrs.h"
 
+//#define FLRC_ENABLE_1k 1
+
 #if RADIO_SX127x
 #include "LoRa_SX127x.h"
 #endif
@@ -26,8 +28,13 @@ static expresslrs_mod_settings_t * current_settings;
 #if RADIO_SX128x
 #if RADIO_SX128x_FLRC
 static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x_FLRC[] = {
+#if FLRC_ENABLE_1k
+    /* 1000Hz */
+    //{RADIO_FLRC, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz_FLRC, 32, 1000, 1000, 250000u}, // 0.39ms
+#else
     /* 500Hz */
-    {RADIO_FLRC, SX1280_FLRC_BR_0_325_BW_0_3, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 500, TLM_RATIO_1_128, FHSS_2, OSD_MODE_500Hz_FLRC, 32, 1000, 1000, 250000u}, // 0.78ms
+    {RADIO_FLRC, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 500, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_500Hz_FLRC, 32, 1000, 750, 250000u}, // 0.49ms
+#endif
 };
 #endif
 
@@ -35,7 +42,7 @@ static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x[]
     // NOTE! Preamble len is calculate MANT*2^EXP when MANT is bits [3:0] and EXP is bits [7:4]
 #if RADIO_SX128x_BW800
     /* 500Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6, 2000, 500, TLM_RATIO_1_128, FHSS_2, OSD_MODE_500Hz, 0b01100 /*12*/, 1000, 750, 250000u}, // 1.51ms
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6, 2000, 500, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_500Hz, 0b01100 /*12*/, 1000, 750, 250000u}, // 1.51ms
     /* 250Hz */
     {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF6, SX1280_LORA_CR_LI_4_7, 4000, 250, TLM_RATIO_1_64,  FHSS_1, OSD_MODE_250Hz, 0b01110 /*14*/, 1000, 750, 250000u}, // 3.33ms
     /* 125Hz */
