@@ -118,4 +118,4 @@
 
 ################################
 ### Use CRSF v3 prtocol if FC supports it
--DPROTOCOL_CRSF_V3_TO_FC=1
+#-DPROTOCOL_CRSF_V3_TO_FC=1
