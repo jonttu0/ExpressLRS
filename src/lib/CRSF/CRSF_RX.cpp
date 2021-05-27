@@ -24,6 +24,8 @@ void CRSF_RX::Begin(void)
     link_stat_packet.header.type = CRSF_FRAMETYPE_LINK_STATISTICS_ELRS;
 #elif PROTOCOL_CRSF_V3_TO_FC
     link_stat_packet.header.type = CRSF_FRAMETYPE_LINK_STATISTICS_TX;
+    link_stat_packet.stats.downlink_power = 0;
+    link_stat_packet.stats.uplink_FPS = 0;
 #else // !PROTOCOL_ELRS_TO_FC && !PROTOCOL_CRSF_V3_TO_FC
     link_stat_packet.header.type = CRSF_FRAMETYPE_LINK_STATISTICS;
 #endif // PROTOCOL_ELRS_TO_FC
@@ -62,17 +64,17 @@ void FAST_CODE_1 CRSF_RX::sendFrameToFC(uint8_t *buff, uint8_t const size) const
 void CRSF_RX::LinkStatisticsSend(LinkStatsLink_t & stats) const
 {
 #if PROTOCOL_ELRS_TO_FC
-    link_stat_packet.stats.uplink_RSSI = stats.uplink_RSSI_1;
+    link_stat_packet.stats.uplink_RSSI =
+        stats.active_antenna ? stats.uplink_RSSI_1 : stats.uplink_RSSI_2;
     link_stat_packet.stats.uplink_Link_quality = stats.uplink_Link_quality;
     link_stat_packet.stats.uplink_SNR = stats.uplink_SNR;
     link_stat_packet.stats.rf_Mode = stats.rf_Mode;
 #elif PROTOCOL_CRSF_V3_TO_FC
-    link_stat_packet.stats.uplink_RSSI = stats.uplink_RSSI_1;
+    link_stat_packet.stats.uplink_RSSI =
+        stats.active_antenna ? stats.uplink_RSSI_1 : stats.uplink_RSSI_2;
     link_stat_packet.stats.uplink_RSSI_percentage = 100;
     link_stat_packet.stats.uplink_Link_quality = stats.uplink_Link_quality;
     link_stat_packet.stats.uplink_SNR = stats.uplink_SNR;
-    link_stat_packet.stats.downlink_power = stats.uplink_TX_Power;
-    link_stat_packet.stats.uplink_FPS = 25;
 #else // !PROTOCOL_ELRS_TO_FC && !PROTOCOL_CRSF_V3_TO_FC
     link_stat_packet.stats.uplink_RSSI_1 = stats.uplink_RSSI_1;
     link_stat_packet.stats.uplink_RSSI_2 = stats.uplink_RSSI_2;
