@@ -100,14 +100,29 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
     if not SerialRXindex:
         raise PassthroughFailed("!!! RX Serial not found !!!!\n  Check configuration and try again...")
 
-    cmd = "serialpassthrough %s %s" % (SerialRXindex, requestedBaudrate, )
+    #cmd = "serialpassthrough %s %s" % (SerialRXindex, requestedBaudrate, )
+    cmd = "serialpassthrough %s 0" % (SerialRXindex, )
 
     dbg_print("Enabling serial passthrough...")
     dbg_print("  CMD: '%s'" % cmd)
     rl.write_str(cmd)
-    time.sleep(.2)
+    #time.sleep(.2)
+
+    baud = None
+    dbg = rl.read_line(.5)
+    while dbg:
+        dbg = dbg.strip()
+        dbg_print("%s" % dbg)
+        if "baud =" in dbg:
+            baud = dbg.split("baud =")[1].strip()
+        dbg = rl.read_line(.5)
+
     s.close()
     dbg_print("======== PASSTHROUGH DONE ========")
+    try:
+        return int(eval(baud))
+    except:
+        return None
 
 
 def reset_to_bootloader(args):

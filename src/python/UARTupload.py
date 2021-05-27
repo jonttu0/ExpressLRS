@@ -56,17 +56,20 @@ def uart_upload(port, filename, baudrate, ghst=False, key=None):
 
     if not gotBootloader:
         s.close()
+        detected_baud = baudrate
 
         # Init Betaflight passthrough
         try:
-            BFinitPassthrough.bf_passthrough_init(port, baudrate, half_duplex)
+            detected_baud = BFinitPassthrough.bf_passthrough_init(port, baudrate, half_duplex)
+            if detected_baud is None:
+                detected_baud = baudrate
         except BFinitPassthrough.PassthroughEnabled as info:
             dbg_print("  Warning: '%s'\n" % info)
         except BFinitPassthrough.PassthroughFailed as failed:
             raise
 
         # Prepare to upload
-        s = serial.Serial(port=port, baudrate=baudrate,
+        s = serial.Serial(port=port, baudrate=detected_baud,
             bytesize=8, parity='N', stopbits=1,
             timeout=1, xonxoff=0, rtscts=0)
         rl.set_serial(s)
@@ -94,17 +97,24 @@ def uart_upload(port, filename, baudrate, ghst=False, key=None):
                     dbg_print(msg)
                     raise Exception(msg)
 
-                if 5 < currAttempt:
+                if 5 <= currAttempt:
                     # Enable debug logs after 5 retries
                     global SCRIPT_DEBUG
                     SCRIPT_DEBUG = True
 
-                dbg_print("[%1u] retry...\n" % currAttempt)
+                dbg_print("[%1u] retry... (baud: %s)\n" % (currAttempt, s.baudrate,))
 
                 # clear RX buffer before continuing
                 rl.clear()
                 # request reboot
                 rl.write(cmd_reboot_to_bootloader)
+
+                if 2 == currAttempt:
+                    # BL not detected, change back to given baudrate
+                    s.baudrate = baudrate
+                elif 4 == currAttempt:
+                    # BL not detected, change back to default 420k
+                    s.baudrate = BAUDRATE_DEFAULT
 
                 start = time.time()
                 while ((time.time() - start) < 2.):
