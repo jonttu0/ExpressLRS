@@ -46,6 +46,7 @@
 #define SX127X_REG_INVERT_IQ                          0x33
 #define SX127X_REG_DETECTION_THRESHOLD                0x37
 #define SX127X_REG_SYNC_WORD                          0x39
+#define SX127X_REG_INVERT_IQ_2                        0x3B
 #define SX127X_REG_DIO_MAPPING_1                      0x40
 #define SX127X_REG_DIO_MAPPING_2                      0x41
 #define SX127X_REG_VERSION                            0x42

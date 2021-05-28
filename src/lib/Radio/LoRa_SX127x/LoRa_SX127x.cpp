@@ -566,8 +566,21 @@ void SX127xDriver::SX127xConfig(uint8_t bw, uint8_t sf, uint8_t cr, uint32_t fre
     writeRegister(SX127X_REG_HOP_PERIOD, SX127X_HOP_PERIOD_OFF);
 
     // Invert IQ according to sync word
+#if 0
+    //  Code copied from: https://github.com/StuartsProjects/SX12XX-LoRa/blob/master/src/SX127XLT.cpp
+    if (syncWord & 0x1) {
+        DEBUG_PRINTF("Inverted IQ!\n");
+        // Inverted IQ
+        writeRegister(SX127X_REG_INVERT_IQ, 0x66);
+        writeRegister(SX127X_REG_INVERT_IQ_2, 0x19);
+    } else {
+        // Normal IQ
+        writeRegister(SX127X_REG_INVERT_IQ, 0x27);
+        writeRegister(SX127X_REG_INVERT_IQ_2, 0x1d);
+    }
     //reg = 0x27 | ((syncWord & 0x1) << 6);
     //writeRegister(SX127X_REG_INVERT_IQ, reg);
+#endif
 
     // basic setting (bw, cr, sf, header mode and CRC)
     reg = (sf | SX127X_TX_MODE_SINGLE); // RX timeout MSB = 0b00
