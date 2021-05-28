@@ -4,25 +4,21 @@
 
 /* HW specific code can be found from <mcu type>/ folder */
 
-static void nullCallback(uint32_t){};
+static void FAST_CODE_1 nullCallback(uint32_t) {};
 
 HwTimer::HwTimer()
 {
-    callbackTockPre = nullCallback;
-    callbackTock = nullCallback;
+    callbackTickPre = nullCallback;
+    callbackTick = nullCallback;
+    //callbackTock = nullCallback;
 
     HWtimerInterval = TimerIntervalUSDefault;
-}
-
-void FAST_CODE_1 HwTimer::updateInterval(uint32_t newTimerInterval)
-{
-    HWtimerInterval = newTimerInterval;
-    //setTime(newTimerInterval);
+    running = false;
 }
 
 void FAST_CODE_1 HwTimer::callback()
 {
     uint32_t us = micros();
-    callbackTockPre(us);
-    callbackTock(us);
+    callbackTickPre(us);
+    callbackTick(us);
 }

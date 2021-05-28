@@ -101,7 +101,7 @@ void setup()
     crsf.RCdataCallback1 = rc_data_cb;
     crsf.MspCallback = msp_data_cb;
 
-    TxTimer.callbackTockPre = update_handset_sync;
+    TxTimer.callbackTickPre = update_handset_sync;
 
     tx_common_init();
 

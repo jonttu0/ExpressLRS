@@ -9,8 +9,6 @@
 #endif
 
 #define TIMER_IS_2US 1
-#define COUNT_DOWN TIM_CR1_DIR
-//#define COUNT_DOWN 0
 
 HwTimer TxTimer;
 
@@ -35,7 +33,6 @@ static FORCED_INLINE void timer_counter_set(uint32_t cnt)
 static FORCED_INLINE void timer_set(uint32_t next)
 {
     TIMx->ARR = next >> TIMER_IS_2US;
-    //TIMx->SR  &= ~(TIM_SR_UIF);
 }
 
 /****************************************************************
@@ -50,27 +47,23 @@ extern "C"
         uint16_t SR = TIMx->SR;
         if (SR & TIM_SR_UIF) {
             TIMx->SR = SR & ~(TIM_SR_UIF);
-            //irqstatus_t flag = irq_save();
             TxTimer.callback();
-            //irq_restore(flag);
         }
     }
 }
 
 void timer_enable(void)
 {
-    TIMx->CR1 = TIM_CR1_CEN | TIM_CR1_URS | COUNT_DOWN;
+    TIMx->CR1 = TIM_CR1_CEN | TIM_CR1_URS | TIM_CR1_DIR;
     TIMx->DIER = TIM_DIER_UIE;
     TIMx->SR &= ~(TIM_SR_UIF);
 }
 
 void timer_disable(void)
 {
-    //irqstatus_t flag = irq_save();
     TIMx->CR1 = 0;
     TIMx->DIER = 0;
     TIMx->SR &= ~(TIM_SR_UIF);
-    //irq_restore(flag);
 }
 
 static void timer_init(void)
@@ -96,7 +89,6 @@ static void timer_init(void)
 void HwTimer::init()
 {
     timer_init();
-    //timer_enable();
 }
 
 void HwTimer::start()
@@ -114,20 +106,14 @@ void HwTimer::stop()
 
 void HwTimer::pause()
 {
-    running = 0;
-    timer_disable();
+    stop();
 }
 
 void FAST_CODE_1 HwTimer::reset(int32_t offset)
 {
-    if (running)
-    {
+    if (running) {
         /* Reset counter and set next alarm time */
-#if COUNT_DOWN
         timer_counter_set(HWtimerInterval - offset);
-#else
-        timer_counter_set(0);
-#endif
         timer_set(HWtimerInterval - offset);
     }
 }
@@ -143,11 +129,7 @@ void FAST_CODE_1 HwTimer::triggerSoon(void)
 {
 #if 1
     TIMx->SR  &= ~(TIM_SR_UIF); // Clear pending ISR
-#if !COUNT_DOWN
-    timer_counter_set(HWtimerInterval - TIMER_SOON);
-#else
     timer_counter_set(TIMER_SOON);
-#endif
 #else
     /* Generate soft trigger to run ISR asap */
     EXTI->SWIER |= (0x1 << 3);

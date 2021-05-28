@@ -18,16 +18,20 @@ public:
     void reset(int32_t offset = 0);
     void pause();
     void stop();
-    void updateInterval(uint32_t newTimerInterval);
-    inline bool FAST_CODE_1 isRunning(void)
+    inline void FAST_CODE_1 updateInterval(uint32_t newTimerInterval)
+    {
+        HWtimerInterval = newTimerInterval;
+    }
+    inline bool FAST_CODE_1 isRunning(void) const
     {
         return running;
     }
 
     void callback();
 
-    void (*callbackTockPre)(uint32_t us);
-    void (*callbackTock)(uint32_t us);
+    void (*callbackTickPre)(uint32_t us);
+    void (*callbackTick)(uint32_t us);
+    //void (*callbackTock)(uint32_t us);
 
     void setTime(uint32_t time = 0);
 
@@ -35,7 +39,7 @@ public:
 
 private:
     uint32_t HWtimerInterval;
-    bool running = false;
+    bool running;
 };
 
 extern HwTimer TxTimer;

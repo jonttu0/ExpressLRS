@@ -113,7 +113,7 @@ void tx_common_init(void)
 #endif
 
     platform_config_load(pl_config);
-    TxTimer.callbackTock = &SendRCdataToRF;
+    TxTimer.callbackTick = &SendRCdataToRF;
     if (!SetRadioType(pl_config.rf_mode)) {
 #if RADIO_SX127x && RADIO_SX128x
         /* Roll back to other module if first failed */

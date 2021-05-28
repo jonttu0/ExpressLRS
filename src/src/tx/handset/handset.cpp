@@ -201,7 +201,7 @@ void setup()
     switches_init();
     gimbals_init();
 
-    TxTimer.callbackTockPre = rc_data_collect;
+    TxTimer.callbackTickPre = rc_data_collect;
 
 #if 0
     TxTimer.updateInterval(5000);

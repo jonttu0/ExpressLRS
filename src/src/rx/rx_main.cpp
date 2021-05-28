@@ -697,7 +697,7 @@ void setup()
 #endif
 
     // Set call back for timer ISR
-    TxTimer.callbackTock = &HWtimerCallback;
+    TxTimer.callbackTick = &HWtimerCallback;
     TxTimer.init();
     // Init first scan index
     scanIndex = RATE_DEFAULT;
