@@ -8,9 +8,11 @@ crsf_msp_packet_fc_t DMA_ATTR msp_packet;
 
 #if PROTOCOL_ELRS_TO_FC
 crsfLinkStatisticsMsg_elrs_t DMA_ATTR link_stat_packet;
-#elif PROTOCOL_CRSF_V3_TO_FC
-crsfLinkStatisticsTxMsg_t DMA_ATTR link_stat_packet;
-#else // !PROTOCOL_ELRS_TO_FC && !PROTOCOL_CRSF_V3_TO_FC
+#else
+#if PROTOCOL_CRSF_V3_TO_FC
+uint32_t DMA_ATTR link_stat_full_sent;
+crsfLinkStatisticsTxMsg_t DMA_ATTR link_stat_packet_tx;
+#endif // PROTOCOL_CRSF_V3_TO_FC
 crsfLinkStatisticsMsg_t DMA_ATTR link_stat_packet;
 #endif // PROTOCOL_ELRS_TO_FC
 
@@ -22,12 +24,16 @@ void CRSF_RX::Begin(void)
     link_stat_packet.header.frame_size = sizeof(link_stat_packet) - CRSF_FRAME_START_BYTES;
 #if PROTOCOL_ELRS_TO_FC
     link_stat_packet.header.type = CRSF_FRAMETYPE_LINK_STATISTICS_ELRS;
-#elif PROTOCOL_CRSF_V3_TO_FC
-    link_stat_packet.header.type = CRSF_FRAMETYPE_LINK_STATISTICS_TX;
-    link_stat_packet.stats.downlink_power = 0;
-    link_stat_packet.stats.uplink_FPS = 0;
-#else // !PROTOCOL_ELRS_TO_FC && !PROTOCOL_CRSF_V3_TO_FC
+#else // !PROTOCOL_ELRS_TO_FC
     link_stat_packet.header.type = CRSF_FRAMETYPE_LINK_STATISTICS;
+
+#if PROTOCOL_CRSF_V3_TO_FC
+    link_stat_packet_tx.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
+    link_stat_packet_tx.header.frame_size = sizeof(link_stat_packet_tx) - CRSF_FRAME_START_BYTES;
+    link_stat_packet_tx.header.type = CRSF_FRAMETYPE_LINK_STATISTICS_TX;
+    link_stat_packet_tx.stats.downlink_power = 0;
+    link_stat_packet_tx.stats.uplink_FPS = 0;
+#endif //PROTOCOL_CRSF_V3_TO_FC
 #endif // PROTOCOL_ELRS_TO_FC
 
     msp_packet.header.device_addr = CRSF_ADDRESS_BROADCAST;
@@ -65,29 +71,42 @@ void CRSF_RX::LinkStatisticsSend(LinkStatsLink_t & stats) const
 {
 #if PROTOCOL_ELRS_TO_FC
     link_stat_packet.stats.uplink_RSSI =
-        stats.active_antenna ? stats.uplink_RSSI_1 : stats.uplink_RSSI_2;
+        stats.active_antenna ? stats.uplink_RSSI_2 : stats.uplink_RSSI_1;
     link_stat_packet.stats.uplink_Link_quality = stats.uplink_Link_quality;
     link_stat_packet.stats.uplink_SNR = stats.uplink_SNR;
     link_stat_packet.stats.rf_Mode = stats.rf_Mode;
-#elif PROTOCOL_CRSF_V3_TO_FC
-    link_stat_packet.stats.uplink_RSSI =
-        stats.active_antenna ? stats.uplink_RSSI_1 : stats.uplink_RSSI_2;
-    link_stat_packet.stats.uplink_RSSI_percentage = 100;
-    link_stat_packet.stats.uplink_Link_quality = stats.uplink_Link_quality;
-    link_stat_packet.stats.uplink_SNR = stats.uplink_SNR;
-#else // !PROTOCOL_ELRS_TO_FC && !PROTOCOL_CRSF_V3_TO_FC
-    link_stat_packet.stats.uplink_RSSI_1 = stats.uplink_RSSI_1;
-    link_stat_packet.stats.uplink_RSSI_2 = stats.uplink_RSSI_2;
-    link_stat_packet.stats.uplink_Link_quality = stats.uplink_Link_quality;
-    link_stat_packet.stats.uplink_SNR = stats.uplink_SNR;
-    link_stat_packet.stats.active_antenna = stats.active_antenna;
-    link_stat_packet.stats.rf_Mode = stats.rf_Mode;
-    link_stat_packet.stats.uplink_TX_Power = stats.uplink_TX_Power;
-    link_stat_packet.stats.downlink_RSSI = stats.downlink_RSSI;
-    link_stat_packet.stats.downlink_Link_quality = stats.downlink_Link_quality;
-    link_stat_packet.stats.downlink_SNR = stats.downlink_SNR;
-#endif // PROTOCOL_ELRS_TO_FC
     sendFrameToFC((uint8_t*)&link_stat_packet, sizeof(link_stat_packet));
+#else // !PROTOCOL_ELRS_TO_FC
+#if PROTOCOL_CRSF_V3_TO_FC
+    uint32_t now = millis();
+    if (2000U <= (uint32_t)(now - link_stat_full_sent))
+#endif // PROTOCOL_CRSF_V3_TO_FC
+    {
+        link_stat_full_sent = now;
+        link_stat_packet.stats.uplink_RSSI_1 = stats.uplink_RSSI_1;
+        link_stat_packet.stats.uplink_RSSI_2 = stats.uplink_RSSI_2;
+        link_stat_packet.stats.uplink_Link_quality = stats.uplink_Link_quality;
+        link_stat_packet.stats.uplink_SNR = stats.uplink_SNR;
+        link_stat_packet.stats.active_antenna = stats.active_antenna;
+        link_stat_packet.stats.rf_Mode = stats.rf_Mode;
+        link_stat_packet.stats.uplink_TX_Power = stats.uplink_TX_Power;
+        link_stat_packet.stats.downlink_RSSI = stats.downlink_RSSI;
+        link_stat_packet.stats.downlink_Link_quality = stats.downlink_Link_quality;
+        link_stat_packet.stats.downlink_SNR = stats.downlink_SNR;
+        sendFrameToFC((uint8_t*)&link_stat_packet, sizeof(link_stat_packet));
+        return;
+    }
+#if PROTOCOL_CRSF_V3_TO_FC
+    else {
+        link_stat_packet_tx.stats.uplink_RSSI =
+            stats.active_antenna ? stats.uplink_RSSI_2 : stats.uplink_RSSI_1;
+        link_stat_packet_tx.stats.uplink_RSSI_percentage = 100;
+        link_stat_packet_tx.stats.uplink_Link_quality = stats.uplink_Link_quality;
+        link_stat_packet_tx.stats.uplink_SNR = stats.uplink_SNR;
+        sendFrameToFC((uint8_t*)&link_stat_packet_tx, sizeof(link_stat_packet_tx));
+    }
+#endif // PROTOCOL_CRSF_V3_TO_FC
+#endif // PROTOCOL_ELRS_TO_FC
 }
 
 void FAST_CODE_1 CRSF_RX::sendRCFrameToFC(rc_channels_rx_t * channels) const
