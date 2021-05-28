@@ -82,7 +82,9 @@ void CRSF_RX::LinkStatisticsSend(LinkStatsLink_t & stats) const
     if (2000U <= (uint32_t)(now - link_stat_full_sent))
 #endif // PROTOCOL_CRSF_V3_TO_FC
     {
+#if PROTOCOL_CRSF_V3_TO_FC
         link_stat_full_sent = now;
+#endif // PROTOCOL_CRSF_V3_TO_FC
         link_stat_packet.stats.uplink_RSSI_1 = stats.uplink_RSSI_1;
         link_stat_packet.stats.uplink_RSSI_2 = stats.uplink_RSSI_2;
         link_stat_packet.stats.uplink_Link_quality = stats.uplink_Link_quality;
