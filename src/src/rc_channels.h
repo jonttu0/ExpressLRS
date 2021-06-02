@@ -56,7 +56,7 @@
 #define CRSF_CHANNEL_IN_VALUE_MID 992
 #define CRSF_CHANNEL_IN_VALUE_MAX 1984
 
-#define CRSFv3_BITS ANALOG_BITS
+#define CRSFv3_BITS 11 //ANALOG_BITS
 
 #define UINT10_to_CRSF(val) MAP_U16((val), 0, 1024, CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX)
 #define CRSF_to_UINT10(val) MAP_U16((val), CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX, 0, 1023)
@@ -65,8 +65,12 @@
 // 1984 / 6 = 330 => taken down a bit to align result more evenly
 // (1811-172) / 6 = 273
 #define CRSF_to_SWITCH3b(val) ((val) / 300)
-#if PROTOCOL_CRSF_V3_TO_FC && CRSFv3_BITS == 10
+#if PROTOCOL_CRSF_V3_TO_FC
+#if CRSFv3_BITS == 10
 #define SWITCH3b_to_CRSF(val) ((val) * 170) // round down 170.5 to 170
+#elif CRSFv3_BITS == 11
+#define SWITCH3b_to_CRSF(val) ((val) * 341) // round down 341.17 to 341
+#endif
 #else
 #define SWITCH3b_to_CRSF(val) ((val) * 273 + CRSF_CHANNEL_OUT_VALUE_MIN)
 #endif
@@ -74,8 +78,12 @@
 // 3 state aka 2b switches use 0, 1 and 2 as values to represent low, middle and high
 // 819 = (1811-172) / 2
 #define CRSF_to_SWITCH2b(val) ((val) / 819)
-#if PROTOCOL_CRSF_V3_TO_FC && CRSFv3_BITS == 10
+#if PROTOCOL_CRSF_V3_TO_FC
+#if CRSFv3_BITS == 10
 #define SWITCH2b_to_CRSF(val) ((val)*511) // round down 511.5 to 511
+#elif CRSFv3_BITS == 11
+#define SWITCH2b_to_CRSF(val) ((val)*1023) // round down 1023.5 to 1023
+#endif
 #else
 #define SWITCH2b_to_CRSF(val) ((val)*819 + CRSF_CHANNEL_OUT_VALUE_MIN)
 #endif

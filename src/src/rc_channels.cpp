@@ -157,11 +157,16 @@ void FAST_CODE_1 RcChannels_channels_extract(uint8_t const *const input,
 #endif
 
 #if PROTOCOL_ELRS_TO_FC || PROTOCOL_CRSF_V3_TO_FC
+#if PROTOCOL_CRSF_V3_TO_FC && CRSFv3_BITS == 11
+#define RC_OUT_SCALE 1
+#else
+#define RC_OUT_SCALE 0
+#endif
     // The analog channels are sent as is
-    PackedRCdataOut.ch0 = rcdata->rc1;
-    PackedRCdataOut.ch1 = rcdata->rc2;
-    PackedRCdataOut.ch2 = rcdata->rc3;
-    PackedRCdataOut.ch3 = rcdata->rc4;
+    PackedRCdataOut.ch0 = (uint16_t)rcdata->rc1 << RC_OUT_SCALE;
+    PackedRCdataOut.ch1 = (uint16_t)rcdata->rc2 << RC_OUT_SCALE;
+    PackedRCdataOut.ch2 = (uint16_t)rcdata->rc3 << RC_OUT_SCALE;
+    PackedRCdataOut.ch3 = (uint16_t)rcdata->rc4 << RC_OUT_SCALE;
 #else
     // The CRSF analog channels are 11bit
     PackedRCdataOut.ch0 = MAP_U16(
