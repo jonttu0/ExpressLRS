@@ -66,5 +66,7 @@ uint32_t dma_irq_get(uint32_t periph, uint8_t type, uint8_t index);
 void dma_request_config(uint32_t periph, uint8_t type, uint8_t index);
 
 uint32_t uart_peripheral_get(uint32_t pin);
+uint8_t uart_pin_is_tx(int32_t pin);
+uint8_t uart_tx_pin_is_rx(int32_t pin);
 void uart_config_afio(uint32_t periph, uint32_t rx_pin, uint32_t tx_pin);
 #endif

@@ -325,42 +325,6 @@ void HardwareSerial::setRx(uint32_t pin)
     rx_pin = pin;
 }
 
-static uint8_t uart_pin_is_tx(int32_t const pin)
-{
-    switch (pin) {
-        case GPIO('A', 2):
-        case GPIO('A', 9):
-        case GPIO('A', 14):
-        case GPIO('B', 3):
-        case GPIO('B', 6):
-        case GPIO('B', 9):
-        case GPIO('B', 10):
-        case GPIO('C', 4):
-        case GPIO('C', 10):
-        return 1;
-    }
-    return 0;
-}
-
-#if defined(STM32F3xx)
-static uint8_t uart_tx_pin_is_rx(int32_t const pin)
-{
-    switch (pin) {
-        case GPIO('A', 3):
-        case GPIO('A', 10):
-        case GPIO('A', 15):
-        case GPIO('B', 4):
-        case GPIO('B', 7):
-        case GPIO('B', 8):
-        case GPIO('B', 11):
-        case GPIO('C', 5):
-        case GPIO('C', 11):
-            return 1;
-    }
-    return 0;
-}
-#endif
-
 static void configure_uart_peripheral(USART_TypeDef * uart, uint32_t baud, uint8_t half_duplex)
 {
     enable_pclock((uint32_t)uart);

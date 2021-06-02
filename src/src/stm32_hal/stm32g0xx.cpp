@@ -76,6 +76,23 @@ uint32_t uart_peripheral_get(uint32_t pin)
     return 0;
 }
 
+uint8_t uart_pin_is_tx(int32_t const pin)
+{
+    switch (pin) {
+        case GPIO('A', 2):
+        case GPIO('A', 5):
+        case GPIO('A', 9):
+        case GPIO('A', 14):
+        case GPIO('A', 15):
+        case GPIO('B', 2):
+        case GPIO('B', 6):
+        case GPIO('B', 8):
+        case GPIO('B', 10):
+        return 1;
+    }
+    return 0;
+}
+
 void uart_config_afio(uint32_t periph, uint32_t rx_pin, uint32_t tx_pin)
 {
     uint32_t afio = 1;
