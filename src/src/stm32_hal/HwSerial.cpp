@@ -21,6 +21,16 @@ void HwSerial::Begin(uint32_t baud, uint32_t config)
     HardwareSerial::begin((unsigned long)baud, (uint8_t)config);
 }
 
+void HwSerial::Pause(void)
+{
+    HardwareSerial::Pause();
+}
+
+void HwSerial::Continue(void)
+{
+    HardwareSerial::Continue();
+}
+
 void HwSerial::enable_receiver(void)
 {
 }
