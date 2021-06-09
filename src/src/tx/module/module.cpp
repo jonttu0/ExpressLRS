@@ -24,9 +24,12 @@ static void ParamWriteHandler(uint8_t const *msg, uint16_t len)
 {
     // Called from UART handling loop (main loop)
     uint8_t resp[ELRS_LUA_BUFF_SIZE], outlen = sizeof(resp);
-    if (0 > SettingsCommandHandle(msg, resp, len, outlen))
-        return;
-    crsf.sendLUAresponseToRadio(resp, outlen);
+    int8_t ret;
+    CrsfSerial.Pause();
+    ret = SettingsCommandHandle(msg, resp, len, outlen);
+    CrsfSerial.Continue();
+    if (0 <= ret)
+        crsf.sendLUAresponseToRadio(resp, outlen);
 }
 
 /* Parse CRSF encapsulated MSP packet */

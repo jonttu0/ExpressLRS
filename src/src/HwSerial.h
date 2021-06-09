@@ -13,6 +13,8 @@ public:
     HwSerial(uint32_t _rx, uint32_t _tx, int32_t duplex_pin = UNDEF_PIN, uint8_t inv = 0);
 
     void Begin(uint32_t baud, uint32_t config = SERIAL_8N1);
+    void Pause(void);
+    void Continue(void);
 
     void FAST_CODE_2 enable_receiver(void);
     void FAST_CODE_2 enable_transmitter(void);

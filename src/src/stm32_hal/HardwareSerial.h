@@ -37,6 +37,8 @@ public:
     void setRx(uint32_t rx_pin);
     void begin(unsigned long baud, uint8_t mode = SERIAL_8N1);
     void end(void);
+    void Pause(void);
+    void Continue(void);
     int available(void);
     int read(void);
     void flush(void);

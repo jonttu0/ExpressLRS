@@ -560,6 +560,18 @@ void HardwareSerial::begin(unsigned long baud, uint8_t mode)
     uart_config_afio((uint32_t)p_usart_tx, rx_pin, tx_pin);
 }
 
+void HardwareSerial::Pause(void)
+{
+    /* Stop RX UART */
+    ((USART_TypeDef *)p_usart_rx)->CR1 = 0;
+}
+
+void HardwareSerial::Continue(void)
+{
+    /* Enable RX UART */
+    ((USART_TypeDef *)p_usart_rx)->CR1 = DR_RX;
+}
+
 void HardwareSerial::end(void)
 {
     if (dma_unit_rx) {

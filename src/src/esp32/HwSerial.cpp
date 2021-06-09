@@ -41,6 +41,16 @@ void HwSerial::Begin(uint32_t baud, uint32_t config)
     enable_receiver();
 }
 
+void HwSerial::Pause(void)
+{
+    /* Do nothing */
+}
+
+void HwSerial::Continue(void)
+{
+    /* Do nothing */
+}
+
 void IRAM_ATTR HwSerial::enable_receiver(void)
 {
 #if 1
