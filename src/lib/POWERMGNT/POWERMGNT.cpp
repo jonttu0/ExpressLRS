@@ -53,9 +53,10 @@ PowerArray_t power_array[MODULE_COUNT] = {
 
 #elif defined(TARGET_IMRC_GHOST_TX)
 #if TARGET_TX_GHOST_LITE
-    {PWR_250mW,   -13,   -9,   -7,    -4,    -2,    -2,     -2,     -2},
+    //{PWR_250mW,   -16,  -14,  -11,    -8,    -4,     -4,    -4,     -4},
+    {PWR_250mW,   -18,  -17,  -14,   -10,    -4,     -4,    -4,     -4},
 #else
-    {PWR_250mW,     0,    4,   7,     10,    13,     13,    13,     13},
+    {PWR_250mW,   -18,  -17,  -14,   -10,    -4,     -4,    -4,     -4},
 #endif
 
 #else

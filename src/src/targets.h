@@ -613,8 +613,8 @@ ImmersionRC Ghost TX Module
 #define GPIO_PIN_NSS         PA15
 #define GPIO_PIN_DIO0        PB2
 #define GPIO_PIN_BUSY        PB15
-#define GPIO_PIN_TX_ENABLE   PB14
-#define GPIO_PIN_RX_ENABLE   PA8
+#define GPIO_PIN_TX_ENABLE   PA8
+#define GPIO_PIN_RX_ENABLE   PB14
 // Radio GPIOs common
 #define GPIO_PIN_RST         PB0
 // LED
@@ -627,14 +627,15 @@ ImmersionRC Ghost TX Module
 
 //#define GPIO_PIN_BUZZER      PC13
 
-#if TARGET_TX_GHOST_LITE
 // https://www.skyworksinc.com/-/media/SkyWorks/Documents/Products/2101-2200/SE2622L_202733C.pdf
-    #define GPIO_PIN_PA_ENABLE   PB11
-    #define GPIO_PIN_RF_AMP_DET  PA3  // not used atm
-    #define GPIO_PIN_ANT_CTRL_1  PA9
-    #define GPIO_PIN_ANT_CTRL_2  PB13
-#endif // TARGET_TX_GHOST_LITE
+#define GPIO_PIN_PA_ENABLE   PB11
 
+#define GPIO_PIN_ANT_CTRL_1  PA9
+#define GPIO_PIN_ANT_CTRL_2  PB13
+
+#if TARGET_TX_GHOST_LITE
+    #define GPIO_PIN_RF_AMP_DET  PA3  // not used atm
+#endif // TARGET_TX_GHOST_LITE
 
 #elif TARGET_RX_GHOST_ATTO_V1
 /*
