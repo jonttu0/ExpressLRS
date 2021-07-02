@@ -332,7 +332,7 @@ static void configure_uart_peripheral(USART_TypeDef * uart, uint32_t baud, uint8
 #if defined(STM32F1xx)
     LL_USART_SetBaudRate(uart, pclk, baud);
 #elif defined(STM32G0xx)
-    LL_USART_SetBaudRate(uart, pclk, LL_USART_PRESCALER_DIV2, LL_USART_OVERSAMPLING_16, baud);
+    LL_USART_SetBaudRate(uart, pclk, LL_USART_PRESCALER_DIV1, LL_USART_OVERSAMPLING_16, baud);
 #else
     LL_USART_SetBaudRate(uart, pclk, LL_USART_OVERSAMPLING_16, baud);
 #endif

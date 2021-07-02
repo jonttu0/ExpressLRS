@@ -20,7 +20,9 @@
 #define RTSR RTSR1
 #define FTSR FTSR1
 #if defined(STM32G0xx)
-#define PR FPR1
+/* TODO: Should merge these 2 */
+//#define PR FPR1
+#define PR RPR1
 #else
 #define PR PR1
 #endif
@@ -209,9 +211,8 @@ static gpio_irq_conf_str DRAM_FORCE_ATTR gpio_irq_conf[GPIO_NUM_PINS] = {
 
 void gpio_in_isr(struct gpio_in g, isr_cb_t callback, uint8_t it_mode)
 {
-    GPIO_TypeDef *regs = (GPIO_TypeDef*)g.regs;
-    uint32_t pin = regs_to_pin(regs, g.bit);
-    uint32_t port_idx = GPIO2PORT(pin);
+    GPIO_TypeDef * regs = (GPIO_TypeDef*)g.regs;
+    uint32_t const pin = regs_to_pin(regs, g.bit);
 #if 0
     if (!regs)
         Error_Handler();
@@ -222,27 +223,40 @@ void gpio_in_isr(struct gpio_in g, isr_cb_t callback, uint8_t it_mode)
     GPIO_InitTypeDef init;
     init.Pin = (1 << index);
     init.Mode = GPIO_MODE_IT_RISING;
-    init.Pull = GPIO_PULLDOWN; //GPIO_NOPULL;
+    uint32_t pull = regs->PUPDR;
+#ifdef GPIO_PUPDR_PUPD0
+    pull &= (GPIO_PUPDR_PUPD0 << (index * 2));
+    init.Pull = (GPIO_PUPDR_PUPD0 & (pull >> (index * 2)));
+#else
+    pull &= (GPIO_PUPDR_PUPDR0 << (index * 2));
+    init.Pull = (GPIO_PUPDR_PUPDR0 & (pull >> (index * 2)));
+#endif /* GPIO_PUPDR_PUPD0 */
+    //init.Pull = GPIO_PULLDOWN; //GPIO_NOPULL;
     init.Speed = GPIO_SPEED_FREQ_HIGH;
     HAL_GPIO_Init(regs, &init);
 
 #else
-    if (!g.regs)
+    if (!regs)
         Error_Handler();
-    uint32_t index = GPIO2IDX(pin);
-    uint32_t bit = g.bit; //GPIO2BIT(pin);
+    uint32_t const port_idx = GPIO2PORT(pin);
+    uint32_t const index = GPIO2IDX(pin);
+    uint32_t const bit = g.bit; //GPIO2BIT(pin);
 
     /* Configure the External Interrupt or event for the current IO */
 #ifdef AFIO_BASE
     __IO uint32_t * exticr_reg = &AFIO->EXTICR[index >> 2u];
 #elif defined(EXTI) && defined(STM32G0xx)
+#define EXTI_IDX_OFFSET 0x8
     __IO uint32_t * exticr_reg = &EXTI->EXTICR[index >> 2u];
 #elif defined(SYSCFG_BASE)
     __IO uint32_t * exticr_reg = &SYSCFG->EXTICR[index >> 2u];
 #endif
+#ifndef EXTI_IDX_OFFSET
+#define EXTI_IDX_OFFSET 0x4
+#endif
     uint32_t EXTICR = *exticr_reg;
-    CLEAR_BIT(EXTICR, (0x0FU) << (0x4 * (index & 0x03)));
-    SET_BIT(EXTICR, port_idx << (0x4 * (index & 0x03)));
+    CLEAR_BIT(EXTICR, (0x0FU << (EXTI_IDX_OFFSET * (index & 0x03))));
+    SET_BIT(EXTICR, (port_idx << (EXTI_IDX_OFFSET * (index & 0x03))));
     *exticr_reg = EXTICR;
 
     /* Configure the interrupt mask */
@@ -285,18 +299,19 @@ void gpio_in_isr(struct gpio_in g, isr_cb_t callback, uint8_t it_mode)
     EXTI->PR = (1 << index);
 }
 
-void gpio_in_isr_remove(struct gpio_in g)
+void gpio_in_isr_remove(struct gpio_in const g)
 {
     if (!gpio_in_valid(g))
         Error_Handler();
     uint32_t index = ffs(g.bit) - 1;
     irqstatus_t irq = irq_save();
+    //NVIC_DisableIRQ(gpio_irq_conf[index].irqnb);
     write_u32(&gpio_irq_conf[index].callback, 0);
     irq_restore(irq);
 }
 
 void FAST_CODE_1
-gpio_in_isr_clear_pending(struct gpio_in g)
+gpio_in_isr_clear_pending(struct gpio_in const g)
 {
     if (gpio_in_valid(g))
         // Clear pending IRQ
@@ -306,10 +321,10 @@ gpio_in_isr_clear_pending(struct gpio_in g)
 /*********************/
 
 void FAST_CODE_1
-GPIO_EXTI_IRQHandler(uint16_t pin)
+GPIO_EXTI_IRQHandler(uint16_t const pin)
 {
     /* EXTI line interrupt detected */
-    uint16_t index = 0x1 << pin;
+    uint32_t const index = 0x1 << pin;
     if (EXTI->PR & index) {
         if (gpio_irq_conf[pin].callback != NULL) {
             gpio_irq_conf[pin].callback();

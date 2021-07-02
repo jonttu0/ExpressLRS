@@ -85,11 +85,20 @@ static void init(void)
 
 void copy_functions_to_ram(void)
 {
-  /* Load functions into RAM */
-  extern uint8_t ram_code_start;
-  extern uint8_t ram_code_end;
-  extern uint8_t ram_code;
-  memcpy(&ram_code_start, &ram_code, (size_t) (&ram_code_end - &ram_code_start));
+    /* Load functions into RAM */
+    extern uint8_t ram_code_start;
+    extern uint8_t ram_code_end;
+    extern uint8_t ram_code;
+#if 1
+    memcpy(&ram_code_start, &ram_code, (size_t) (&ram_code_end - &ram_code_start));
+#else
+    volatile unsigned char *dst = (unsigned char *)&ram_code_start;
+    volatile unsigned char *src = (unsigned char *)&ram_code;
+    size_t iter = &ram_code_end - &ram_code_start;
+    while (iter--) {
+        *dst++ = *src++;
+    }
+#endif
 }
 
 void init_dma_ram(void)
@@ -110,6 +119,7 @@ __attribute__((constructor(101))) void premain()
     /* Reset vector location which is set wrongly by SystemInit */
     extern uint32_t isr_vector_table_base;
     SCB->VTOR = (__IO uint32_t) &isr_vector_table_base;
+    (void)SCB->VTOR;
 
     hw_init();
 

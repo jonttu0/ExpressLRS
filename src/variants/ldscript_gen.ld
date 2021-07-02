@@ -18,20 +18,21 @@ SECTIONS
   ram_code = LOADADDR(.ram_code);
   .ram_code :
   {
-    . = ALIGN(4);
+    /* Vectors must be 128 aligned*/
+    . = ALIGN(128);
     ram_code_start = .;
     PROVIDE (isr_vector_table_base = .);
     KEEP(*(.isr_vector)) /* Startup code */
     *(.ram_code)
     *(.ram_code*)
-    . = ALIGN(4);
+    . = ALIGN(8);
     ram_code_end = .;
   } >RAM_CODE AT> FLASH_RAM_CODE
 
   /* The program code and other data goes into FLASH */
   .text :
   {
-    . = ALIGN(4);
+    . = ALIGN(8);
     *(.text)           /* .text sections (code) */
     *(.text*)          /* .text* sections (code) */
     *(.glue_7)         /* glue arm to thumb code */
@@ -41,17 +42,17 @@ SECTIONS
     KEEP (*(.init))
     KEEP (*(.fini))
 
-    . = ALIGN(4);
+    . = ALIGN(8);
     _etext = .;        /* define a global symbols at end of code */
   } >FLASH
 
   /* Constant data goes into FLASH */
   .rodata :
   {
-    . = ALIGN(4);
+    . = ALIGN(8);
     *(.rodata)         /* .rodata sections (constants, strings, etc.) */
     *(.rodata*)        /* .rodata* sections (constants, strings, etc.) */
-    . = ALIGN(4);
+    . = ALIGN(8);
   } >FLASH
 
   .ARM.extab   : { *(.ARM.extab* .gnu.linkonce.armextab.*) } >FLASH
@@ -82,7 +83,7 @@ SECTIONS
     PROVIDE_HIDDEN (__fini_array_end = .);
   } >FLASH
 
-  . = ALIGN(4);
+  . = ALIGN(8);
   .storage (NOLOAD):
   {
     __EEPROM_START = .;
@@ -91,7 +92,7 @@ SECTIONS
   } > FLASH_STORAGE
 
   /* DMA data section */
-  . = ALIGN(4);
+  . = ALIGN(8);
   .dma_data (NOLOAD) :
   {
     _sdma = .;
@@ -106,17 +107,17 @@ SECTIONS
   /* Initialized data sections goes into RAM, load LMA copy after code */
   .data :
   {
-    . = ALIGN(4);
+    . = ALIGN(8);
     _sdata = .;        /* create a global symbol at data start */
     *(.data)           /* .data sections */
     *(.data*)          /* .data* sections */
 
-    . = ALIGN(4);
+    . = ALIGN(8);
     _edata = .;        /* define a global symbol at data end */
   } >RAM_DATA AT> FLASH
 
   /* Uninitialized data section */
-  . = ALIGN(4);
+  . = ALIGN(8);
   .bss (NOLOAD) :
   {
     /* This is used by the startup in order to initialize the .bss secion */
@@ -126,7 +127,7 @@ SECTIONS
     *(.bss*)
     *(COMMON)
 
-    . = ALIGN(4);
+    . = ALIGN(8);
     _ebss = .;         /* define a global symbol at bss end */
     __bss_end__ = _ebss;
   } >RAM_DATA

@@ -648,6 +648,14 @@ void radio_prepare(uint8_t type)
 {
     // Prepare radio
     Radio = common_config_radio(type);
+    if (!Radio) {
+        /* Infinite loop in case of failure */
+        while(1) {
+            led_toggle();
+            DEBUG_PRINTF("RADIO CONFIG ERROR!\n");
+            delay(1000);
+        }
+    }
     Radio->RXdoneCallback1 = ProcessRFPacketCallback;
     Radio->TXdoneCallback1 = tx_done_cb;
     Radio->SetOutputPower(0b1111); // default RX to max power for tlm
@@ -711,6 +719,7 @@ void setup()
     crsf.Begin();
 #endif
 }
+
 
 static uint32_t led_toggle_ms = 0;
 void loop()

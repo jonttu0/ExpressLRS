@@ -146,8 +146,9 @@ uint32_t is_enabled_pclock(uint32_t const periph_base)
 uint32_t
 get_pclock_frequency(uint32_t periph_base)
 {
-    (void)periph_base;
-    return CONFIG_CLOCK_FREQ / 2;
+    //(void)periph_base;
+    //return CONFIG_CLOCK_FREQ / 2;
+    return (uint32_t)(__LL_RCC_CALC_PCLK1_FREQ(HAL_RCC_GetHCLKFreq(), LL_RCC_GetAPB1Prescaler()));
 }
 
 // Enable a GPIO peripheral clock
@@ -253,6 +254,10 @@ void timer_init(void)
     SysTick->CTRL = (SysTick_CTRL_CLKSOURCE_Msk | SysTick_CTRL_TICKINT_Msk | SysTick_CTRL_ENABLE_Msk);
 }
 
+HAL_StatusTypeDef HAL_InitTick(uint32_t TickPriority)
+{
+    return HAL_OK;
+}
 
 void SystemClock_Config(void)
 {
@@ -260,55 +265,59 @@ void SystemClock_Config(void)
      * where:
      *  f_in = XO freq
      *  f_out = 64MHz
-     *  PLLN = 128
-     *  PLLM = scaler value to get 64MHz MCU speed
+     *  PLLN = variable
+     *  PLLM = 1
      *  PLLP = 2
     */
-#define PLL_N     128
-#define PLL_P     RCC_PLLP_DIV2
+    RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+    RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+    RCC_PeriphCLKInitTypeDef PeriphClkInit = {0};
 
-    RCC_OscInitTypeDef RCC_OscInitStruct;
-    RCC_ClkInitTypeDef RCC_ClkInitStruct;
-    RCC_PeriphCLKInitTypeDef PeriphClkInit;
-
-    /* Enable Power Control clock */
+    /* Enable Powers */
+    __HAL_RCC_SYSCFG_CLK_ENABLE();
     __HAL_RCC_PWR_CLK_ENABLE();
+
+    /** Disable the internal Pull-Up in Dead Battery pins of UCPD peripheral
+     */
+    HAL_SYSCFG_StrobeDBattpinsConfig(SYSCFG_CFGR1_UCPD1_STROBE | SYSCFG_CFGR1_UCPD2_STROBE);
 
     /* Configure the main internal regulator output voltage */
     HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1);
 
     /* Initializes the CPU, AHB and APB busses clocks to be 64MHz */
 #if !USE_INTERNAL_XO && defined(HSE_VALUE)
-#if HSE_VALUE < 1000000U
-#error "Wrong config! HSE VALUE min is 1MHz!"
-#elif HSE_VALUE > 48000000U
-#error "Wrong config! HSE VALUE max is 48MHz!"
+#if HSE_VALUE == 16000000U
+#define PLL_N   8  // 16MHz
+#elif HSE_VALUE == 8000000U
+#define PLL_N  16  // 8MHz
+#else
+#error "HSE_VALUE is not supported at the moment!"
 #endif
 
-#define PLL_M (HSE_VALUE / 1000000U)
+    /** Enables the Clock Security System
+     */
+    HAL_RCC_EnableCSS();
 
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSE;
     RCC_OscInitStruct.HSEState = RCC_HSE_ON;
-    RCC_OscInitStruct.HSIState = RCC_HSI_ON;
-    RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV1;
+    RCC_OscInitStruct.HSIState = RCC_HSI_OFF;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
 #else // USE_INTERNAL_XO
 #if HSI_VALUE != 16000000U
 #error "Wrong config! HSI VALUE is 16MHz!"
 #endif
-
-#define PLL_M (HSI_VALUE / 1000000U)
+#define PLL_N  8
 
     RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
     RCC_OscInitStruct.HSEState = RCC_HSE_OFF;
     RCC_OscInitStruct.HSIState = RCC_HSI_ON;
     RCC_OscInitStruct.HSIDiv = RCC_HSI_DIV1;
+    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
     RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
 #endif
 
-    RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
     RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-    RCC_OscInitStruct.PLL.PLLM = PLL_M;
+    RCC_OscInitStruct.PLL.PLLM = RCC_PLLM_DIV1;
     RCC_OscInitStruct.PLL.PLLN = PLL_N;
     RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
     RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
@@ -317,8 +326,8 @@ void SystemClock_Config(void)
         Error_Handler();
     }
     /* Initializes the CPU, AHB and APB busses clocks */
-    RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK
-                                    | RCC_CLOCKTYPE_PCLK1;
+    RCC_ClkInitStruct.ClockType =
+        RCC_CLOCKTYPE_HCLK | RCC_CLOCKTYPE_SYSCLK | RCC_CLOCKTYPE_PCLK1;
     RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
     RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
     RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
@@ -328,8 +337,11 @@ void SystemClock_Config(void)
     }
 
     PeriphClkInit.PeriphClockSelection =
+        RCC_PERIPHCLK_TIM1 | RCC_PERIPHCLK_TIM15 |
         RCC_PERIPHCLK_USART1 | RCC_PERIPHCLK_USART2 |
         RCC_PERIPHCLK_I2C1;
+    PeriphClkInit.Tim1ClockSelection = RCC_TIM1CLKSOURCE_PCLK1;
+    PeriphClkInit.Tim15ClockSelection = RCC_TIM15CLKSOURCE_PCLK1;
     PeriphClkInit.Usart1ClockSelection = RCC_USART1CLKSOURCE_PCLK1;
     PeriphClkInit.Usart2ClockSelection = RCC_USART2CLKSOURCE_PCLK1;
     PeriphClkInit.I2c1ClockSelection = RCC_I2C1CLKSOURCE_PCLK1;
@@ -338,9 +350,6 @@ void SystemClock_Config(void)
     }
 
     SystemCoreClockUpdate();
-
-    /* Enable SYSCFG Clock */
-    __HAL_RCC_SYSCFG_CLK_ENABLE();
 }
 
 void hw_init(void)
