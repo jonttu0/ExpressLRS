@@ -213,22 +213,24 @@ void CRSF_RX::processPacket(uint8_t const *data)
         case CRSF_FRAMETYPE_BATTERY_SENSOR: {
             if (BattInfoCallback) {
                 LinkStatsBatt_t batt;
+                memcpy(&batt, &data[1], sizeof(batt));
+                /*
                 batt.voltage = data[1];
                 batt.voltage <<= 8;
                 batt.voltage += data[2];
-
+                // current is in units of 0.1A
                 batt.current = data[3];
                 batt.current <<= 8;
                 batt.current += data[4];
-
+                // capacity is in units of mAh
                 batt.capacity = data[5];
                 batt.capacity <<= 8;
                 batt.capacity += data[6];
                 batt.capacity <<= 8;
                 batt.capacity += data[7];
-
+                // battery remaining percentage
                 batt.remaining = data[8];
-
+                */
                 BattInfoCallback(&batt);
             }
             break;
@@ -237,6 +239,8 @@ void CRSF_RX::processPacket(uint8_t const *data)
         case CRSF_FRAMETYPE_GPS: {
             if (GpsCallback) {
                 GpsOta_t gps;
+                memcpy(&gps, &data[1], sizeof(gps) - 1);
+                /*
                 gps.latitude = data[1];
                 gps.latitude <<= 8;
                 gps.latitude += data[2];
@@ -266,7 +270,7 @@ void CRSF_RX::processPacket(uint8_t const *data)
                 gps.altitude += data[14];
 
                 gps.satellites = data[15];
-
+                */
                 GpsCallback(&gps);
             }
             break;

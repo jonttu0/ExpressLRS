@@ -611,9 +611,9 @@ void handleHandsetTlmBattery(uint8_t * data)
 {
   String out = "ELRS_tlm_batt=";
   LinkStatsBatt_t * stats = (LinkStatsBatt_t*)data;
-  out += "V:"; out += stats->voltage;
-  out += ",A:"; out += stats->current;
-  out += ",C:"; out += stats->capacity;
+  out += "V:"; out += BYTE_SWAP_U16(stats->voltage);
+  out += ",A:"; out += BYTE_SWAP_U16(stats->current);
+  out += ",C:"; out += BYTE_SWAP_U32((uint32_t)stats->capacity << 8);
   out += ",R:"; out += stats->remaining;
   websocket_send(out);
 }
@@ -622,11 +622,11 @@ void handleHandsetTlmGps(uint8_t * data)
 {
   String out = "ELRS_tlm_gps=";
   GpsOta_t * stats = (GpsOta_t*)data;
-  out += "lat:"; out += stats->latitude;
-  out += ",lon:"; out += stats->longitude;
-  out += ",spe:"; out += stats->speed;
-  out += ",hea:"; out += stats->heading / 10; // convert to degrees
-  out += ",alt:"; out += (int)(stats->altitude - 1000); // 1000m offset
+  out += "lat:"; out += BYTE_SWAP_U32(stats->latitude);
+  out += ",lon:"; out += BYTE_SWAP_U32(stats->longitude);
+  out += ",spe:"; out += BYTE_SWAP_U16(stats->speed);
+  out += ",hea:"; out += BYTE_SWAP_U16(stats->heading) / 10; // convert to degrees
+  out += ",alt:"; out += (int)BYTE_SWAP_U16(stats->altitude) - 1000; // 1000m offset
   out += ",sat:"; out += stats->satellites;
   websocket_send(out);
 }

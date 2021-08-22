@@ -290,9 +290,9 @@ typedef struct LinkStatsLink_s {
 } PACKED LinkStatsLink_t;
 
 typedef struct LinkStatsBatt_s {
-    uint16_t voltage;  // mv * 100
-    uint16_t current;  // ma * 100
-    uint32_t capacity : 24; // mah
+    uint16_t voltage;       // step 0.1V
+    uint16_t current;       // step 0.1A
+    uint32_t capacity : 24; // mAh
     uint32_t remaining : 8; // %
 } PACKED LinkStatsBatt_t;
 
