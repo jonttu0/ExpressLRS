@@ -64,6 +64,8 @@ enum
 {
     MSP_VTX_ONFIG = 0x58,      // read
     MSP_VTX_SET_CONFIG = 0x59, // write
+
+    MSP_EEPROM_WRITE = 250,
 };
 
 typedef struct

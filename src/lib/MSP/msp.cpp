@@ -111,6 +111,11 @@ bool MSP::processReceivedByte(uint8_t c)
                 // TODO: check if belongs to me and extract only if needed...
             }
             m_crc_v1 = CalcCRCxor(&c, 1, m_crc_v1);
+            if (m_packet.payloadSize == 0)
+            {
+                m_crc = m_crc_v1;
+                m_inputState = MSP_CHECKSUM;
+            }
             break;
         }
         case MSP_PAYLOAD:

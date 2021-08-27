@@ -272,6 +272,18 @@ void MspVtxWriteToElrs(uint16_t const freq)
   //msp_out.payload[3] = (power == 0); // pit mode
   // Send packet to ELRS
   MSP::sendPacket(&msp_out, &my_ctrl_serial);
+
+  delay(100);
+
+  // ..and make new setting permanent
+  msp_out.reset();
+  msp_out.type = MSP_PACKET_V1_CMD;
+  msp_out.flags = MSP_VERSION | MSP_STARTFLAG;
+  msp_out.function = MSP_EEPROM_WRITE;
+  msp_out.payloadSize = 0; // No params
+  //msp_out.payload[0] = 0;
+  // Send packet to ELRS
+  MSP::sendPacket(&msp_out, &my_ctrl_serial);
 }
 
 void MspVtxWrite(const char * input, int num)
