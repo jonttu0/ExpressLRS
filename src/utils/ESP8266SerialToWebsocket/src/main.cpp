@@ -74,6 +74,9 @@ static uint8_t handset_num_switches, handset_num_aux;
 static uint8_t handset_mixer_ok = 0, handset_adjust_ok = 0;
 #endif
 
+#define MSP_SAVE_DELAY_MS   100
+static volatile uint32_t msp_send_save_requested_ms;
+
 /*************************************************************************/
 
 int get_reset_reason(void)
@@ -273,17 +276,8 @@ void MspVtxWriteToElrs(uint16_t const freq)
   // Send packet to ELRS
   MSP::sendPacket(&msp_out, &my_ctrl_serial);
 
-  delay(100);
-
-  // ..and make new setting permanent
-  msp_out.reset();
-  msp_out.type = MSP_PACKET_V1_CMD;
-  msp_out.flags = MSP_VERSION | MSP_STARTFLAG;
-  msp_out.function = MSP_EEPROM_WRITE;
-  msp_out.payloadSize = 0; // No params
-  //msp_out.payload[0] = 0;
-  // Send packet to ELRS
-  MSP::sendPacket(&msp_out, &my_ctrl_serial);
+  // Request save to make set permanent
+  msp_send_save_requested_ms = millis();
 }
 
 void MspVtxWrite(const char * input, int num)
@@ -1438,6 +1432,19 @@ void loop()
   mdns.update();
 
   batt_voltage_measure();
+
+  if (msp_send_save_requested_ms &&
+      (MSP_SAVE_DELAY_MS <= (millis() - msp_send_save_requested_ms))) {
+    /* Save send requested, send and clear the flag */
+    msp_out.reset();
+    msp_out.type = MSP_PACKET_V1_CMD;
+    msp_out.flags = MSP_VERSION | MSP_STARTFLAG;
+    msp_out.function = MSP_EEPROM_WRITE;
+    msp_out.payloadSize = 0; // No params
+    MSP::sendPacket(&msp_out, &my_ctrl_serial);
+
+    msp_send_save_requested_ms = 0;
+  }
 
   eeprom_storage.update();
 }
