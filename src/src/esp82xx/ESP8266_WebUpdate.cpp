@@ -29,6 +29,8 @@
 #define WIFI_TIMEOUT 60 // default to 1min
 #endif
 
+#define SERVER_PORT    80
+
 
 MDNSResponder MDNS;
 ESP8266WebServer httpServer(SERVER_PORT);
