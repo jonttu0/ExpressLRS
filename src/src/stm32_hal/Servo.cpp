@@ -14,7 +14,7 @@
 #define TIMx            TIM1
 #define TIMx_IRQn       TIM1_IRQn
 
-uint8_t TIM1_pin_to_ch[] = {PA8, PA9, PA10, PA11};
+uint16_t TIM1_pin_to_ch[] = {PA8, PA9, PA10, PA11};
 
 
 static TIM_HandleTypeDef htim;
