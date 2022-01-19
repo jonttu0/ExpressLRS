@@ -1,4 +1,5 @@
 #include "debug_elrs.h"
+#include "targets.h"
 
 //#define STATIC_IP_AP     "192.168.4.1"
 //#define STATIC_IP_CLIENT "192.168.1.50"
@@ -28,9 +29,9 @@
 #define WIFI_TIMEOUT 60 // default to 1min
 #endif
 
-MDNSResponder mdns;
 
-ESP8266WebServer httpServer(80);
+MDNSResponder MDNS;
+ESP8266WebServer httpServer(SERVER_PORT);
 ESP8266HTTPUpdateServer httpUpdater;
 
 void BeginWebUpdate(void)
@@ -44,23 +45,30 @@ void BeginWebUpdate(void)
 
     IPAddress addr;
 
+    WiFi.persistent(false);
+    WiFi.disconnect();
+    WiFi.mode(WIFI_OFF);
+    WiFi.setOutputPower(13);
+    WiFi.setPhyMode(WIFI_PHY_MODE_11N);
+
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
-  if (WiFi.status() != WL_CONNECTED) {
-    WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PSK);
-  }
-  uint32_t i = 0;
-#define TIMEOUT (WIFI_TIMEOUT * 10)
-  while (WiFi.status() != WL_CONNECTED)
-  {
-    delay(100);
-    if (++i > TIMEOUT) {
-      break;
+    if (WiFi.status() != WL_CONNECTED) {
+        WiFi.mode(WIFI_STA);
+        WiFi.begin(WIFI_SSID, WIFI_PSK);
     }
-  }
-  if (WiFi.status() == WL_CONNECTED) {
-    addr = WiFi.localIP();
-  } else
+    uint32_t i = 0;
+
+    #define TIMEOUT (WIFI_TIMEOUT * 10)
+    while (WiFi.status() != WL_CONNECTED)
+    {
+        delay(100);
+        if (++i > TIMEOUT) {
+        break;
+        }
+    }
+    if (WiFi.status() == WL_CONNECTED) {
+        addr = WiFi.localIP();
+    } else
 #elif WIFI_MANAGER
     WiFiManager wifiManager;
     //WiFiManagerParameter header("<p>Express LRS ESP82xx RX</p>");
@@ -97,10 +105,31 @@ void BeginWebUpdate(void)
         addr = WiFi.softAPIP();
     }
 
-    if (mdns.begin(host, addr))
+    MDNS.end();
+    if (MDNS.begin(host, addr))
     {
-        mdns.addService("http", "tcp", 80);
-        mdns.update();
+        String instance = String(host) + "_" + WiFi.macAddress();
+        instance.replace(":", "");
+        MDNS.setInstanceName(host);
+        MDNSResponder::hMDNSService service = MDNS.addService(instance.c_str(), "http", "tcp", SERVER_PORT);
+        MDNS.addServiceTxt(service, "vendor", "elrs");
+#ifdef TARGET_INDENTIFIER
+        MDNS.addServiceTxt(service, "target", TARGET_INDENTIFIER);
+#else
+        MDNS.addServiceTxt(service, "target", "ESP82xx Generic RX");
+#endif
+        MDNS.addServiceTxt(service, "version", LATEST_COMMIT_STR);
+        MDNS.addServiceTxt(service, "type", "rx");
+
+        // If the probe result fails because there is another device on the network with the same name
+        // use our unique instance name as the hostname. A better way to do this would be to use
+        // MDNSResponder::indexDomain and change wifi_hostname as well.
+        MDNS.setHostProbeResultCallback([instance](const char* p_pcDomainName, bool p_bProbeResult) {
+            if (!p_bProbeResult) {
+                WiFi.hostname(instance);
+                MDNS.setInstanceName(instance);
+            }
+        });
     }
 
     httpUpdater.setup(&httpServer);
@@ -113,5 +142,5 @@ void BeginWebUpdate(void)
 void HandleWebUpdate(void)
 {
     httpServer.handleClient();
-    mdns.update();
+    MDNS.update();
 }

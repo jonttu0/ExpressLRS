@@ -35,16 +35,21 @@
 #define ESP_NOW_CHANNEL 1
 #endif
 
-MDNSResponder mdns;
-WebServer server(80);
+#define SERVER_PORT    80
+#define SERVER_WS_PORT 81
+
+
+WebServer server(SERVER_PORT);
 #if WIFI_LOGGER && !WIFI_UPDATER
-WebSocketsServer webSocket = WebSocketsServer(81);
+WebSocketsServer webSocket = WebSocketsServer(SERVER_WS_PORT);
 #define WEBSOCKET_BROADCASET(text) webSocket.broadcastTXT(text)
 #define WEBSOCKET_SEND(sock, text) webSocket.sendTXT(sock, text)
 #else
 #define WEBSOCKET_BROADCASET(text) Serial.println(text)
 #define WEBSOCKET_SEND(sock, text) Serial.println(text)
 #endif
+
+static const char *host = "elrs_tx";
 
 /*************************************************************************/
 
@@ -769,10 +774,22 @@ void web_services_start(void)
 
   servers_started = true;
 
-  if (mdns.begin("elrs_tx"))
-  {
-    mdns.addService("http", "tcp", 80);
-    mdns.addService("ws", "tcp", 81);
+  String instance = String(host) + "_" + WiFi.macAddress();
+  instance.replace(":", "");
+  MDNS.end();
+  if (MDNS.begin(host)) {
+    MDNS.setInstanceName(instance);
+    MDNS.addService("http", "tcp", SERVER_PORT);
+    MDNS.addServiceTxt("http", "tcp", "vendor", "elrs");
+#ifdef TARGET_INDENTIFIER
+    MDNS.addServiceTxt("http", "tcp", "target", TARGET_INDENTIFIER);
+#else
+    MDNS.addServiceTxt("http", "tcp", "target", "ESP32 Generic TX");
+#endif
+    MDNS.addServiceTxt("http", "tcp", "version", LATEST_COMMIT_STR);
+    MDNS.addServiceTxt("http", "tcp", "type", "tx");
+
+    MDNS.addService("ws", "tcp", SERVER_WS_PORT);
   }
 
   server.on("/", handleRoot);
@@ -833,6 +850,9 @@ void wifi_setup(void)
     return;
 
   wifi_setup_ok = true;
+
+  WiFi.setTxPower(WIFI_POWER_13dBm);
+  WiFi.setHostname(host);
 
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
   Serial.print("Connecting to wifi ");

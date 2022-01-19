@@ -108,6 +108,7 @@ parse_env_defines()
 validate_domains()
 
 
+sha_string = "unknown"
 sha = None
 if git:
     try:
@@ -117,25 +118,25 @@ if git:
         git_root = git_repo.git.rev_parse("--show-toplevel")
         ExLRS_Repo = git.Repo(git_root)
         # git describe --match=NeVeRmAtCh --always --abbrev=6 --dirty
-        hexsha = ExLRS_Repo.git.describe('--dirty', '--abbrev=6', '--always', '--match=NeVeRmAtCh')
-        print("hexsha: '%s'" % hexsha)
-        if 'dirty' in hexsha:
+        sha_string = ExLRS_Repo.git.describe('--dirty', '--abbrev=6', '--always', '--match=NeVeRmAtCh')
+        if 'dirty' in sha_string:
             env['BUILD_FLAGS'].append("-DLATEST_COMMIT_DIRTY=1")
-        #hexsha = ExLRS_Repo.head.object.hexsha
-        sha = ",".join(["0x%s" % x for x in hexsha[:6]])
+        sha = ",".join(["0x%s" % x for x in sha_string[:6]])
     except git.InvalidGitRepositoryError:
         pass
-if not sha:
+if sha is None:
     if os.path.exists("VERSION"):
         with open("VERSION") as _f:
             data = _f.readline()
             _f.close()
-        hexsha = data.split()[1].strip()
-        sha = ",".join(["0x%s" % x for x in hexsha[:6]])
+        sha_string = data.split()[1].strip()
+        sha = ",".join(["0x%s" % x for x in sha_string[:6]])
     else:
         sha = "0,0,0,0,0,0"
+print("sha_string: '%s'" % sha_string)
 print("Current SHA: %s" % sha)
 env['BUILD_FLAGS'].append("-DLATEST_COMMIT="+sha)
+env['BUILD_FLAGS'].append('-DLATEST_COMMIT_STR="\\"%s\\""' % sha_string)
 
 print("\n[INFO] build flags: %s\n" % env['BUILD_FLAGS'])
 
