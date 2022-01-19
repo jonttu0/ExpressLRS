@@ -14,8 +14,8 @@
 #endif
 
 #define FORCED_INLINE inline __attribute__((always_inline))
-#ifndef noinline
-#define noinline __attribute__((noinline))
+#ifndef NO_INLINE
+#define NO_INLINE __attribute__((noinline))
 #endif
 
 #define SERVO_WRITE_FROM_ISR 0
