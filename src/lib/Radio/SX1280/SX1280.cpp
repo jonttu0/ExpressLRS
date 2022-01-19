@@ -321,6 +321,23 @@ void SX1280Driver::SetPacketParamsLoRa(uint8_t HeaderType,
     buf[6] = 0x00;
     buf[7] = 0x00;
     TransferBuffer(buf, sizeof(buf), 0);
+
+#if 0
+    // Set LoRa SyncWord
+    //   1. Read existing values
+    buf[0] = SX1280_RADIO_READ_REGISTER;
+    buf[1] = (uint8_t)(SX1280_REG_LORA_SYNCWORD_MSB >> 8);
+    buf[2] = (uint8_t)(SX1280_REG_LORA_SYNCWORD_MSB);
+    buf[3] = 0; // NOP
+    buf[4] = 0; // 0x944
+    buf[5] = 0; // 0x945
+    TransferBuffer(buf, 6, 1);
+    //   2. Set sync word and write values
+    buf[0] = SX1280_RADIO_WRITE_REGISTER;
+    buf[3] = (_syncWord & 0xF0) + (buf[4] & 0xF); // 0x944
+    buf[4] = ((_syncWord & 0xF) << 4) + (buf[5] & 0xF); // 0x945
+    TransferBuffer(buf, 5, 0);
+#endif
 }
 
 void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
