@@ -5,7 +5,6 @@
 #include "gpio.h"
 
 #include <Arduino.h>
-#include <esp8266/Esp.h>
 
 
 #define WEB_UPDATE_LED_FLASH_INTERVAL 50
@@ -59,6 +58,7 @@ void button_handle(int state)
 void platform_setup(void)
 {
     /* Force WIFI off until it is realy needed */
+    WiFi.disconnect(true);
     WiFi.mode(WIFI_OFF);
     WiFi.forceSleepBegin();
 
