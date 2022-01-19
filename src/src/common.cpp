@@ -275,3 +275,22 @@ RadioInterface* common_config_radio(uint8_t type)
     current_settings = get_air_rate_config(type);
     return radio;
 }
+
+
+int8_t validate_bl_indentifier(const uint8_t * info)
+{
+#ifdef TARGET_INDENTIFIER
+    static const char bootloader_id[] = TARGET_INDENTIFIER;
+    if (info) {
+        uint8_t *ptr = (uint8_t*)bootloader_id;
+        uint8_t count = sizeof(bootloader_id) - 1;
+        while (count--) {
+            if (*ptr++ != *info++)
+                return -1;
+        }
+    }
+#endif // TARGET_INDENTIFIER
+    DEBUG_PRINTF("Jumping to Bootloader...\n");
+    delay(200);
+    return 0;
+}

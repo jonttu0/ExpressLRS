@@ -137,3 +137,5 @@ static inline uint8_t get_elrs_airRateOsd(void) {
 #if defined(RX_MODULE)
 void forced_stop(void);
 #endif /* RX_MODULE */
+
+int8_t validate_bl_indentifier(const uint8_t * id);
