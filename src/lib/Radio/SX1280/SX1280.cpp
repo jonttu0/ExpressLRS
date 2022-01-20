@@ -432,6 +432,7 @@ void FAST_CODE_2 SX1280Driver::SetFrequency(uint32_t Reqfreq)
     current_freq = Reqfreq;
 }
 
+#if FEI_ENABLED
 int32_t FAST_CODE_2 SX1280Driver::GetFrequencyError()
 {
     /* FEI applies to LoRa only */
@@ -474,6 +475,7 @@ int32_t FAST_CODE_2 SX1280Driver::GetFrequencyError()
     return (int32_t)efeHz;
 #endif // EFE_NO_DOUBLE
 }
+#endif // FEI_ENABLED
 
 void FAST_CODE_2 SX1280Driver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
 {
@@ -503,8 +505,8 @@ void FAST_CODE_2 SX1280Driver::TXnb(const uint8_t *data, uint8_t length, uint32_
     ClearIrqStatus(SX1280_IRQ_RADIO_ALL);
     if (freq)
         SetFrequency(freq);
-    SetFIFOaddr(0x00, 0x00);   // not 100% sure if needed again
-    WriteBuffer(0x00, (uint8_t*)data, length); //todo fix offset to equal fifo addr
+    //SetFIFOaddr(0x00, 0x00);   // not 100% sure if needed again
+    WriteBuffer(0x00, (uint8_t*)data, length);
     SetMode(SX1280_MODE_TX);
 }
 

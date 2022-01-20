@@ -8,6 +8,7 @@
 #define SX128X_SPI_SPEED (10000000)
 //#define SX128X_SPI_SPEED (4000000)
 
+#define FEI_ENABLED   0
 #define EFE_NO_DOUBLE 1
 
 #if EFE_NO_DOUBLE
@@ -33,7 +34,12 @@ public:
                 uint8_t crc = 0, uint8_t flrc = 0);
     void SetOutputPower(int8_t power, uint8_t init=0);
     void SetFrequency(uint32_t freq);
-    int32_t GetFrequencyError();
+    int32_t GetFrequencyError()
+#if !FEI_ENABLED
+    // Inline if FEI is disabled
+    {return 0;}
+#endif
+    ;
     void setPPMoffsetReg(int32_t error_hz, uint32_t frf = 0);
 
     void TXnb(const uint8_t *data, uint8_t length, uint32_t freq = 0);
