@@ -5,70 +5,59 @@
 #include "crc.h"
 #include "targets.h"
 
-#if RADIO_SX127x
-#include "fhss_freqs_127x.h"
-#endif
-#if RADIO_SX128x
-#include "fhss_freqs_128x.h"
-#if RADIO_SX128x_FLRC
-#include "fhss_freqs_128x_flrc.h"
-#endif
-#endif
 
-static uint32_t DRAM_FORCE_ATTR FHSSstep;
-static uint32_t DRAM_FORCE_ATTR FHSSsequenceLen;
-//static uint32_t DRAM_FORCE_ATTR FHSS_freq_offset;
+#define FHSS_SEQ_TABLE_SIZE 256
+
+// Actual sequence of hops as indexes into the frequency list
 static uint32_t DRAM_FORCE_ATTR FHSS_freq_base;
 static uint32_t DRAM_FORCE_ATTR FHSS_bandwidth;
 static uint32_t DRAM_FORCE_ATTR FHSS_band_count;
-static uint8_t * DRAM_FORCE_ATTR FHSSsequence;
 static uint32_t DRAM_FORCE_ATTR FHSS_sync_channel;
+static uint32_t DRAM_FORCE_ATTR FHSS_sequence_len;
+static uint8_t  DRAM_FORCE_ATTR FHSS_sequence_lut[FHSS_SEQ_TABLE_SIZE];
 
-
+// Runtime variables
 static volatile uint32_t DRAM_ATTR FHSSindex;
-volatile int_fast32_t DRAM_ATTR FreqCorrection;
+static volatile int32_t  DRAM_ATTR FreqCorrection;
+
+
+static void FHSSupdateFrequencies(uint8_t mode);
+static void FHSSrandomiseSequence(uint32_t nbr_fhss_freqs);
+static void FHSSprintSequence(const uint8_t fhss_sequence_len)
+{
+#ifdef DEBUG_SERIAL
+    // output FHSS sequence
+    uint8_t iter;
+    DEBUG_PRINTF("FHSS Sequence:");
+    for (iter = 0; iter < fhss_sequence_len; iter++) {
+        if ((iter % 10) == 0)
+            DEBUG_PRINTF("\n");
+        DEBUG_PRINTF("%2u ", FHSS_sequence_lut[iter]);
+    }
+    DEBUG_PRINTF("\n");
+#else
+    (void)fhss_sequence_len;
+#endif
+}
 
 void FHSS_init(uint8_t const mode)
 {
-#if RADIO_SX127x
-    if (mode == RADIO_TYPE_127x) {
-        FHSSsequence = SX127x::FHSSsequence;
-        FHSSsequenceLen = sizeof(SX127x::FHSSsequence);
-        FHSSstep = SX127x::FHSS_MY_STEP;
-        //FHSS_freq_offset = SX127x::FREQ_OFFSET_UID;
-        FHSS_freq_base = SX127x::FREQ_BASE;
-        FHSS_bandwidth = SX127x::FREQ_BANDWIDTH;
-        FHSS_band_count = SX127x::FREQ_BAND_COUNT;
-        FHSS_sync_channel = SX127x::SYNC_CHANNEL;
+#if 0
+    if (RADIO_SX127x && mode == RADIO_TYPE_127x) {
+#if defined(Regulatory_Domain_AU_915) || defined(Regulatory_Domain_FCC_915)
+        DEBUG_PRINTF("Setting 915MHz Mode\n");
+#elif defined Regulatory_Domain_EU_868 || defined Regulatory_Domain_EU_868_R9
+        DEBUG_PRINTF("Setting 868MHz Mode\n");
+#elif defined(Regulatory_Domain_AU_433) || defined(Regulatory_Domain_EU_433)
+        DEBUG_PRINTF("Setting 433MHz Mode\n");
+#endif
+    } else if (RADIO_SX128x && mode == RADIO_TYPE_128x) {
+        DEBUG_PRINTF("Setting ISM 2400 Mode\n");
     }
 #endif
-#if RADIO_SX128x
-    if (mode == RADIO_TYPE_128x) {
-        FHSSsequence = SX128x::FHSSsequence;
-        FHSSsequenceLen = sizeof(SX128x::FHSSsequence);
-        FHSSstep = SX128x::FHSS_MY_STEP;
-        //FHSS_freq_offset = SX128x::FREQ_OFFSET_UID;
-        FHSS_freq_base = SX128x::FREQ_BASE;
-        FHSS_bandwidth = SX128x::FREQ_BANDWIDTH;
-        FHSS_band_count = SX128x::FREQ_BAND_COUNT;
-        FHSS_sync_channel = SX128x::SYNC_CHANNEL;
-    }
-
-#if RADIO_SX128x_FLRC
-    if (mode == RADIO_TYPE_128x_FLRC) {
-        FHSSsequence = SX128x_FLRC::FHSSsequence;
-        FHSSsequenceLen = sizeof(SX128x_FLRC::FHSSsequence);
-        FHSSstep = SX128x_FLRC::FHSS_MY_STEP;
-        //FHSS_freq_offset = SX128x_FLRC::FREQ_OFFSET_UID;
-        FHSS_freq_base = SX128x_FLRC::FREQ_BASE;
-        FHSS_bandwidth = SX128x_FLRC::FREQ_BANDWIDTH;
-        FHSS_band_count = SX128x_FLRC::FREQ_BAND_COUNT;
-        FHSS_sync_channel = SX128x_FLRC::SYNC_CHANNEL;
-    }
-#endif
-#endif
-    //FHSSrandomiseFHSSsequence();
-    //DEBUG_PRINTF("FHSS len %u, step %u\n", FHSSsequenceLen, FHSSstep);
+    FHSSupdateFrequencies(mode);
+    FHSSrandomiseSequence(FHSS_band_count);
+    FHSSprintSequence(FHSS_band_count);
 }
 
 void FAST_CODE_1 FHSSfreqCorrectionReset(void)
@@ -83,7 +72,7 @@ void FAST_CODE_1 FHSSfreqCorrectionSet(int32_t const error)
 
 void FAST_CODE_1 FHSSsetCurrIndex(uint32_t const value)
 { // set the current index of the FHSS pointer
-    FHSSindex = value % FHSSsequenceLen;
+    FHSSindex = value % FHSS_sequence_len;
 }
 
 uint32_t FAST_CODE_1 FHSSgetCurrIndex()
@@ -94,24 +83,24 @@ uint32_t FAST_CODE_1 FHSSgetCurrIndex()
 void FAST_CODE_1 FHSSincCurrIndex()
 {
 #if !STAY_ON_INIT_CHANNEL
-    FHSSindex = (FHSSindex + FHSSstep) % FHSSsequenceLen;
+    FHSSindex = (FHSSindex + 1) % FHSS_sequence_len;
 #endif
 }
 
 uint8_t FAST_CODE_1 FHSScurrSequenceIndex()
 {
-    return (FHSSsequence[FHSSindex]);
+    return (FHSS_sequence_lut[FHSSindex]);
 }
 
 uint8_t FAST_CODE_1 FHSScurrSequenceIndexIsSyncChannel()
 {
-    return (FHSSsequence[FHSSindex] == FHSS_sync_channel);
+    return (FHSS_sequence_lut[FHSSindex] == FHSS_sync_channel);
 }
 
 uint32_t FAST_CODE_1 FHSSgetCurrFreq()
 {
     uint32_t freq = FHSS_freq_base;
-    freq += (FHSS_bandwidth * FHSSsequence[FHSSindex]);
+    freq += (FHSS_bandwidth * FHSS_sequence_lut[FHSSindex]);
     return (freq - FreqCorrection);
 }
 
@@ -122,134 +111,117 @@ uint32_t FAST_CODE_1 FHSSgetNextFreq()
 }
 
 
-
-#if 0
-
-// Set all of the flags in the array to true, except for the first one
-// which corresponds to the sync channel and is never available for normal
-// allocation.
-void resetIsAvailable(uint8_t *const array, uint32_t size)
+static void FHSSupdateFrequencies(uint8_t const mode)
 {
-    // channel 0 is the sync channel and is never considered available
-    array[0] = 0;
+    /* Fill/calc FHSS frequencies base on requested mode */
+    switch (mode) {
+        case RADIO_TYPE_127x: {
+#if defined(Regulatory_Domain_AU_433)
+            FHSS_freq_base = 433420000;
+            FHSS_bandwidth = 500000;
+            FHSS_band_count = 3;
+#elif defined(Regulatory_Domain_EU_433)
+            FHSS_freq_base = 433100000; // 433100000, 433925000, 434450000
+            FHSS_bandwidth = ; // ???
+            FHSS_band_count = 3;
+#elif defined(Regulatory_Domain_AU_915)
+            FHSS_freq_base = 915500000;
+            FHSS_bandwidth = 600000;
+            FHSS_band_count = 20;
+#elif defined(Regulatory_Domain_FCC_915)
+            FHSS_freq_base = 903500000;
+            FHSS_bandwidth = 600000;
+            FHSS_band_count = 40;
+#elif defined(Regulatory_Domain_EU_868)
+            FHSS_freq_base = 863275000;
+            FHSS_bandwidth = 525000;
+            FHSS_band_count = 18;
+#elif defined(Regulatory_Domain_EU_868_R9)
+            FHSS_freq_base = 859504989;
+            FHSS_bandwidth = 500000;
+            FHSS_band_count = 26;
+#endif
+            break;
+        }
+        case RADIO_TYPE_128x: {
+#if defined(Regulatory_Domain_ISM_2400_800kHz)
+            FHSS_freq_base = 2400400000;
+            FHSS_bandwidth = 850000;
+            FHSS_band_count = 94;
+#else
+            FHSS_freq_base = 2400400000;
+            FHSS_bandwidth = 1650000;
+            FHSS_band_count = 49;
+#endif
+            break;
+        }
+        case RADIO_TYPE_128x_FLRC: {
+            FHSS_freq_base = 2400400000;
+            FHSS_bandwidth = 330000;
+            FHSS_band_count = 242;
+            break;
+        }
+    }
 
-    // all other entires to 1
-    for (uint32_t i = 1; i < size; i++)
-        array[i] = 1;
+    DEBUG_PRINTF("FHSS freq base:%u, bw:%u, count:%u\n",
+                 FHSS_freq_base, FHSS_bandwidth, FHSS_band_count);
 }
+
 
 /**
 Requirements:
 1. 0 every n hops
 2. No two repeated channels
 3. Equal occurance of each (or as even as possible) of each channel
-4. Pesudorandom
+4. Pseudorandom
 
 Approach:
-  Initialise an array of flags indicating which channels have not yet been assigned and a counter of how many channels are available
-  Iterate over the FHSSsequence array using index
-    if index is a multiple of SYNC_INTERVAL assign the sync channel index (0)
-    otherwise, generate a random number between 0 and the number of channels left to be assigned
-    find the index of the nth remaining channel
-    if the index is a repeat, generate a new random number
-    if the index is not a repeat, assing it to the FHSSsequence array, clear the availability flag and decrement the available count
-    if there are no available channels left, reset the flags array and the count
+  Fill the sequence array with the sync channel every FHSS_FREQ_CNT
+  Iterate through the array, and for each block, swap each entry in it with
+  another random entry, excluding the sync channel.
 */
-void FHSSrandomiseFHSSsequence(uint8_t mode)
+static void
+FHSSrandomiseSequence(const uint32_t nbr_fhss_freqs)
 {
-    const uint32_t nbr_fhss_seq = FHSS_band_count;
+    uint8_t const sync_channel = nbr_fhss_freqs / 2;
+    // Number of hops in the FHSS_sequence_lut list before circling back around,
+    // even multiple of the number of frequencies
+    const uint32_t fhss_sequence_len =
+            (FHSS_SEQ_TABLE_SIZE / nbr_fhss_freqs) * nbr_fhss_freqs;
+    uint8_t temp, iter, offset, rand;
 
-    if (RADIO_SX127x && mode == RADIO_TYPE_127x) {
-#if defined(Regulatory_Domain_AU_915) || defined(Regulatory_Domain_FCC_915)
-        DEBUG_PRINTF("Setting 915MHz Mode\n");
-#elif defined Regulatory_Domain_EU_868 || defined Regulatory_Domain_EU_868_R9
-        DEBUG_PRINTF("Setting 868MHz Mode\n");
-#elif defined(Regulatory_Domain_AU_433) || defined(Regulatory_Domain_EU_433)
-        DEBUG_PRINTF("Setting 433MHz Mode\n");
-#endif
-    } else if (RADIO_SX128x && mode == RADIO_TYPE_128x) {
-        DEBUG_PRINTF("Setting ISM 2400 Mode\n");
+    DEBUG_PRINTF("FHSS sequence len: %u, sync channel: %u\n",
+                 fhss_sequence_len, sync_channel);
+
+    rngSeed(my_uid_crc32());
+
+    // initialize the sequence array
+    for (iter = 0; iter < fhss_sequence_len; iter++) {
+        if ((iter % nbr_fhss_freqs) == 0) {
+            FHSS_sequence_lut[iter] = sync_channel;
+        } else if ((iter % nbr_fhss_freqs) == sync_channel) {
+            FHSS_sequence_lut[iter] = 0;
+        } else {
+            FHSS_sequence_lut[iter] = iter % nbr_fhss_freqs;
+        }
     }
 
-    DEBUG_PRINTF("Number of FHSS frequencies = %u\n", nbr_fhss_seq);
-
-    uint8_t UID[6] = {MY_UID};
-    uint32_t macSeed = CalcCRC32(UID, sizeof(UID));
-    rngSeed(macSeed);
-
-    uint8_t isAvailable[nbr_fhss_seq];
-
-    resetIsAvailable(isAvailable, sizeof(isAvailable));
-
-    // Fill the FHSSsequence with channel indices
-    // The 0 index is special - the 'sync' channel. The sync channel appears every
-    // syncInterval hops. The other channels are randomly distributed between the
-    // sync channels
-    const int SYNC_INTERVAL = 20;
-
-    int nLeft = nbr_fhss_seq - 1; // how many channels are left to be allocated. Does not include the sync channel
-    unsigned int prev = 0;           // needed to prevent repeats of the same index
-
-    // for each slot in the sequence table
-    for (uint32_t i = 0; i < FHSSsequenceLen; i++)
-    {
-        if (i % SYNC_INTERVAL == 0)
-        {
-            // assign sync channel 0
-            FHSSsequence[i] = 0;
-            prev = 0;
+    // Randomize sequence
+    for (iter = 0; iter < fhss_sequence_len; iter++) {
+        // if it's not the sync channel
+        if ((iter % nbr_fhss_freqs) != 0) {
+            // offset to start of current block
+            offset = (iter / nbr_fhss_freqs) * nbr_fhss_freqs;
+            // random number between 1 and nbr_fhss_freqs
+            rand = rngN(nbr_fhss_freqs - 1) + 1;
+            // switch this entry and another random entry in the same block
+            temp = FHSS_sequence_lut[iter];
+            FHSS_sequence_lut[iter] = FHSS_sequence_lut[offset + rand];
+            FHSS_sequence_lut[offset + rand] = temp;
         }
-        else
-        {
-            // pick one of the available channels. May need to loop to avoid repeats
-            unsigned int index;
-            do
-            {
-                int c = rngN(nLeft); // returnc 0<c<nLeft
-                // find the c'th entry in the isAvailable array
-                // can skip 0 as that's the sync channel and is never available for normal allocation
-                index = 1;
-                int found = 0;
-                while (index < nbr_fhss_seq)
-                {
-                    if (isAvailable[index])
-                    {
-                        if (found == c)
-                            break;
-                        found++;
-                    }
-                    index++;
-                }
-                if (index == nbr_fhss_seq)
-                {
-                    // This should never happen
-                    DEBUG_PRINTF("FAILED to find the available entry!\n");
-                    // What to do? We don't want to hang as that will stop us getting to the wifi hotspot
-                    // Use the sync channel
-                    index = 0;
-                    break;
-                }
-            } while (index == prev); // can't use index if it repeats the previous value
+    }
 
-            FHSSsequence[i] = index; // assign the value to the sequence array
-            isAvailable[index] = 0;  // clear the flag
-            prev = index;            // remember for next iteration
-            nLeft--;                 // reduce the count of available channels
-            if (nLeft == 0)
-            {
-                // we've assigned all of the channels, so reset for next cycle
-                resetIsAvailable(isAvailable, sizeof(isAvailable));
-                nLeft = nbr_fhss_seq - 1;
-            }
-        }
-
-        DEBUG_PRINTF("%u ", FHSSsequence[i]);
-        if ((i + 1) % 10 == 0)
-        {
-            DEBUG_PRINTF("\n");
-        }
-    } // for each element in FHSSsequence
-
-    DEBUG_PRINTF("\n");
+    // Update global params
+    FHSS_sequence_len = fhss_sequence_len;
+    FHSS_sync_channel = sync_channel;
 }
-#endif

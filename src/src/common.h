@@ -138,4 +138,7 @@ static inline uint8_t get_elrs_airRateOsd(void) {
 void forced_stop(void);
 #endif /* RX_MODULE */
 
+uint8_t my_uid_crc8(void);
+uint32_t my_uid_crc32(void);
+
 int8_t validate_bl_indentifier(const uint8_t * id);

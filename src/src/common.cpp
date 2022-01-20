@@ -155,13 +155,13 @@ uint8_t get_elrs_current_radio_type(void)
 #error "UID is mandatory!"
 #endif
 
-uint8_t getSyncWord(void)
+uint8_t my_uid_crc8(void)
 {
     uint8_t UID[6] = {MY_UID};
     return CalcCRC8len(UID, sizeof(UID));
 }
 
-uint32_t getSyncWord32(void)
+uint32_t my_uid_crc32(void)
 {
     uint8_t UID[6] = {MY_UID};
     return CalcCRC32(UID, sizeof(UID));
@@ -255,8 +255,8 @@ RadioInterface* common_config_radio(uint8_t type)
             radio->SetPins(config->rst, config->dio0, config->dio1, config->dio2,
                            config->busy, config->txen, config->rxen, config->nss,
                            config->pactrl);
-            radio->SetSyncWord(getSyncWord());
-            radio->SetSyncWordLong(getSyncWord32());
+            radio->SetSyncWord(my_uid_crc8());
+            radio->SetSyncWordLong(my_uid_crc32());
             //radio->End();
         }
     }

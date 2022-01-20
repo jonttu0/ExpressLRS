@@ -1,6 +1,6 @@
 Import("env")
 import os
-import fhss_random
+#import fhss_random
 import hashlib
 try:
     import git
@@ -140,7 +140,7 @@ env['BUILD_FLAGS'].append('-DLATEST_COMMIT_STR="\\"%s\\""' % sha_string)
 
 print("\n[INFO] build flags: %s\n" % env['BUILD_FLAGS'])
 
-fhss_random.check_env_and_parse(env['BUILD_FLAGS'])
+#fhss_random.check_env_and_parse(env['BUILD_FLAGS'])
 
 # Set upload_protovol = 'custom' for STM32 MCUs
 #  otherwise firmware.bin is not generated
