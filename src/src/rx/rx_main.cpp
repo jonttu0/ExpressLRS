@@ -66,7 +66,6 @@ static GpsOta_t DRAM_ATTR GpsTlm;
 
 ///////////////////////////////////////////////
 ////////////////  Filters  ////////////////////
-static LPF DRAM_FORCE_ATTR LPF_FreqError(5);
 static LPF DRAM_FORCE_ATTR LPF_UplinkRSSI(5);
 static LPF DRAM_FORCE_ATTR LPF_UplinkSNR(5);
 
@@ -148,33 +147,21 @@ uint8_t FAST_CODE_1 RadioFreqErrorCorr(void)
     // Do freq correction before FHSS
     /* Freq tunin ~84us */
     int32_t freqerror = rx_freqerror;
-    uint8_t retval = 0;
     rx_freqerror = 0;
-    if (!freqerror)
-        return 0;
-
+    if (freqerror) {
 #if PRINT_FREQ_ERROR && NO_DATA_TO_FC
-    DEBUG_PRINTF(" > freqerror:%u", freqerror);
+        DEBUG_PRINTF(" > freqerror:%u", freqerror);
 #endif
-
-    freqerror = LPF_FreqError.update(freqerror);
-
+        freqerror = FHSSfreqCorrectionApply(freqerror);
+        if (freqerror) {
 #if PRINT_FREQ_ERROR && NO_DATA_TO_FC
-    DEBUG_PRINTF(" smooth:%u", freqerror);
+            //DEBUG_PRINTF(" local:%u", freqerror);
 #endif
-
-    if (abs(freqerror) > 100) // 120
-    {
-        FHSSfreqCorrectionSet(freqerror);
-        Radio->setPPMoffsetReg(freqerror, 0);
-        retval = 1;
+            Radio->setPPMoffsetReg(freqerror);
+            return 1;
+        }
     }
-#if PRINT_FREQ_ERROR && NO_DATA_TO_FC
-    //extern int_fast32_t FreqCorrection;
-    //DEBUG_PRINTF(" local:%u", FreqCorrection);
-#endif
-
-    return retval;
+    return 0;
 }
 
 uint8_t FAST_CODE_1 HandleFHSS(uint_fast8_t & nonce)
@@ -275,7 +262,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
         TxTimer.reset(0); // Reset timer interval
     }
 
-    fhss_config_rx |= RadioFreqErrorCorr();
+    /*fhss_config_rx |=*/ RadioFreqErrorCorr();
     fhss_config_rx |= HandleFHSS(nonce);
 
     uint_fast8_t lq = LQ_getlinkQuality();
@@ -336,7 +323,6 @@ void FAST_CODE_1 LostConnection()
     // Reset FHSS
     FHSSfreqCorrectionReset();
     FHSSresetCurrIndex();
-    LPF_FreqError.init(0);
 
     connectionState = STATE_lost; //set lost connection
 
@@ -350,9 +336,7 @@ void FAST_CODE_1 LostConnection()
 void FAST_CODE_1 TentativeConnection(int32_t freqerror)
 {
     /* Do initial freq correction */
-    FHSSfreqCorrectionSet(freqerror);
-    Radio->setPPMoffsetReg(freqerror, 0);
-    LPF_FreqError.init(freqerror);
+    Radio->setPPMoffsetReg(FHSSfreqCorrectionApply(freqerror));
     rx_last_valid_us = 0;
 
     tentative_cnt = 0;
@@ -373,7 +357,7 @@ void FAST_CODE_1 GotConnection()
 }
 
 void FAST_CODE_1
-ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t payloadSize)
+ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t payloadSize, int32_t freq_err)
 {
     /* Processing takes:
         R9MM: ~160us
@@ -395,7 +379,6 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
     payloadSize -= OTA_PACKET_CRC;
 
     //DEBUG_PRINTF("I");
-    int32_t freq_err;
     const connectionState_e _conn_state = connectionState;
     const uint16_t crc = CalcCRC16(rx_buffer, payloadSize, CRCCaesarCipher);
     const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
@@ -410,7 +393,6 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
         return;
     }
 
-    freq_err = Radio->GetFrequencyError();
     //DEBUG_PRINTF("E%d ", freq_err);
 
     rx_last_valid_us = current_us;
@@ -582,7 +564,6 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
 #endif
 
     TxTimer.updateInterval(config->interval);
-    LPF_FreqError.init(0);
     LPF_UplinkRSSI.init(0);
     LPF_UplinkSNR.init(0);
 #if !SERVO_OUTPUTS_ENABLED

@@ -139,7 +139,7 @@ void tx_common_init(void)
 
 ///////////////////////////////////////
 
-static void PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, size_t payloadSize);
+static void PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, size_t payloadSize, int32_t freq_err);
 static void TransmissionCompletedCallback();
 
 uint8_t tx_tlm_change_interval(uint8_t value, uint8_t init = 0)
@@ -313,10 +313,12 @@ void process_rx_buffer(uint8_t payloadSize)
     }
 }
 
-static void FAST_CODE_1 PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, size_t payloadSize)
+static void FAST_CODE_1 PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, size_t payloadSize, int32_t freq_err)
 {
+    (void)rx_us;
+    (void)freq_err;
+
     if (buff) {
-        (void)rx_us;
         memcpy(rx_buffer, buff, payloadSize);
         rx_buffer_size = payloadSize - OTA_PACKET_CRC;
 

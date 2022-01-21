@@ -8,8 +8,10 @@
 
 #define SX1280_REG_SENSITIVITY 0x0891
 
+#ifndef SX1280_XTAL_FREQ
 #define SX1280_XTAL_FREQ 52000000.0
-#define SX1280_FREQ_STEP (SX1280_XTAL_FREQ / (0x1U << 18))
+#endif
+#define SX1280_FREQ_STEP ((float)SX1280_XTAL_FREQ / (0x1 << 18))
 
 typedef enum
 {

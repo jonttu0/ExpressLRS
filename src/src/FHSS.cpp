@@ -4,32 +4,39 @@
 #include "utils.h"
 #include "crc.h"
 #include "targets.h"
+#if RADIO_SX127x
+#include "LoRa_SX127x_Regs.h"
+#endif
+#if RADIO_SX128x
+#include "SX1280_Regs.h"
+#endif
 
 //#define FHSS_TABLE_PRINT    1
 #define FHSS_SEQ_TABLE_SIZE 256
+#define FREQ_CORRECTION_MAX 100000
 
 // Actual sequence of hops as indexes into the frequency list
-static uint32_t DRAM_FORCE_ATTR FHSS_freq_base;
-static uint32_t DRAM_FORCE_ATTR FHSS_bandwidth;
-static uint32_t DRAM_FORCE_ATTR FHSS_band_count;
 static uint32_t DRAM_FORCE_ATTR FHSS_sync_channel;
 static uint32_t DRAM_FORCE_ATTR FHSS_sequence_len;
 static uint8_t  DRAM_FORCE_ATTR FHSS_sequence_lut[FHSS_SEQ_TABLE_SIZE];
+static int32_t  DRAM_FORCE_ATTR FreqCorrectionMin;
+static int32_t  DRAM_FORCE_ATTR FreqCorrectionMax;
 
 // Runtime variables
-static volatile uint32_t DRAM_ATTR FHSSindex;
+static volatile uint32_t DRAM_ATTR FHSS_sequence_index;
 static volatile int32_t  DRAM_ATTR FreqCorrection;
+static uint32_t DRAM_ATTR FHSS_frequencies[FHSS_SEQ_TABLE_SIZE];
 
-
-static void FHSSupdateFrequencies(uint8_t mode);
+static uint32_t FHSSupdateFrequencies(uint8_t mode);
 static void FHSSrandomiseSequence(uint32_t nbr_fhss_freqs);
-static void FHSSprintSequence(const uint8_t fhss_sequence_len)
+
+static void FHSSprintSequence(const uint8_t sequence_len)
 {
 #if defined(DEBUG_SERIAL) && defined(FHSS_TABLE_PRINT)
     // output FHSS sequence
     uint8_t iter;
     DEBUG_PRINTF("FHSS Sequence:");
-    for (iter = 0; iter < fhss_sequence_len; iter++) {
+    for (iter = 0; iter < sequence_len; iter++) {
         if ((iter % 10) == 0) {
             DEBUG_PRINTF("\n");
             delay(5);
@@ -39,7 +46,7 @@ static void FHSSprintSequence(const uint8_t fhss_sequence_len)
     DEBUG_PRINTF("\n");
     delay(5);
 #else
-    (void)fhss_sequence_len;
+    (void)sequence_len;
 #endif
 }
 
@@ -58,9 +65,8 @@ void FHSS_init(uint8_t const mode)
         DEBUG_PRINTF("Setting ISM 2400 Mode\n");
     }
 #endif
-    FHSSupdateFrequencies(mode);
-    FHSSrandomiseSequence(FHSS_band_count);
-    FHSSprintSequence(FHSS_band_count);
+    FHSSrandomiseSequence(FHSSupdateFrequencies(mode));
+    FHSSprintSequence(FHSS_sequence_len);
 }
 
 void FAST_CODE_1 FHSSfreqCorrectionReset(void)
@@ -68,43 +74,46 @@ void FAST_CODE_1 FHSSfreqCorrectionReset(void)
     FreqCorrection = 0;
 }
 
-void FAST_CODE_1 FHSSfreqCorrectionSet(int32_t const error)
+int32_t FAST_CODE_1 FHSSfreqCorrectionApply(int32_t const error)
 {
     FreqCorrection += error;
+    if (FreqCorrectionMax < FreqCorrection || FreqCorrection < FreqCorrectionMin) {
+        FreqCorrection = 0;
+        DEBUG_PRINTF("Max FreqCorrection reached!\n");
+    }
+    return FreqCorrection;
 }
 
 void FAST_CODE_1 FHSSsetCurrIndex(uint32_t const value)
 { // set the current index of the FHSS pointer
-    FHSSindex = value % FHSS_sequence_len;
+    FHSS_sequence_index = value % FHSS_sequence_len;
 }
 
 uint32_t FAST_CODE_1 FHSSgetCurrIndex()
 { // get the current index of the FHSS pointer
-    return FHSSindex;
+    return FHSS_sequence_index;
 }
 
 void FAST_CODE_1 FHSSincCurrIndex()
 {
 #if !STAY_ON_INIT_CHANNEL
-    FHSSindex = (FHSSindex + 1) % FHSS_sequence_len;
+    FHSSsetCurrIndex(FHSS_sequence_index + 1);
 #endif
 }
 
 uint8_t FAST_CODE_1 FHSScurrSequenceIndex()
 {
-    return (FHSS_sequence_lut[FHSSindex]);
+    return (FHSS_sequence_lut[FHSS_sequence_index]);
 }
 
 uint8_t FAST_CODE_1 FHSScurrSequenceIndexIsSyncChannel()
 {
-    return (FHSS_sequence_lut[FHSSindex] == FHSS_sync_channel);
+    return (FHSScurrSequenceIndex() == FHSS_sync_channel);
 }
 
 uint32_t FAST_CODE_1 FHSSgetCurrFreq()
 {
-    uint32_t freq = FHSS_freq_base;
-    freq += (FHSS_bandwidth * FHSS_sequence_lut[FHSSindex]);
-    return (freq - FreqCorrection);
+    return (FHSS_frequencies[FHSScurrSequenceIndex()] - FreqCorrection);
 }
 
 uint32_t FAST_CODE_1 FHSSgetNextFreq()
@@ -113,61 +122,91 @@ uint32_t FAST_CODE_1 FHSSgetNextFreq()
     return FHSSgetCurrFreq();
 }
 
-
-static void FHSSupdateFrequencies(uint8_t const mode)
+static void CalculateFhssFrequencies(uint32_t base, uint32_t bw,
+                                     size_t const count, float const step)
 {
+    size_t iter;
+    for (iter = 0; iter < count; iter++) {
+        FHSS_frequencies[iter] = (float)base / step;
+        base += bw;
+    }
+}
+
+static uint32_t FHSSupdateFrequencies(uint8_t const mode)
+{
+    uint32_t freq_base = 0;
+    uint32_t bandwidth = 0;
+    uint32_t band_count = 0;
+
+    /* RF step is used to calculate suitable frequency for the radio */
+    float const rf_step =
+#if RADIO_SX127x && RADIO_SX128x
+        (mode == RADIO_TYPE_127x) ? SX127X_FREQ_STEP : SX1280_FREQ_STEP;
+#elif RADIO_SX127x
+        SX127X_FREQ_STEP;
+#elif RADIO_SX128x
+        SX1280_FREQ_STEP;
+#endif
     /* Fill/calc FHSS frequencies base on requested mode */
     switch (mode) {
         case RADIO_TYPE_127x: {
 #if defined(Regulatory_Domain_AU_433)
-            FHSS_freq_base = 433420000;
-            FHSS_bandwidth = 500000;
-            FHSS_band_count = 3;
+            freq_base = 433420000;
+            bandwidth = 500000;
+            band_count = 3;
 #elif defined(Regulatory_Domain_EU_433)
-            FHSS_freq_base = 433100000; // 433100000, 433925000, 434450000
-            FHSS_bandwidth = ; // ???
-            FHSS_band_count = 3;
+            // Variable bandwidth, skip later calculation
+            FHSS_frequencies[0] = 433100000. / step;
+            FHSS_frequencies[1] = 433925000. / step;
+            FHSS_frequencies[2] = 434450000. / step;
+            band_count = 3;
 #elif defined(Regulatory_Domain_AU_915)
-            FHSS_freq_base = 915500000;
-            FHSS_bandwidth = 600000;
-            FHSS_band_count = 20;
+            freq_base = 915500000;
+            bandwidth = 600000;
+            band_count = 20;
 #elif defined(Regulatory_Domain_FCC_915)
-            FHSS_freq_base = 903500000;
-            FHSS_bandwidth = 600000;
-            FHSS_band_count = 40;
+            freq_base = 903500000;
+            bandwidth = 600000;
+            band_count = 40;
 #elif defined(Regulatory_Domain_EU_868)
-            FHSS_freq_base = 863275000;
-            FHSS_bandwidth = 525000;
-            FHSS_band_count = 18;
+            freq_base = 863275000;
+            bandwidth = 525000;
+            band_count = 18;
 #elif defined(Regulatory_Domain_EU_868_R9)
-            FHSS_freq_base = 859504989;
-            FHSS_bandwidth = 500000;
-            FHSS_band_count = 26;
+            freq_base = 859504989;
+            bandwidth = 500000;
+            band_count = 26;
 #endif
             break;
         }
         case RADIO_TYPE_128x: {
 #if defined(Regulatory_Domain_ISM_2400_800kHz)
-            FHSS_freq_base = 2400400000;
-            FHSS_bandwidth = 850000;
-            FHSS_band_count = 94;
+            freq_base = 2400400000;
+            bandwidth = 850000;
+            band_count = 94;
 #else
-            FHSS_freq_base = 2400400000;
-            FHSS_bandwidth = 1650000;
-            FHSS_band_count = 49;
+            freq_base = 2400400000;
+            bandwidth = 1650000;
+            band_count = 49;
 #endif
             break;
         }
         case RADIO_TYPE_128x_FLRC: {
-            FHSS_freq_base = 2400400000;
-            FHSS_bandwidth = 330000;
-            FHSS_band_count = 242;
+            freq_base = 2400400000;
+            bandwidth = 330000;
+            band_count = 242;
             break;
         }
     }
 
     DEBUG_PRINTF("FHSS freq base:%u, bw:%u, count:%u\n",
-                 FHSS_freq_base, FHSS_bandwidth, FHSS_band_count);
+                 freq_base, bandwidth, band_count);
+
+    if (freq_base)
+        CalculateFhssFrequencies(freq_base, bandwidth, band_count, rf_step);
+    FreqCorrectionMin = -FREQ_CORRECTION_MAX / rf_step;
+    FreqCorrectionMax = FREQ_CORRECTION_MAX / rf_step;
+    return band_count;
 }
 
 

@@ -8,14 +8,7 @@
 #define SX128X_SPI_SPEED (10000000)
 //#define SX128X_SPI_SPEED (4000000)
 
-#define FEI_ENABLED   0
-#define EFE_NO_DOUBLE 1
-
-#if EFE_NO_DOUBLE
-typedef uint32_t efe_scaler_t;
-#else // !EFE_NO_DOUBLE
-typedef double efe_scaler_t;
-#endif // EFE_NO_DOUBLE
+#define SX128X_FEI_ENABLED   0
 
 
 class SX1280Driver: public RadioInterface
@@ -35,12 +28,12 @@ public:
     void SetOutputPower(int8_t power, uint8_t init=0);
     void SetFrequency(uint32_t freq);
     int32_t GetFrequencyError()
-#if !FEI_ENABLED
+#if !SX128X_FEI_ENABLED
     // Inline if FEI is disabled
     {return 0;}
 #endif
     ;
-    void setPPMoffsetReg(int32_t error_hz, uint32_t frf = 0);
+    void setPPMoffsetReg(int32_t error_hz, uint32_t frf = 0) {}
     void SetPacketInterval(uint32_t const interval_us);
 
     void TXnb(const uint8_t *data, uint8_t length, uint32_t freq = 0);
@@ -58,7 +51,6 @@ public:
 
 private:
     SX1280_RadioOperatingModes_t currOpmode;
-    efe_scaler_t p_efe_scaler;
     uint16_t rx_timeout;
     uint8_t packet_mode;
     uint8_t LastRadioStatus;

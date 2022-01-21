@@ -63,7 +63,6 @@ public:
     virtual void SetPacketInterval(uint32_t const rate_us) {};
     virtual void SetOutputPower(int8_t power, uint8_t init=0) = 0;
     virtual void setPPMoffsetReg(int32_t error_hz, uint32_t frf = 0) = 0;
-    virtual int32_t GetFrequencyError() = 0;
     virtual int16_t MeasureNoiseFloor(uint32_t num_meas, uint32_t freq) = 0;
     virtual void StopContRX(void) = 0;
     virtual void RXnb(uint32_t freq = 0) = 0;
@@ -77,9 +76,9 @@ public:
     }
 
     ////////// Callback Function Pointers //////////
-    static void rx_nullCallback(uint8_t *, uint32_t, size_t){};
+    static void rx_nullCallback(uint8_t *, uint32_t, size_t, int32_t){};
     static void tx_nullCallback(void){};
-    void (*RXdoneCallback1)(uint8_t *buff, uint32_t rx_us, size_t len);
+    void (*RXdoneCallback1)(uint8_t *buff, uint32_t rx_us, size_t len, int32_t fei);
     void (*TXdoneCallback1)(void);
 
     ////////// Packet Stats //////////

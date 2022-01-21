@@ -190,7 +190,7 @@ void SX127xDriver::SetPreambleLength(uint16_t PreambleLen)
     SetMode(SX127X_STANDBY);
 }
 
-void FAST_CODE_2 SX127xDriver::SetFrequency(uint32_t freq, uint8_t mode)
+void FAST_CODE_2 SX127xDriver::SetFrequency(uint32_t const freq, uint8_t const mode)
 {
     if (freq == current_freq)
         return;
@@ -198,19 +198,11 @@ void FAST_CODE_2 SX127xDriver::SetFrequency(uint32_t freq, uint8_t mode)
     if (mode != 0xff)
         SetMode(SX127X_SLEEP);
 
-#if FREQ_USE_DOUBLE
-#define FREQ_STEP 61.03515625
-
-    uint32_t FRQ = ((uint32_t)((double)freq / (double)FREQ_STEP));
-    uint8_t buff[3] = {(uint8_t)((FRQ >> 16) & 0xFF), (uint8_t)((FRQ >> 8) & 0xFF), (uint8_t)(FRQ & 0xFF)};
-#else
-    uint64_t frf = ((uint64_t)(freq + p_freqOffset) << 19) / 32000000;
     uint8_t buff[3] = {
-        (uint8_t)(frf >> 16),
-        (uint8_t)(frf >> 8),
-        (uint8_t)(frf >> 0),
+        (uint8_t)(freq >> 16),
+        (uint8_t)(freq >> 8),
+        (uint8_t)(freq >> 0),
     };
-#endif
     writeRegisterBurst(SX127X_REG_FRF_MSB, buff, sizeof(buff));
     current_freq = freq;
 
@@ -336,8 +328,9 @@ static uint8_t DMA_ATTR RXdataBuffer[RADIO_RX_BUFFER_SIZE];
 
 void FAST_CODE_1 SX127xDriver::RXnbISR(uint32_t rx_us, uint8_t irqs)
 {
+    int32_t fei = 0;
     uint8_t * ptr = NULL;
-    // Ignore if CRC is invalid
+    // Ignore if CRC is invalid or RX_DONE not set
     if ((!(irqs & SX127X_CLEAR_IRQ_FLAG_PAYLOAD_CRC_ERROR)) &&
         (irqs & SX127X_CLEAR_IRQ_FLAG_RX_DONE))
     {
@@ -345,10 +338,11 @@ void FAST_CODE_1 SX127xDriver::RXnbISR(uint32_t rx_us, uint8_t irqs)
         readRegisterBurst((uint8_t)SX127X_REG_FIFO, ota_pkt_size, (uint8_t *)RXdataBuffer);
         // fetch RSSI and SNR
         GetLastRssiSnr();
+        fei = GetFrequencyError();
         // Push to application if callback is set
         ptr = RXdataBuffer;
     }
-    RXdoneCallback1(ptr, rx_us, ota_pkt_size);
+    RXdoneCallback1(ptr, rx_us, ota_pkt_size, fei);
 }
 
 void SX127xDriver::StopContRX()
@@ -480,6 +474,7 @@ void SX127xDriver::SX127xConfig(uint8_t bw, uint8_t sf, uint8_t cr, uint32_t fre
     reg_op_mode_mode_lora();
 
     SetFrequency(freq, 0xff); // 0xff = skip mode set calls
+    setPPMoffsetReg(0, freq); // clear frequency correction
 
     // output power configuration
     SetOutputPower(current_power, 1);
@@ -617,10 +612,7 @@ void FAST_CODE_2 SX127xDriver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
     if (!frf)
         return;
     // Calc new PPM
-    error_hz *= 95;
-    error_hz /= (frf / 10000);
-
-    uint8_t regValue = (uint8_t)error_hz;
+    uint8_t regValue = (uint8_t)((error_hz * 1e6 / frf) * 95 / 100);
     if (regValue == p_ppm_off)
         return;
     p_ppm_off = regValue;
@@ -629,34 +621,9 @@ void FAST_CODE_2 SX127xDriver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
 
 int32_t FAST_CODE_2 SX127xDriver::GetFrequencyError()
 {
-    int32_t intFreqError;
     uint8_t fei_reg[3] = {0x0, 0x0, 0x0};
     readRegisterBurst(SX127X_REG_FEI_MSB, sizeof(fei_reg), fei_reg);
-
-    //memcpy(&intFreqError, fei_reg, sizeof(fei_reg));
-    //intFreqError = (__builtin_bswap32(intFreqError) >> 8); // 24bit
-
-    intFreqError = fei_reg[0] & 0b0111;
-    intFreqError <<= 8;
-    intFreqError += fei_reg[1];
-    intFreqError <<= 8;
-    intFreqError += fei_reg[2];
-
-    if (fei_reg[0] & 0b1000) // Sign bit is on
-    {
-        // convert to negative
-        intFreqError -= 524288;
-    }
-
-    // Calculate Hz error where XTAL is 32MHz
-    int64_t tmp_f = intFreqError;
-    tmp_f <<= 11;
-    tmp_f *= p_bw_hz;
-    tmp_f /= 1953125000;
-    intFreqError = tmp_f;
-    //intFreqError = ((tmp_f << 11) * p_bw_hz) / 1953125000;
-
-    return intFreqError;
+    return (fei_reg[0] & 0b1000) ? -1 : 1;
 }
 
 int16_t FAST_CODE_2 SX127xDriver::GetCurrRSSI() const

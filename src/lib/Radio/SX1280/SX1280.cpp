@@ -268,42 +268,6 @@ void SX1280Driver::ConfigModParamsLoRa(uint8_t bw, uint8_t sf, uint8_t cr)
         break;
     }
     TransferBuffer(rfparams, sizeof(rfparams), 0);
-
-#if EFE_NO_DOUBLE
-    /* This cause a bit of Hz error which does not effect to functionality
-     *   SX1280 can handle 203kHz (BW 0.8MHz) or even 406kHz (BW 1.6MHz)
-     *   frequency error.
-     */
-    switch (bw) {
-        case SX1280_LORA_BW_0200:
-            p_efe_scaler = 315;
-            break;
-        case SX1280_LORA_BW_0400:
-            p_efe_scaler = 630;
-            break;
-        case SX1280_LORA_BW_0800:
-            p_efe_scaler = 1259;
-            break;
-        case SX1280_LORA_BW_1600:
-            p_efe_scaler = 2519; // max value fits just to int32_t
-            break;
-    }
-#else // EFE_NO_DOUBLE
-    switch (bw) {
-        case SX1280_LORA_BW_0200:
-            p_efe_scaler = 314.84375; // 203.125 * 1.55
-            break;
-        case SX1280_LORA_BW_0400:
-            p_efe_scaler = 629.6875; // 406.25 * 1.55
-            break;
-        case SX1280_LORA_BW_0800:
-            p_efe_scaler = 1259.375; // 812.5 * 1.55
-            break;
-        case SX1280_LORA_BW_1600:
-            p_efe_scaler = 2518.75; // 1625.0 * 1.55
-            break;
-    }
-#endif // EFE_NO_DOUBLE
 }
 
 void SX1280Driver::ConfigModParamsFLRC(uint8_t bw, uint8_t cr, uint8_t bt)
@@ -410,25 +374,11 @@ void SX1280Driver::SetOutputPower(int8_t power, uint8_t init)
     current_power = power;
 }
 
-void FAST_CODE_2 SX1280Driver::SetFrequency(uint32_t Reqfreq)
+void FAST_CODE_2 SX1280Driver::SetFrequency(uint32_t freq)
 {
     // Skip if already set
-    if (current_freq == Reqfreq) return;
-    // equation: freq = Reqfreq / (52000000 / (1 << 18))
-#if 0
-    uint32_t freq = (uint32_t)((double)Reqfreq / SX1280_FREQ_STEP);
-#else
-#define ALLOW_FREQ_ERR 1
-#if ALLOW_FREQ_ERR
-    // This cause a bit freq error but LoRa can handle it easily :)
-    //   equation: (f / 203125) * 1024;
-    uint32_t freq = Reqfreq / 203125;
-    freq <<= 10;
-#else
-    // equation: (1024 * f) / 203125
-    uint32_t freq = ((uint64_t)Reqfreq << 10u) / 203125;
-#endif
-#endif
+    if (current_freq == freq) return;
+
     uint8_t buf[4];
     buf[0] = SX1280_RADIO_SET_RFFREQUENCY;
     buf[1] = (uint8_t)((freq >> 16) & 0xFF);
@@ -436,58 +386,26 @@ void FAST_CODE_2 SX1280Driver::SetFrequency(uint32_t Reqfreq)
     buf[3] = (uint8_t)(freq & 0xFF);
 
     TransferBuffer(buf, sizeof(buf), 0);
-    current_freq = Reqfreq;
+    current_freq = freq;
 }
 
-#if FEI_ENABLED
+#if SX128X_FEI_ENABLED
 int32_t FAST_CODE_2 SX1280Driver::GetFrequencyError()
 {
     /* FEI applies to LoRa only */
     if (packet_mode == SX1280_PACKET_TYPE_FLRC)
         return 0;
 
-#if EFE_NO_DOUBLE
-    int32_t efe;
-#else
-    double efeHz;
-    int32_t efe = 0;
-#endif
     uint8_t fei_reg[7] = {
         SX1280_RADIO_READ_REGISTER,
         (uint8_t)(SX1280_REG_LR_ESTIMATED_FREQUENCY_ERROR_MSB >> 8),
         (uint8_t)(SX1280_REG_LR_ESTIMATED_FREQUENCY_ERROR_MSB),
         0, // NOP
         0x0, 0x0, 0x0};
-
     TransferBuffer(fei_reg, sizeof(fei_reg), 1);
-    efe = fei_reg[4] & 0b0111;
-    efe <<= 8;
-    efe += fei_reg[5];
-    efe <<= 8;
-    efe += fei_reg[6];
-
-     // Check the sign bit
-    if (fei_reg[4] & 0b1000) {
-        // convert to negative
-        efe -= 524288;
-    }
-
-#if EFE_NO_DOUBLE
-    efe *= p_efe_scaler;
-    return (efe / 1600);
-#else // EFE_NO_DOUBLE
-    efeHz = efe;
-    efeHz *= p_efe_scaler;
-    efeHz /= 1600;
-    return (int32_t)efeHz;
-#endif // EFE_NO_DOUBLE
+    return (fei_reg[4] & 0b1000) ? -1 : 1;
 }
-#endif // FEI_ENABLED
-
-void FAST_CODE_2 SX1280Driver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
-{
-    // Apply freq error correction
-}
+#endif // SX128X_FEI_ENABLED
 
 void FAST_CODE_1 SX1280Driver::SetPacketInterval(uint32_t const interval_us) {
     // Time-out duration = periodBase * periodBaseCount
@@ -525,7 +443,7 @@ void FAST_CODE_2 SX1280Driver::TXnb(const uint8_t *data, uint8_t length, uint32_
 
 static uint8_t DMA_ATTR RXdataBuffer[RADIO_RX_BUFFER_SIZE];
 
-void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
+void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t const rx_us, uint16_t const irqs)
 {
     uint8_t FIFOaddr;
     uint8_t status = LastRadioStatus;
@@ -535,7 +453,7 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
 
     // Check current status for data ready
     if (rx_timeout == 0xffff && (status & SX1280_STATUS_CMD_STATUS_MASK) != SX1280_STATUS_CMD_STATUS_DATA_AVAILABLE) {
-        RXdoneCallback1(NULL, rx_us, 0); // Error!
+        RXdoneCallback1(NULL, rx_us, 0, 0); // Error!
         return;
     }
     status = GetLastPacketStatus();
@@ -545,12 +463,12 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
             (irqs & (SX1280_IRQ_CRC_ERROR | SX1280_IRQ_RX_TX_TIMEOUT)) ||
             (status & ~(SX1280_FLRC_PKT_ERROR_PKT_RCVD | SX1280_FLRC_PKT_ERROR_HDR_RCVD))) {
         DEBUG_PRINTF("?");
-        RXdoneCallback1(NULL, rx_us, 0); // Error!
+        RXdoneCallback1(NULL, rx_us, 0, 0); // Error!
         return;
     }
     FIFOaddr = GetRxBufferAddr();
     ReadBuffer(FIFOaddr, RXdataBuffer, ota_pkt_size);
-    RXdoneCallback1(RXdataBuffer, rx_us, ota_pkt_size);
+    RXdoneCallback1(RXdataBuffer, rx_us, ota_pkt_size, GetFrequencyError());
 }
 
 void FAST_CODE_2 SX1280Driver::RXnb(uint32_t freq)

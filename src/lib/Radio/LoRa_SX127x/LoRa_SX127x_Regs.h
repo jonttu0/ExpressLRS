@@ -1,6 +1,8 @@
 #ifndef LORA_SX127X_REGS_H_
 #define LORA_SX127X_REGS_H_
 
+#define SX127X_FREQ_STEP    61.03515625
+
 // SX127x series common registers
 #define SX127X_REG_FIFO                               0x00
 #define SX127X_REG_OP_MODE                            0x01
