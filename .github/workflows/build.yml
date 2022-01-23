@@ -9,7 +9,7 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v2
     - id: set-targets
-      run: echo "::set-output name=targets::[$(grep -r "\[env:" src/*.ini | sed 's/.*://' | sed s/.$// | egrep -v "(_BF|_WIFI)" | tr '\n' ','  | sed 's/,$/"\n/' | sed 's/,/","/'g | sed 's/^/"/')]"
+      run: echo "::set-output name=targets::[$(grep -r "\[env:" src/targets/*.ini | sed 's/.*://' | sed s/.$// | egrep -v "(_BF|_WIFI)" | tr '\n' ','  | sed 's/,$/"\n/' | sed 's/,/","/'g | sed 's/^/"/')]"
 
   build:
     needs: targets

@@ -682,6 +682,8 @@ ImmersionRC Ghost ATTO RX Module
 
 #define TARGET_INDENTIFIER   "GHST_ATTO"
 
+#else
+#error "Invalid target!"
 #endif
 
 
