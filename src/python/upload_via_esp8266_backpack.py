@@ -16,8 +16,6 @@ def on_upload(source, target, env):
     else:
         # Update STM receiver or backpack logger
         upload_addr = ['elrs_logger.local', 'elrs_logger']
-    else:
-        raise SystemExit("Invalid target...")
 
     if "backpack.bin" in source_file:
         # Logger firmware update
