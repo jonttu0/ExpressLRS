@@ -8,16 +8,31 @@
 #include "printf.h"
 #include "gpio.h"
 
-//#include "soc/soc.h"
-//#include "soc/rtc_cntl_reg.h"
-#include "esp_task_wdt.h"
+//#include <soc/soc.h>
+//#include <soc/rtc_cntl_reg.h>
+#include <esp_task_wdt.h>
 
-#include "soc/timer_group_struct.h"
-#include "soc/timer_group_reg.h"
+#include <soc/timer_group_struct.h>
+#include <soc/timer_group_reg.h>
+
 
 SemaphoreHandle_t DRAM_ATTR irqMutex;
 
-#if (GPIO_PIN_LED != UNDEF_PIN)
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+#include <NeoPixelBus.h>
+static constexpr uint16_t PixelCount = 2;
+#ifdef WS2812_IS_GRB
+static NeoPixelBus<NeoGrbFeature, Neo800KbpsMethod> strip(PixelCount, GPIO_PIN_LED_RGB);
+#else
+static NeoPixelBus<NeoRgbFeature, Neo800KbpsMethod> strip(PixelCount, GPIO_PIN_LED_RGB);
+#endif
+
+void IRAM_ATTR ws2812_set_color_u32(uint32_t const color)
+{
+    strip.ClearTo(RgbColor(HtmlColor(color)));
+    strip.Show();
+}
+#elif (GPIO_PIN_LED != UNDEF_PIN)
 struct gpio_out led_out;
 #endif
 
@@ -108,7 +123,9 @@ void platform_setup(void)
 
     EEPROM.begin(sizeof(struct platform_config));
 
-#if (GPIO_PIN_LED != UNDEF_PIN)
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+    strip.Begin();
+#elif (GPIO_PIN_LED != UNDEF_PIN)
     led_out = gpio_out_setup(GPIO_PIN_LED, 0);
 #endif
 
@@ -153,12 +170,18 @@ void platform_loop(int state)
 
 void platform_connection_state(int state)
 {
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+    ws2812_set_color_u32(((state == STATE_connected) ? 0xFF00 : 0x00FF));
+#else
     (void)state;
+#endif
 }
 
 void platform_set_led(uint8_t state)
 {
-#if (GPIO_PIN_LED != UNDEF_PIN)
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+    ws2812_set_color_u32((state ? 0xFF0000 /*blue*/ : 0xFF /*red*/));
+#elif (GPIO_PIN_LED != UNDEF_PIN)
     gpio_out_write(led_out, state);
 #else
     (void)state;

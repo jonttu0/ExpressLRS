@@ -11,7 +11,23 @@
 
 uint32_t webUpdateLedFlashIntervalNext = 0;
 
-#if (GPIO_PIN_LED != UNDEF_PIN)
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+#include <Adafruit_NeoPixel.h>
+
+static Adafruit_NeoPixel strip;
+static constexpr uint16_t PixelCount = 2;
+#ifdef WS2812_IS_GRB
+#define PIXEL_FORMAT    (NEO_GRB + NEO_KHZ800)
+#else
+#define PIXEL_FORMAT    (NEO_RGB + NEO_KHZ800)
+#endif
+
+void IRAM_ATTR ws2812_set_color_u32(uint32_t const color)
+{
+    strip.fill(strip.Color(color));
+    strip.Show();
+}
+#elif (GPIO_PIN_LED != UNDEF_PIN)
 struct gpio_out led_pin; // Invert led
 #endif
 
@@ -62,7 +78,15 @@ void platform_setup(void)
     WiFi.mode(WIFI_OFF);
     WiFi.forceSleepBegin();
 
-#if (GPIO_PIN_LED != UNDEF_PIN)
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+    led_rgb.setPin(GPIO_PIN_LED_RGB);
+    led_rgb.updateType(PIXEL_FORMAT);
+    led_rgb.begin();
+    led_rgb.updateLength(PixelCount);
+    led_rgb.setBrightness(255);
+    led_rgb.fill();
+    led_rgb.show();
+#elif (GPIO_PIN_LED != UNDEF_PIN)
     led_pin = gpio_out_setup(GPIO_PIN_LED, 1);
 #endif
 }
@@ -94,18 +118,27 @@ static uint8_t loop_cnt;
 void platform_connection_state(int state)
 {
 #ifdef AUTO_WIFI_ON_BOOT
-    if (state == STATE_search_iteration_done && millis() < 30000 && 2 <= ++loop_cnt)
-    {
+    if (state == STATE_search_iteration_done && millis() < 30000 && 2 <= ++loop_cnt) {
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+        ws2812_set_color_u32(0xe803fc /*purple*/);
+#endif
         /* state is disconnect at this point and update can be started */
         beginWebsever(STATE_disconnected);
-    }
+    } else
 #endif /* AUTO_WIFI_ON_BOOT */
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+    ws2812_set_color_u32(((state == STATE_connected) ? 0xFF00 : 0x00FF));
+#endif
 }
 
 void platform_set_led(uint8_t state)
 {
-#if (GPIO_PIN_LED != UNDEF_PIN)
+#if (GPIO_PIN_LED_RGB != UNDEF_PIN)
+    ws2812_set_color_u32((state ? 0xFF0000 /*blue*/ : 0xFF /*red*/));
+#elif (GPIO_PIN_LED != UNDEF_PIN)
     gpio_out_write(led_pin, state);
+#else
+    (void)state;
 #endif
 }
 
