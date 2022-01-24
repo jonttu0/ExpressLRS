@@ -79,13 +79,13 @@ void platform_setup(void)
     WiFi.forceSleepBegin();
 
 #if (GPIO_PIN_LED_RGB != UNDEF_PIN)
-    led_rgb.setPin(GPIO_PIN_LED_RGB);
-    led_rgb.updateType(PIXEL_FORMAT);
-    led_rgb.begin();
-    led_rgb.updateLength(PixelCount);
-    led_rgb.setBrightness(255);
-    led_rgb.fill();
-    led_rgb.show();
+    strip.setPin(GPIO_PIN_LED_RGB);
+    strip.updateType(PIXEL_FORMAT);
+    strip.begin();
+    strip.updateLength(PixelCount);
+    strip.setBrightness(255);
+    strip.fill();
+    strip.show();
 #elif (GPIO_PIN_LED != UNDEF_PIN)
     led_pin = gpio_out_setup(GPIO_PIN_LED, 1);
 #endif
@@ -126,9 +126,11 @@ void platform_connection_state(int state)
         beginWebsever(STATE_disconnected);
     } else
 #endif /* AUTO_WIFI_ON_BOOT */
+    {
 #if (GPIO_PIN_LED_RGB != UNDEF_PIN)
-    ws2812_set_color_u32(((state == STATE_connected) ? 0xFF00 : 0x00FF));
+        ws2812_set_color_u32(((state == STATE_connected) ? 0xFF00 : 0x00FF));
 #endif
+    }
 }
 
 void platform_set_led(uint8_t state)

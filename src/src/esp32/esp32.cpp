@@ -197,6 +197,8 @@ void platform_reboot_into_bootloader(const uint8_t * info)
 {
     DEBUG_PRINTF("Jumping to Bootloader... IGNORED\n");
     (void)info;
+    //if (validate_bl_indentifier(info) < 0)
+    //    return;
     //ESP.rebootIntoUartDownloadMode();
 }
 
