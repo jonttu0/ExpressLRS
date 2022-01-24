@@ -37,7 +37,9 @@ HwSerial::HwSerial(int uart_nr, int32_t pin, uint8_t inv) :
 
 void HwSerial::Begin(uint32_t baud, uint32_t config)
 {
-    HardwareSerial::begin(baud, config, GPIO_PIN_RCSIGNAL_RX, GPIO_PIN_RCSIGNAL_TX, true);
+    HardwareSerial::begin(
+        baud, config, GPIO_PIN_RCSIGNAL_RX, GPIO_PIN_RCSIGNAL_TX,
+        (GPIO_PIN_RCSIGNAL_RX == GPIO_PIN_RCSIGNAL_TX));
     enable_receiver();
 }
 
@@ -53,33 +55,29 @@ void HwSerial::Continue(void)
 
 void IRAM_ATTR HwSerial::enable_receiver(void)
 {
-#if 1
+    /* Only in case of half-duplex link */
+#if (GPIO_PIN_RCSIGNAL_RX == GPIO_PIN_RCSIGNAL_TX)
     // flush cleans RX buffer as well!
     HardwareSerial::flush(); // wait until write ends
-#else
-    // Wait until TX is ready
-    uart_dev_t * dev = (uart_dev_t *)_uart;
-    while(dev->status.txfifo_cnt || dev->status.st_utx_out);
-#endif
     /* Detach TX pin */
     gpio_matrix_out((gpio_num_t)-1, UART_TXD_IDX, true, false);
     /* Attach RX pin */
     gpio_set_direction((gpio_num_t)GPIO_PIN_RCSIGNAL_RX, GPIO_MODE_INPUT);
     gpio_matrix_in((gpio_num_t)GPIO_PIN_RCSIGNAL_RX, UART_RXD_IDX, true);
-    //gpio_pulldown_en((gpio_num_t)GPIO_PIN_RCSIGNAL_RX);
-    //uart_enable_rx_intr((uart_port_t)CRSF_SERIAL_NBR);
+#endif
     yield();
 }
 
 void IRAM_ATTR HwSerial::enable_transmitter(void)
 {
+    /* Only in case of half-duplex link */
+#if (GPIO_PIN_RCSIGNAL_RX == GPIO_PIN_RCSIGNAL_TX)
     delayMicroseconds(20);
     /* Detach RX pin */
-    //uart_disable_rx_intr((uart_port_t)CRSF_SERIAL_NBR);
-    //gpio_pulldown_dis((gpio_num_t)GPIO_PIN_RCSIGNAL_RX);
     gpio_matrix_in((gpio_num_t)-1, UART_RXD_IDX, false);
     /* Attach TX pin */
     gpio_set_level((gpio_num_t)GPIO_PIN_RCSIGNAL_TX, 0);
     gpio_set_direction((gpio_num_t)GPIO_PIN_RCSIGNAL_TX, GPIO_MODE_OUTPUT);
     gpio_matrix_out((gpio_num_t)GPIO_PIN_RCSIGNAL_TX, UART_TXD_IDX, true, false);
+#endif
 }
