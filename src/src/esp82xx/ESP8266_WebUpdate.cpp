@@ -32,7 +32,7 @@
 #define SERVER_PORT    80
 
 
-MDNSResponder MDNS;
+//MDNSResponder MDNS;
 ESP8266WebServer httpServer(SERVER_PORT);
 ESP8266HTTPUpdateServer httpUpdater;
 
