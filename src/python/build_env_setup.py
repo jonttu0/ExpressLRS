@@ -4,6 +4,8 @@ import UARTupload
 import opentx
 import upload_via_esp8266_backpack
 import esp_compress
+import upload_passthrough_edgetx
+
 
 FAIL = '\033[91m'
 #FAIL = '\033[47;31m'
@@ -15,8 +17,6 @@ tgt_DFU = "dfu"
 
 platform = env.get('PIOPLATFORM', '')
 target_name = env['PIOENV'].upper()
-print("PLATFORM : '%s'" % platform)
-print("BUILD ENV: '%s'" % target_name)
 
 
 def find_build_flag(search):
@@ -25,6 +25,7 @@ def find_build_flag(search):
     for flag in env['BUILD_FLAGS']:
         if search in flag:
             return str(flag)
+    return ""
 
 
 # don't overwrite if custom command defined
@@ -45,20 +46,24 @@ if platform in ['ststm32']:
         [stlink.on_upload],
         title="Upload via ST-Link", description="")
     if "_TX" in target_name or "_HANDSET" in target_name:
-        if "_TX" in target_name:
+        upload_flags = env.GetProjectOption("upload_flags", "")
+        wifi_targets = []
+        if "_TX" in target_name and "BOOTLOADER=" in " ".join(upload_flags):
+            # Generate 'firmware.elrs' file to be used for uploading (prio to bin file).
+            # This enables support for OTA updates with the "overlay double" R9M module
+            # bootloader. Bin file upload also requires the correct FLASH_OFFSET value
+            # and that can be ignored when '.elrs' file is used.
             env.AddPostAction("buildprog", opentx.gen_elrs)
             env.AddPreAction("upload", opentx.gen_elrs)
+            wifi_targets.append(opentx.gen_elrs)
         if find_build_flag("HAS_WIFI_BACKPACK") or \
                 "HAS_WIFI_BACKPACK" in features or \
                 "wifi" in upload_protocols:
+            wifi_targets.append(upload_via_esp8266_backpack.on_upload)
             # the target can use WIFI (backpack logger) upload
             env.AddCustomTarget(tgt_WIFI,
                 ["$BUILD_DIR/${PROGNAME}.bin"],
-                # Generate 'firmware.elrs' file to be used for uploading (prio to bin file).
-                # This enables support for OTA updates with the "overlay double" R9M module
-                # bootloader. Bin file upload also requires the correct FLASH_OFFSET value
-                # and that can be ignored when '.elrs' file is used.
-                [opentx.gen_elrs, upload_via_esp8266_backpack.on_upload],
+                wifi_targets,
                 title="Upload via WiFi", description="")
     elif "_RX" in target_name:
         # Check whether the target is using FC passthrough upload (receivers)
@@ -102,12 +107,8 @@ elif platform in ['espressif32']:
         ["$BUILD_DIR/${PROGNAME}.bin"],
         [esp_compress.compressFirmware, upload_via_esp8266_backpack.on_upload],
         title="Upload via WiFi", description="")
-    if "_RX" in target_name:
-        # Check whether the target is using FC passthrough upload (receivers)
-        env.AddCustomTarget(tgt_PASSTHROUGH,
-            ["$BUILD_DIR/${PROGNAME}.bin"],
-            [esp_compress.compressFirmware, UARTupload.on_upload],
-            title="Upload via FC Passthrough", description="")
+    if "_ETX" in target_name:
+        env.AddPreAction("upload", upload_passthrough_edgetx.init_passthrough)
 
 else:
     raise SystemExit(FAIL + "\nNot supported platfrom! '%s'\n" % platform)

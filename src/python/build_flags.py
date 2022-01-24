@@ -12,7 +12,16 @@ except ImportError:
         git = None
 
 #print(env.Dump())
-target_name = env.get('PIOENV', '').upper()
+target_name = env.get('PIOENV', '')
+
+
+def find_build_flag(search):
+    if not search:
+        return
+    for flag in env['BUILD_FLAGS']:
+        if search in flag:
+            return flag
+    return ""
 
 def validate_domains():
     build_flags = env['BUILD_FLAGS']
@@ -137,7 +146,13 @@ print("sha_string: '%s'" % sha_string)
 print("Current SHA: %s" % sha)
 env['BUILD_FLAGS'].append("-DLATEST_COMMIT="+sha)
 env['BUILD_FLAGS'].append('-DLATEST_COMMIT_STR="\\"%s\\""' % sha_string)
-env['BUILD_FLAGS'].append("-DTARGET_NAME=" + re.sub("_VIA_.*", "", target_name))
+env['BUILD_FLAGS'].append("-DTARGET_NAME=" + re.sub("_VIA_.*", "", target_name.upper()))
+
+header = f"src/include/target_{target_name}.h"
+if os.path.exists(header) and \
+        not find_build_flag("-include src/include/target_"):
+    env['BUILD_FLAGS'].append(f"-include {header}")
+    print("[NOTE] target include header file added automatically!")
 
 print("\n[INFO] build flags: %s\n" % env['BUILD_FLAGS'])
 

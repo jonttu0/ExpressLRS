@@ -1,6 +1,7 @@
 #include "POWERMGNT.h"
 #include "debug_elrs.h"
 
+
 /* Power arrays per module type */
 typedef struct {
     int8_t power[PWR_UNKNOWN];
@@ -10,57 +11,33 @@ PowerArray_t power_array[MODULE_COUNT] = {
     // max pwr,  10mW, 25mW, 50mW, 100mW, 250mW, 500mW, 1000mW, 2000mW
 
     /********** SX127x MODULES **********/
-#if DAC_IN_USE //(defined(TARGET_NAMIMNORC_TX) || defined(TARGET_R9M_TX)) && !defined(R9M_LITE_TX)
-    // FrSky R9M, HappyModel ES915TX and NamimnoRC Voyager
-    {PWR_1000mW,    0,    0,    0,     0,     0,     0,      0,      0},
-
+#if defined(TARGET_PWR_MAX_SX127x) && defined(TARGET_PWR_LUT_SX127x)
+    {TARGET_PWR_MAX_SX127x, TARGET_PWR_LUT_SX127x},
 #elif defined(TARGET_MODULE_LORA1276F30)
     // MODULE_LORA1276F30. 0 = 40mW, 15 = 300mW
     {PWR_250mW,     0,    0,    1,     4,    11,    15,     15,     15},
-
 #else
     // Bare SX127x
     {PWR_50mW,      8,   12,   15,    15,    15,    15,     15,     15},
 #endif
 
     /********** SX128x MODULES **********/
-#if TARGET_HM_ES24TX
-    {PWR_250mW,   -17,  -13,   -9,    -6,    -2,    -2,     -2,     -2},
-
+#if defined(TARGET_PWR_MAX_SX128x) && defined(TARGET_PWR_LUT_SX128x)
+    {TARGET_PWR_MAX_SX128x, TARGET_PWR_LUT_SX128x},
 #elif defined(TARGET_MODULE_LORA1280F27)
-#error "Don't use LORA1280F27 module! That is not reliable!"
+    #error "Don't use LORA1280F27 module! It is not reliable!"
     {PWR_500mW,    -7,   -3,    0,     3,     8,    13,     13,     13},
-
-#elif defined(TARGET_MODULE_E28)
-    /* 3 different Ebyte E28 variants */
-#if TARGET_MODULE_E28_2G4M12S
-    // E28_2G4M27S (18mW)
+#elif (TARGET_MODULE_E28_VER == 12) || defined(TARGET_MODULE_E28_2G4M12S)
+    // E28_2G4M12S (18mW)
 #warning "E28_2G4M12S needs to be verified"
     {PWR_10mW,      8,   12,   15,    15,    15,    15,     15,     15},
-#elif TARGET_MODULE_E28_2G4M20S
-    // E28_2G4M27S (100mW)
+#elif (TARGET_MODULE_E28_VER == 20) || defined(TARGET_MODULE_E28_2G4M20S)
+    // E28_2G4M20S (100mW)
 #warning "E28_2G4M20S needs to be verified"
     {PWR_100mW,     8,   12,   15,    15,    15,    15,     15,     15},
-#else
+#elif (TARGET_MODULE_E28_VER == 27) || defined(TARGET_MODULE_E28_2G4M27S)
     // E28_2G4M27S (500mW)
     {PWR_250mW,   -17,  -13,  -10,    -7,    -3,     0,      0,      0},
-#endif
-
-#elif defined(TARGET_NAMIMNORC_TX)
-    // NamimnoRC Flash, 2400MHz TX module
-    {PWR_1000mW,  -18,  -18,  -15,   -12,    -8,     -5,     3,      3},
-#elif defined(TARGET_NAMIMNORC_TX_OLED)
-    // NamimnoRC Flash OLED, 2400MHz TX module
-    {PWR_1000mW,  -18,  -18,  -13,   -10,    -5,      2,     3,      3},
-
-#elif defined(TARGET_IMRC_GHOST_TX)
-#if TARGET_TX_GHOST_LITE
-    //{PWR_250mW,   -16,  -14,  -11,    -8,    -4,     -4,    -4,     -4},
-    {PWR_250mW,   -18,  -17,  -14,   -10,    -4,     -4,    -4,     -4},
-#else
-    {PWR_250mW,   -18,  -17,  -14,   -10,    -4,     -4,    -4,     -4},
-#endif
-
 #else
     // Bare SX128x
     {PWR_25mW,      8,   13,   13,    13,    13,    13,     13,     13},

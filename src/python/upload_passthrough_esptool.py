@@ -19,7 +19,7 @@ def dbg_print(line=''):
     return
 
 
-def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=False, esp32=False):
+def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=False):
     dbg_print("=================== FIRMWARE UPLOAD ===================\n")
     dbg_print("  Bin file '%s'\n" % filename)
     dbg_print("  Port %s @ %s\n" % (port, baudrate))
@@ -44,7 +44,7 @@ def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=False,
     except BFinitPassthrough.PassthroughEnabled as info:
         dbg_print("  Warning: '%s'\n" % info)
     except BFinitPassthrough.PassthroughFailed as failed:
-        raise
+        raise SystemExit(failed)
 
     # Reset into bootloader
     if not skip_reset:
