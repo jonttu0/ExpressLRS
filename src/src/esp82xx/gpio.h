@@ -33,6 +33,13 @@ void gpio_in_isr(struct gpio_in g, isr_cb_t func, uint8_t type);
 void gpio_in_isr_remove(struct gpio_in g);
 void gpio_in_isr_clear_pending(struct gpio_in g);
 
+struct gpio_adc
+{
+    uint32_t pin;
+};
+struct gpio_adc gpio_adc_setup(uint32_t pin);
+uint32_t gpio_adc_read(struct gpio_adc g);
+
 struct spi_config
 {
     void *spi;

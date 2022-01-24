@@ -61,7 +61,7 @@ void IRAM_ATTR gpio_in_isr_remove(struct gpio_in g)
     detachInterrupt(digitalPinToInterrupt(g.pin));
 }
 
-void gpio_in_isr_clear_pending(struct gpio_in g)
+void IRAM_ATTR gpio_in_isr_clear_pending(struct gpio_in g)
 {
     if (gpio_in_valid(g)) {
         int pin = digitalPinToInterrupt(g.pin);
@@ -69,4 +69,15 @@ void gpio_in_isr_clear_pending(struct gpio_in g)
             return;
         GPIEC = (1 << pin); //Clear Interrupt
     }
+}
+
+struct gpio_adc gpio_adc_setup(uint32_t pin)
+{
+    struct gpio_adc g = {.pin = pin};
+    return g;
+}
+
+uint32_t gpio_adc_read(struct gpio_adc g)
+{
+    return analogRead(g.pin);
 }

@@ -61,7 +61,7 @@ void IRAM_ATTR gpio_in_isr_remove(struct gpio_in g)
     detachInterrupt(digitalPinToInterrupt(g.pin));
 }
 
-void gpio_in_isr_clear_pending(struct gpio_in g)
+void IRAM_ATTR gpio_in_isr_clear_pending(struct gpio_in g)
 {
     if (gpio_in_valid(g)) {
         uint32_t pin = g.pin;
@@ -72,4 +72,18 @@ void gpio_in_isr_clear_pending(struct gpio_in g)
             //Clear intr for gpio32 - gpio39
             GPIO.status1_w1tc.val = (0x1 << (pin - 32));
     }
+}
+
+struct gpio_adc gpio_adc_setup(uint32_t pin)
+{
+    analogSetPinAttenuation(pin, ADC_0db);
+    struct gpio_adc g = {.pin = pin, .att = ADC_0db};
+    return g;
+}
+
+uint32_t gpio_adc_read(struct gpio_adc g)
+{
+    //analogSetPinAttenuation(g.pin, g.att);
+    //return analogReadMilliVolts(g.pin);
+    return analogRead(g.pin);
 }
