@@ -87,7 +87,7 @@ private:
     // for the UART wdt, every 1000ms we change bauds when connect is lost
 #define UARTwdtInterval 1000
     uint32_t p_UartNextCheck;
-    bool p_slowBaudrate;
+    uint8_t p_baudrateIdx;
     bool p_RadioConnected; // connected state
 };
 

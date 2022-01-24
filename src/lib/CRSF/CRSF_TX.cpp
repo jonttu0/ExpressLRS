@@ -28,6 +28,12 @@ crsfLinkStatisticsMsg_t DMA_ATTR link_stat_packet;
 crsf_sensor_battery_s DMA_ATTR TLMbattSensor;
 crsf_sensor_gps_s DMA_ATTR TLMGPSsensor;
 
+uint32_t DMA_ATTR availableHandsetBauds[] = {
+    CRSF_TX_BAUDRATE_FAST, CRSF_TX_BAUDRATE_SLOW,
+    // Enable higher baudrates
+    5250000, 3750000, 1870000, 921600};
+
+
 CRSF_TX::CRSF_TX(HwSerial &dev) : CRSF(&dev)
 {
     setRcPacketRate(5000); // default to 200hz as per 'normal'
@@ -212,7 +218,7 @@ void CRSF_TX::processPacket(uint8_t const *input)
         write_u32(&RCdataLastRecv, 0);
         OpenTXsynNextSend = millis();
 #endif
-        DEBUG_PRINTF("CRSF Connected. Baud %uk\n", (p_slowBaudrate ? 115 : 400));
+        DEBUG_PRINTF("CRSF Connected.\n");
         connected();
     }
 
@@ -319,17 +325,9 @@ void CRSF_TX::uart_wdt(void)
             _dev->end();
             platform_wd_feed();
 
-            if (p_slowBaudrate)
-            {
-                _dev->Begin(CRSF_TX_BAUDRATE_FAST);
-                DEBUG_PRINTF("Switch to 400000 baud\n");
-            }
-            else
-            {
-                _dev->Begin(CRSF_TX_BAUDRATE_SLOW);
-                DEBUG_PRINTF("Switch to 115000 baud\n");
-            }
-            p_slowBaudrate = !p_slowBaudrate;
+            p_baudrateIdx = (p_baudrateIdx + 1) % ARRAY_SIZE(availableHandsetBauds);
+            _dev->Begin(availableHandsetBauds[p_baudrateIdx]);
+            DEBUG_PRINTF("Switched to baudrate %u\n", availableHandsetBauds[p_baudrateIdx]);
         }
 
         p_UartNextCheck = now;
