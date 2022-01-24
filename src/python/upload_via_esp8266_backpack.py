@@ -2,45 +2,59 @@ import subprocess, os
 
 
 def on_upload(source, target, env):
-    isstm = env.get('PIOPLATFORM', '') in ['ststm32']
+    platform = env.get('PIOPLATFORM', '')
+    source_file = str(source[0])
+    isstm = platform in ['ststm32']
     target_name = env['PIOENV'].upper()
 
-    if "_TX_" in target_name:
+    if not isstm and platform in ['espressif32']:
+        # Update ESP transmitter
         upload_addr = ['elrs_tx.local', 'elrs_tx']
-    elif "_RX_" in target_name:
+    elif not isstm and platform in ['espressif8266']:
+        # Update ESP receiver
         upload_addr = ['elrs_rx.local', 'elrs_rx']
     else:
+        # Update STM receiver or backpack logger
         upload_addr = ['elrs_logger.local', 'elrs_logger']
+    else:
+        raise SystemExit("Invalid target...")
 
-    app_start = 0 # eka bootloader offset
-
-    # Parse upload flags:
-    upload_flags = env.get('UPLOAD_FLAGS', [])
-    for line in upload_flags:
-        flags = line.split()
-        for flag in flags:
-            if "VECT_OFFSET=" in flag:
-                offset = flag.split("=")[1]
-                if "0x" in offset:
-                    offset = int(offset, 16)
-                else:
-                    offset = int(offset, 10)
-                app_start = offset
-
-    firmware_path = str(source[0])
-    bin_path = os.path.dirname(firmware_path)
-    elrs_bin_target = os.path.join(bin_path, 'firmware.elrs')
-    if not os.path.exists(elrs_bin_target):
-        elrs_bin_target = os.path.join(bin_path, 'firmware.bin')
+    if "backpack.bin" in source_file:
+        # Logger firmware update
+        elrs_bin_target = source_file + ".gz"
+        if not os.path.exists(source_file + ".gz"):
+            # compressed binary does not exist
+            elrs_bin_target = source_file
+    else:
+        bin_path = os.path.dirname(source_file)
+        elrs_bin_target = os.path.join(bin_path, 'firmware.elrs')
         if not os.path.exists(elrs_bin_target):
-            raise SystemExit("No valid binary found!")
+            elrs_bin_target = os.path.join(bin_path, 'firmware.bin')
+    # Check if the binary exits
+    if not os.path.exists(elrs_bin_target):
+        raise SystemExit("No valid binary found!")
 
     cmd = ["curl", "--max-time", "60",
            "--retry", "2", "--retry-delay", "1",
            "-F", "data=@%s" % (elrs_bin_target,)]
+    # resolve bootloader offset for STM32
     if isstm:
+        app_start = 0
+        # Parse upload flags:
+        upload_flags = env.get('UPLOAD_FLAGS', [])
+        for line in upload_flags:
+            flags = line.split()
+            for flag in flags:
+                if "VECT_OFFSET=" in flag:
+                    offset = flag.split("=")[1]
+                    if "0x" in offset:
+                        offset = int(offset, 16)
+                    else:
+                        offset = int(offset, 10)
+                    app_start = offset
         cmd += ["-F", "flash_address=0x%X" % (app_start,)]
 
+    # Upload address can be given as a --upload-port
     upload_port = env.get('UPLOAD_PORT', None)
     if upload_port is not None:
         upload_addr = [upload_port]
