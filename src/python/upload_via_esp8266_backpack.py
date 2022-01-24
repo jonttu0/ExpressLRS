@@ -10,7 +10,7 @@ def on_upload(source, target, env):
     elif "_RX_" in target_name:
         upload_addr = ['elrs_rx.local', 'elrs_rx']
     else:
-        upload_addr = ['elrs_bp.local', 'elrs_bp']
+        upload_addr = ['elrs_logger.local', 'elrs_logger']
 
     app_start = 0 # eka bootloader offset
 

@@ -1110,8 +1110,8 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
   wifi_log += "Wifi_STA_GotIP();\n";
 #endif
   wifi_sta_connected = WIFI_STATE_STA;
-  mdns.setHostname("elrs_tx");
-  if (mdns.begin("elrs_tx", WiFi.localIP())) {
+  mdns.setHostname("elrs_logger");
+  if (mdns.begin("elrs_logger", WiFi.localIP())) {
     mdns.addService("http", "tcp", 80);
     mdns.addService("ws", "tcp", 81);
   }
@@ -1146,7 +1146,7 @@ void onSoftAPModeStationDisconnected(const WiFiEventSoftAPModeStationDisconnecte
 
 void wifi_config(void)
 {
-  wifi_station_set_hostname("elrs_tx");
+  wifi_station_set_hostname("elrs_logger");
 
   wifi_sta_connected = WIFI_STATE_NA;
 #if WIFI_DBG
