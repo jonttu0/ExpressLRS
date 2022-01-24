@@ -38,6 +38,7 @@ jobs:
       run: |
         python -m pip install --upgrade pip
         pip install platformio
+        pip install six
 
     - name: Cache PlatformIO
       uses: actions/cache@v2
