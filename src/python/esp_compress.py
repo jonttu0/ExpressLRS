@@ -62,7 +62,7 @@ def compress_files(source, target, env):
     platform = env.get('PIOPLATFORM', '')
     if platform == 'espressif8266':
         data_src_dir = os.path.join(project_dir,
-            "utils", "ESP8266SerialToWebsocket", "html")
+            "bp_logger", "html")
     else:
         data_src_dir = os.path.join(project_dir,
             "src", "esp32", "html")
