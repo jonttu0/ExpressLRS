@@ -49,7 +49,9 @@ PowerArray_t power_array[MODULE_COUNT] = {
 #elif defined(TARGET_NAMIMNORC_TX)
     // NamimnoRC Flash, 2400MHz TX module
     {PWR_1000mW,  -18,  -18,  -15,   -12,    -8,     -5,     3,      3},
-    //{  PWR_1000mW,-15,  -13,  -11,    -9,    -7,     -3,     0,      0},
+#elif defined(TARGET_NAMIMNORC_TX_OLED)
+    // NamimnoRC Flash OLED, 2400MHz TX module
+    {PWR_1000mW,  -18,  -18,  -13,   -10,    -5,      2,     3,      3},
 
 #elif defined(TARGET_IMRC_GHOST_TX)
 #if TARGET_TX_GHOST_LITE
