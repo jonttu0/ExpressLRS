@@ -1,10 +1,17 @@
 import subprocess, os
-import opentx
+
 
 def on_upload(source, target, env):
     isstm = env.get('PIOPLATFORM', '') in ['ststm32']
+    target_name = env['PIOENV'].upper()
 
-    upload_addr = ['elrs_tx', 'elrs_tx.local']
+    if "_TX_" in target_name:
+        upload_addr = ['elrs_tx.local', 'elrs_tx']
+    elif "_RX_" in target_name:
+        upload_addr = ['elrs_rx.local', 'elrs_rx']
+    else:
+        upload_addr = ['elrs_bp.local', 'elrs_bp']
+
     app_start = 0 # eka bootloader offset
 
     # Parse upload flags:
@@ -26,7 +33,7 @@ def on_upload(source, target, env):
     if not os.path.exists(elrs_bin_target):
         elrs_bin_target = os.path.join(bin_path, 'firmware.bin')
         if not os.path.exists(elrs_bin_target):
-            raise Exception("No valid binary found!")
+            raise SystemExit("No valid binary found!")
 
     cmd = ["curl", "--max-time", "60",
            "--retry", "2", "--retry-delay", "1",
@@ -43,8 +50,11 @@ def on_upload(source, target, env):
         print(" ** UPLOADING TO: %s" % addr)
         try:
             subprocess.check_call(cmd + [addr])
+            print()
+            print("** UPLOAD SUCCESS. Flashing in progress.")
+            print("** Please wait for LED to resume blinking before disconnecting power")
             return
         except subprocess.CalledProcessError:
             print("FAILED!")
 
-    raise Exception("WIFI upload FAILED!")
+    raise SystemExit("WIFI upload FAILED!")

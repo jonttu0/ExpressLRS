@@ -40,8 +40,9 @@ def serial_ports():
             ports.extend(glob.glob('/dev/ttyUSB*'))
         elif platform.startswith('darwin'):
             ports = glob.glob('/dev/tty.usbmodem*')
+            ports.extend(glob.glob('/dev/tty.SLAB*'))
         else:
-            raise Exception('Unsupported platform')
+            raise SystemExit('Unsupported platform')
 
     for port in ports:
         try:
@@ -50,7 +51,7 @@ def serial_ports():
             result.append(port)
         except (OSError, serial.SerialException) as error:
             if "permission denied" in str(error).lower():
-                raise Exception("You don't have persmission to use serial port!")
+                raise SystemExit("You don't have persmission to use serial port!")
             pass
     result.reverse()
     return result
@@ -65,7 +66,7 @@ def get_serial_port(debug=True):
         print()
 
     if len(result) == 0:
-        raise Exception('No valid serial port detected or port already open')
+        raise SystemExit('No valid serial port detected or port already open')
 
     return result[0]
 

@@ -44,11 +44,9 @@ def get_commands(env, firmware):
             BL_CMD = [TOOL, "write", bootloader, hex(flash_start)]
         APP_CMD = [TOOL, "--reset", "write", firmware, hex(app_start)]
     elif "os x" in platform_name:
-        print("OS X not supported at the moment\n")
-        raise OSError
+        raise SystemExit("\nOS X not supported at the moment\n")
     else:
-        print("Operating system: "+ platform_name +  " is not supported.\n")
-        raise OSError
+        raise SystemExit("\nOperating system: "+ platform_name +  " is not supported.\n")
 
     return " ".join(BL_CMD), " ".join(APP_CMD)
 

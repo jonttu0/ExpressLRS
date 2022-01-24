@@ -3,6 +3,7 @@ import argparse
 import serials_find
 import SerialHelper
 import bootloader
+from query_yes_no import query_yes_no
 
 SCRIPT_DEBUG = 0
 
@@ -13,6 +14,8 @@ class PassthroughEnabled(Exception):
 class PassthroughFailed(Exception):
     pass
 
+class WrongTargetSelected(Exception):
+    pass
 
 def dbg_print(line=''):
     sys.stdout.write(line + '\n')
@@ -108,6 +111,7 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
     rl.write_str(cmd)
     #time.sleep(.2)
 
+    # Read configured baudrate
     baud = None
     dbg = rl.read_line(.5)
     while dbg:
@@ -125,21 +129,38 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
         return None
 
 
+# this handling is moved into 'upload_passthrough_esptool.py'
 def reset_to_bootloader(args):
     dbg_print("======== RESET TO BOOTLOADER ========")
     s = serial.Serial(port=args.port, baudrate=args.baud,
         bytesize=8, parity='N', stopbits=1,
         timeout=1, xonxoff=0, rtscts=0)
+    rl = SerialHelper.SerialHelper(s, 3.)
+    rl.clear()
     if args.half_duplex:
         BootloaderInitSeq = bootloader.get_init_seq('GHST', args.type)
         dbg_print("  * Using half duplex (GHST)")
     else:
         BootloaderInitSeq = bootloader.get_init_seq('CRSF', args.type)
-        dbg_print("  * Using full duplex (CFSF)")
+        dbg_print("  * Using full duplex (CRSF)")
     # Let the CRSFv3 to fallback to 420k baud
     time.sleep(1.5)
-    s.write(BootloaderInitSeq)
+    rl.write(BootloaderInitSeq)
     s.flush()
+    rx_target = rl.read_line().strip()
+    dbg_print("Receiver reported '%s' target" % rx_target)
+    '''
+    flash_target = re.sub("_VIA_.*", "", args.target.upper())
+    if rx_target == "":
+        dbg_print("Cannot detect RX target, blindly flashing!")
+    elif rx_target != flash_target:
+        if query_yes_no("\n\n\nWrong target selected! your RX is '%s', trying to flash '%s', continue? Y/N\n" % (rx_target, flash_target)):
+            dbg_print("Ok, flashing anyway!")
+        else:
+            raise WrongTargetSelected("Wrong target selected your RX is '%s', trying to flash '%s'" % (rx_target, flash_target))
+    elif flash_target != "":
+        dbg_print("Verified RX target '%s'" % (flash_target))
+    '''
     time.sleep(.5)
     s.close()
 
@@ -151,6 +172,8 @@ if __name__ == '__main__':
         help="Baud rate for passthrough communication")
     parser.add_argument("-p", "--port", type=str,
         help="Override serial port autodetection and use PORT")
+    parser.add_argument("-r", "--target", type=str,
+        help="The target firmware that is going to be uploaded")
     parser.add_argument("-nr", "--no-reset", action="store_false",
         dest="reset_to_bl", help="Do not send reset_to_bootloader command sequence")
     parser.add_argument("-hd", "--half-duplex", action="store_true",
@@ -168,4 +191,8 @@ if __name__ == '__main__':
         dbg_print(str(err))
 
     if args.reset_to_bl:
-        reset_to_bootloader(args)
+        try:
+            reset_to_bootloader(args)
+        except WrongTargetSelected as err:
+            dbg_print(str(err))
+            exit(-1)
