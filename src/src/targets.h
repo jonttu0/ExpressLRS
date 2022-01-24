@@ -66,19 +66,29 @@
 #elif defined(TARGET_SX1280_TX_ESP32_WROOM)
 // Radio GPIOs
 #if TARGET_SX1280_TX_ESP32_WROOM_SLIMMER
-#define GPIO_PIN_DIO0      4
-#define GPIO_PIN_DIO1      2
-#define GPIO_PIN_RST       14
-#define GPIO_PIN_BUSY      21
-#define GPIO_PIN_TX_ENABLE 26
-#define GPIO_PIN_RX_ENABLE 27
+    #define GPIO_PIN_DIO0      4
+    #define GPIO_PIN_DIO1      2
+    #define GPIO_PIN_RST       14
+    #define GPIO_PIN_BUSY      21
+    #define GPIO_PIN_TX_ENABLE 26
+    #define GPIO_PIN_RX_ENABLE 27
+#elif TARGET_NAMIMNORC_TX_OLED
+    #define GPIO_PIN_DIO0      17
+    #define GPIO_PIN_DIO1      16
+    #define GPIO_PIN_RST       21
+    #define GPIO_PIN_BUSY      22
+    #define GPIO_PIN_TX_ENABLE 33
+    #define GPIO_PIN_RX_ENABLE 32
+    #define GPIO_PIN_PA_ENABLE 25
+    #define GPIO_PIN_FAN_CTRL  2
+    #define GPIO_PIN_LED_RGB   4
 #else // !TARGET_SX1280_TX_ESP32_WROOM_SLIMMER
-#define GPIO_PIN_DIO0      4
-#define GPIO_PIN_DIO1      16
-#define GPIO_PIN_RST       15
-#define GPIO_PIN_BUSY      2
-#define GPIO_PIN_TX_ENABLE 26
-#define GPIO_PIN_RX_ENABLE 17
+    #define GPIO_PIN_DIO0      4
+    #define GPIO_PIN_DIO1      16
+    #define GPIO_PIN_RST       15
+    #define GPIO_PIN_BUSY      2
+    #define GPIO_PIN_TX_ENABLE 26
+    #define GPIO_PIN_RX_ENABLE 17
 #endif // TARGET_SX1280_TX_ESP32_WROOM_SLIMMER
 // SPI pins
 #define GPIO_PIN_NSS       5  // V_SPI_CS0

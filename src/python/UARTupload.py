@@ -25,7 +25,6 @@ def on_upload(source, target, env):
             env['UPLOAD_SPEED'] = bootloader.BAUDRATE_ELRS_PROTO
 
     upload_port = env.get('UPLOAD_PORT', None)
-    # upload_port = "/dev/ttyS0"
     if upload_port is None:
         upload_port = serials_find.get_serial_port()
     upload_speed = env.get('UPLOAD_SPEED', None)
