@@ -19,7 +19,7 @@ def dbg_print(line=''):
     return
 
 
-def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=True):
+def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=False, esp32=False):
     dbg_print("=================== FIRMWARE UPLOAD ===================\n")
     dbg_print("  Bin file '%s'\n" % filename)
     dbg_print("  Port %s @ %s\n" % (port, baudrate))
@@ -38,7 +38,7 @@ def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=True):
 
     # Init Betaflight passthrough
     try:
-        # detected_baud = BFinitPassthrough.bf_passthrough_init(port, baudrate)
+        detected_baud = BFinitPassthrough.bf_passthrough_init(port, baudrate)
         if detected_baud is None:
             detected_baud = baudrate
     except BFinitPassthrough.PassthroughEnabled as info:
