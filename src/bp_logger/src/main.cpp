@@ -54,12 +54,13 @@
 
 #define WIFI_DBG 0
 
-MDNSResponder mdns;
 
 ESP8266WebServer server(80);
 
 WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
+
+const char *hostname = "elrs_logger";
 
 String inputString = "";
 #if WIFI_DBG
@@ -1110,10 +1111,35 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
   wifi_log += "Wifi_STA_GotIP();\n";
 #endif
   wifi_sta_connected = WIFI_STATE_STA;
-  mdns.setHostname("elrs_logger");
-  if (mdns.begin("elrs_logger", WiFi.localIP())) {
-    mdns.addService("http", "tcp", 80);
-    mdns.addService("ws", "tcp", 81);
+
+  MDNS.end();
+  MDNS.setHostname(hostname);
+  if (MDNS.begin(hostname, WiFi.localIP()))
+  {
+    String instance = String(hostname) + "_" + WiFi.macAddress();
+    instance.replace(":", "");
+    MDNS.setInstanceName(hostname);
+    MDNSResponder::hMDNSService service = MDNS.addService(instance.c_str(), "http", "tcp", 80);
+    MDNS.addServiceTxt(service, "vendor", "elrs");
+#ifdef TARGET_INDENTIFIER
+    MDNS.addServiceTxt(service, "target", TARGET_INDENTIFIER);
+#else
+    MDNS.addServiceTxt(service, "target", "ESP82xx Logger");
+#endif
+    MDNS.addServiceTxt(service, "version", LATEST_COMMIT_STR);
+    MDNS.addServiceTxt(service, "type", "rx");
+
+    MDNS.addService(instance.c_str(), "ws", "tcp", 81);
+
+    // If the probe result fails because there is another device on the network with the same name
+    // use our unique instance name as the hostname. A better way to do this would be to use
+    // MDNSResponder::indexDomain and change wifi_hostname as well.
+    MDNS.setHostProbeResultCallback([instance](const char* p_pcDomainName, bool p_bProbeResult) {
+      if (!p_bProbeResult) {
+        WiFi.hostname(instance);
+        MDNS.setInstanceName(instance);
+      }
+    });
   }
   led_set(LED_WIFI_STA);
   /*beep(440, 30);
@@ -1127,7 +1153,7 @@ void onStationDhcpTimeout(void)
   wifi_log += "Wifi_STA_DhcpTimeout();\n";
 #endif
   wifi_sta_connected = WIFI_STATE_NA;
-  mdns.end();
+  MDNS.end();
 }
 
 void onSoftAPModeStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
@@ -1146,7 +1172,7 @@ void onSoftAPModeStationDisconnected(const WiFiEventSoftAPModeStationDisconnecte
 
 void wifi_config(void)
 {
-  wifi_station_set_hostname("elrs_logger");
+  wifi_station_set_hostname(hostname);
 
   wifi_sta_connected = WIFI_STATE_NA;
 #if WIFI_DBG
@@ -1429,7 +1455,7 @@ void loop()
 
   server.handleClient();
   webSocket.loop();
-  mdns.update();
+  MDNS.update();
 
   batt_voltage_measure();
 
