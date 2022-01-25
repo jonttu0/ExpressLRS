@@ -3,9 +3,6 @@
 #include "RadioInterface.h"
 #include <stdint.h>
 
-//#define RATE_ENABLED_25Hz 1
-//#define RATE_ENABLED_4Hz  1
-
 #define BUTTON_RESET_INTERVAL_RX  4000 // Hold button for 4 sec to reboot RX
 #define WEB_UPDATE_PRESS_INTERVAL 2000 // hold button for 2 sec to enable webupdate mode
 
@@ -109,16 +106,17 @@ typedef enum
 
 typedef struct expresslrs_mod_settings_s
 {
-    uint8_t pkt_type, bw, sf, cr;
+    uint8_t  pkt_type, bw, sf, cr;
     uint32_t interval;       // interval in us seconds that corresponds to that frequnecy
+    uint32_t syncInterval;
     uint16_t rate;           // rate in hz
-    uint8_t TLMinterval;     // every X packets is a response TLM packet, should be a power of 2
-    uint8_t FHSShopInterval; // every X packets we hope to a new frequnecy.
-    uint8_t rate_osd_num;
     uint16_t PreambleLen;
     uint16_t connectionLostTimeout;
     uint16_t syncSearchTimeout;
-    uint32_t syncInterval;
+    uint8_t  TLMinterval;     // every X packets is a response TLM packet, should be a power of 2
+    uint8_t  FHSShopInterval; // every X packets we hope to a new frequnecy.
+    uint8_t  rate_osd_num;
+    uint8_t  payloadSize;
 } expresslrs_mod_settings_t;
 
 extern const expresslrs_mod_settings_t *ExpressLRS_currAirRate;

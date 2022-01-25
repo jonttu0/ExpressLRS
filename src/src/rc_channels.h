@@ -13,10 +13,14 @@
 #define AUX_CHANNEL_ARM     0
 
 
-#define OTA_PACKET_DATA     6
+#define OTA_PAYLOAD_SX127x  8   // include CRC
+#define OTA_PAYLOAD_SX128x  9   // include CRC
+#define OTA_PAYLOAD_MAX     ((OTA_PAYLOAD_SX127x < OTA_PAYLOAD_SX128x) ? \
+                                OTA_PAYLOAD_SX128x : OTA_PAYLOAD_SX127x)
 #define OTA_PACKET_CRC      2
-#define OTA_PACKET_PAYLOAD  (OTA_PACKET_DATA)
-#define OTA_PACKET_SIZE     (OTA_PACKET_PAYLOAD + OTA_PACKET_CRC)
+
+#define RC_BITS_LEGACY      10
+#define RC_BITS_FULL        12
 
 // current and sent switch values
 #define N_CONTROLS 4
@@ -29,11 +33,9 @@
 /*************************************************
  *    Data conversion macros [HANDSET]
  *************************************************/
-/* Note: this must match to OTA bits */
-#define ANALOG_BITS     10U
-#define ANALOG_MIN_VAL  0U
-#define ANALOG_MID_VAL  (1U << (ANALOG_BITS - 1))
-#define ANALOG_MAX_VAL  ((1U << ANALOG_BITS) - 1)
+#define ANALOG_MIN_VAL          0U
+#define ANALOG_MID_VAL(bits)    (1U << (bits - 1))
+#define ANALOG_MAX_VAL(bits)    ((1U << bits) - 1)
 
 #define SWITCH_MIN      0U
 #define SWITCH_MID      1U
@@ -56,10 +58,15 @@
 #define CRSF_CHANNEL_IN_VALUE_MID 992
 #define CRSF_CHANNEL_IN_VALUE_MAX 1984
 
-#define CRSFv3_BITS 11 //ANALOG_BITS
+#if RADIO_SX127x
+#define CRSFv3_BITS RC_BITS_LEGACY
+#elif RADIO_SX128x
+#define CRSFv3_BITS RC_BITS_FULL
+#endif
 
-#define UINT10_to_CRSF(val) MAP_U16((val), 0, 1024, CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX)
-#define CRSF_to_UINT10(val) MAP_U16((val), CRSF_CHANNEL_OUT_VALUE_MIN, CRSF_CHANNEL_OUT_VALUE_MAX, 0, 1023)
+/* Future improvement when handset is capable to deliver full 12b channels */
+#define CRSF_CHANNEL_IN_BITS (2047 < CRSF_CHANNEL_IN_VALUE_MAX ? 12 : 11)
+
 
 // 7 state aka 3b switches use 0...6 as values to represent 7 different values
 // 1984 / 6 = 330 => taken down a bit to align result more evenly
@@ -70,6 +77,8 @@
 #define SWITCH3b_to_CRSF(val) ((val) * 170) // round down 170.5 to 170
 #elif CRSFv3_BITS == 11
 #define SWITCH3b_to_CRSF(val) ((val) * 341) // round down 341.17 to 341
+#elif CRSFv3_BITS == 12
+#define SWITCH3b_to_CRSF(val) ((val) * 682) // round down 682.5 to 682
 #endif
 #else
 #define SWITCH3b_to_CRSF(val) ((val) * 273 + CRSF_CHANNEL_OUT_VALUE_MIN)
@@ -80,12 +89,14 @@
 #define CRSF_to_SWITCH2b(val) ((val) / 819)
 #if PROTOCOL_CRSF_V3_TO_FC
 #if CRSFv3_BITS == 10
-#define SWITCH2b_to_CRSF(val) ((val)*511) // round down 511.5 to 511
+#define SWITCH2b_to_CRSF(val) ((val) * 511) // round down 511.5 to 511
 #elif CRSFv3_BITS == 11
-#define SWITCH2b_to_CRSF(val) ((val)*1023) // round down 1023.5 to 1023
+#define SWITCH2b_to_CRSF(val) ((val) * 1023) // round down 1023.5 to 1023
+#elif CRSFv3_BITS == 12
+#define SWITCH2b_to_CRSF(val) ((val) * 2047) // round down 2047.5 to 2047
 #endif
 #else
-#define SWITCH2b_to_CRSF(val) ((val)*819 + CRSF_CHANNEL_OUT_VALUE_MIN)
+#define SWITCH2b_to_CRSF(val) (((val) * 819) + CRSF_CHANNEL_OUT_VALUE_MIN)
 #endif
 
 #define CRSF_to_BIT(val) (((val) > 1000) ? 1 : 0)
@@ -135,52 +146,56 @@ typedef struct ElrsSyncPacket_s {
 
 
 static FORCED_INLINE uint8_t
-RcChannels_packetTypeGet(uint8_t const *const input)
+RcChannels_packetTypeGet(uint8_t const *const input, uint8_t const size)
 {
-    return input[OTA_PACKET_DATA-1] & 0b11;
+    return input[size-1] & 0b11;
 }
 
 static FORCED_INLINE void
-RcChannels_packetTypeSet(uint8_t *const output, uint8_t type)
+RcChannels_packetTypeSet(uint8_t *const output, uint8_t const size, uint8_t type)
 {
-    uint8_t val = output[OTA_PACKET_DATA-1];
+    uint8_t val = output[size-1];
     val = (val & 0xFC) + (type & 0b11);
-    output[OTA_PACKET_DATA-1] = val;
+    output[size-1] = val;
 }
 
 
 /*************************************************************************************
  * RC OTA PACKET
  *************************************************************************************/
-typedef struct rc_channels_s
-{
+typedef struct rc_channels_s {
     /* CRSF V1 and V2 is 16 channels */
-    unsigned ch0 : 11;
-    unsigned ch1 : 11;
-    unsigned ch2 : 11;
-    unsigned ch3 : 11;
-    unsigned ch4 : 11;
-    unsigned ch5 : 11;
-    unsigned ch6 : 11;
-    unsigned ch7 : 11;
-    unsigned ch8 : 11;
-    unsigned ch9 : 11;
-    unsigned ch10 : 11;
-    unsigned ch11 : 11;
-    unsigned ch12 : 11;
-    unsigned ch13 : 11;
-    unsigned ch14 : 11;
-    unsigned ch15 : 11;
-} PACKED rc_channels_t;
+    unsigned ch0  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch1  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch2  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch3  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch4  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch5  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch6  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch7  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch8  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch9  : CRSF_CHANNEL_IN_BITS;
+    unsigned ch10 : CRSF_CHANNEL_IN_BITS;
+    unsigned ch11 : CRSF_CHANNEL_IN_BITS;
+    unsigned ch12 : CRSF_CHANNEL_IN_BITS;
+    unsigned ch13 : CRSF_CHANNEL_IN_BITS;
+    unsigned ch14 : CRSF_CHANNEL_IN_BITS;
+    unsigned ch15 : CRSF_CHANNEL_IN_BITS;
+} PACKED rc_channels_module_t;
+
+typedef struct {
+    /* 16 channels */
+    uint16_t ch[N_CHANNELS];
+} PACKED rc_channels_handset_t;
 
 
 #if PROTOCOL_ELRS_TO_FC
 typedef struct rc_channels_rx_s {
-    // 64 bits of data (4 x 10 bits + 8 x 3 bits channels) = 8 bytes.
-    unsigned int ch0 : ANALOG_BITS;
-    unsigned int ch1 : ANALOG_BITS;
-    unsigned int ch2 : ANALOG_BITS;
-    unsigned int ch3 : ANALOG_BITS;
+    // 64 bits of data (4 x 12 bits + 8 x 3 bits channels) = 9 bytes.
+    unsigned int ch0 : 12;
+    unsigned int ch1 : 12;
+    unsigned int ch2 : 12;
+    unsigned int ch3 : 12;
     unsigned int ch4 : 3;
     unsigned int ch5 : 3;
     unsigned int ch6 : 3;
@@ -241,14 +256,16 @@ typedef struct rc_channels_rx_s {
 #endif
 } PACKED rc_channels_rx_t;
 #else // !PROTOCOL_ELRS_TO_FC
-typedef rc_channels_t rc_channels_rx_t;
+typedef rc_channels_module_t rc_channels_rx_t;
 #endif // PROTOCOL_ELRS_TO_FC
 
 
+void RcChannels_initRcPacket(uint_fast8_t payloadSize);
+uint16_t RcChannels_channelMaxValueGet(void);
 void
-RcChannels_processChannels(rc_channels_t const *const channels);
+RcChannels_processChannels(rc_channels_handset_t const *const channels);
 void
-RcChannels_processChannelsCrsf(rc_channels_t const *const channels);
+RcChannels_processChannelsCrsf(rc_channels_module_t const *const channels);
 void FAST_CODE_1
 RcChannels_get_packed_data(uint8_t *const output);
 uint8_t FAST_CODE_1

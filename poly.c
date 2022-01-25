@@ -106,6 +106,49 @@ uint8_t CalcParity(uint8_t const *data, uint16_t length)
 }
 
 
+
+uint8_t
+CalcCRC8(uint8_t const data, uint8_t crc, uint8_t const poly)
+{
+    crc ^= data;
+    for (int ii = 0; ii < 8; ++ii) {
+        if (crc & 0x80)
+            crc = (crc << 1) ^ poly;
+        else
+            crc = crc << 1;
+    }
+    return crc;
+}
+
+uint8_t
+CalcCRC8len(uint8_t const *data, uint16_t length,
+            uint8_t crc, uint8_t const poly)
+{
+    while (length--)
+        crc = CalcCRC8(*data++, crc, poly);
+    return crc;
+}
+
+uint8_t smartadioCalcCrc(const uint8_t *data, uint8_t len)
+{
+#define POLYGEN 0xd5
+    uint8_t crc = 0;
+    uint_fast8_t ii;
+
+    while (len--) {
+        crc ^= *data++;
+        ii = 8;
+        while (ii--) {
+            if ((crc & 0x80) != 0)
+                crc = (crc << 1) ^ POLYGEN;
+            else
+                crc <<= 1;
+        }
+    }
+    return crc;
+}
+
+
 int main(void)
 {
     uint32_t const highbit = 0x1 << (HIGH_BIT - 1);
@@ -178,5 +221,25 @@ int main(void)
     printf("CRC16 OLD: 0x%04X\n", CalcCRC16(buff, sizeof(buff), 0));
     printf("CRC16 NEW: 0x%04X\n", CalcCRC16_new(buff, sizeof(buff), 0));
 
+
+
+    uint8_t sa[] = {0xAA, 0x55, (uint8_t)(0x78 << 1), 0x3, 'R', 'S', 'T'};
+    //uint8_t sa[] = {0xAA, 0x55, 0x09, 0x02, 0x16, 0xBC};
+    uint8_t sa_crc = CalcCRC8len(sa, sizeof(sa), 0, 0xD5);
+
+    for (index = 0; index < sizeof(sa); index++) {
+        printf("[%u] = 0x%02X\n", index, sa[index]);
+    }
+
+    printf("SA CRC = 0x%02X\n", sa_crc);
+    printf("SA CRC = 0x%02X\n", smartadioCalcCrc(sa, sizeof(sa)));
+
+
+    uint32_t micros = 0xffffff00;
+    uint32_t now = 0x100;
+    while ((now - micros) < 1000) {
+        printf("distance: %u\n", (now - micros));
+        now += 100;
+    }
     return 0;
 }

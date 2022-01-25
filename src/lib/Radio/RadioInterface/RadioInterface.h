@@ -5,8 +5,9 @@
 #include "RadioHalSpi.h"
 #include "gpio.h"
 
-// default payload size is 8 bytes
-#define RX_BUFFER_LEN (8)
+// Default RX data buffer size is 16 bytes
+#define RADIO_RX_BUFFER_SIZE (16)
+
 
 enum isr_states
 {
@@ -30,8 +31,9 @@ enum module_types
 class RadioInterface : public RadioHalSpi
 {
 public:
-    RadioInterface(uint8_t payload_len, uint8_t read = 0, uint8_t write = 0):
-            RadioHalSpi(read, write), RX_buffer_size(payload_len) {
+    RadioInterface(uint8_t read = 0, uint8_t write = 0):
+            RadioHalSpi(read, write), module_type(MODULE_COUNT),
+            ota_pkt_size(RADIO_RX_BUFFER_SIZE) {
         RXdoneCallback1 = RadioInterface::rx_nullCallback;
         TXdoneCallback1 = RadioInterface::tx_nullCallback;
     }
@@ -46,6 +48,9 @@ public:
     virtual void Config(uint32_t bw, uint32_t sf, uint32_t cr,
                         uint32_t freq, uint16_t PreambleLength,
                         uint8_t crc = 0, uint8_t flrc = 0) = 0;
+    void SetRxBufferSize(uint8_t const size) {
+        ota_pkt_size = size;
+    }
     void SetSyncWord(uint8_t const syncWord) {
         _syncWord = syncWord;
     };
@@ -71,15 +76,14 @@ public:
     }
 
     ////////// Callback Function Pointers //////////
-    static void rx_nullCallback(uint8_t *, uint32_t){};
+    static void rx_nullCallback(uint8_t *, uint32_t, size_t){};
     static void tx_nullCallback(void){};
-    void (*RXdoneCallback1)(uint8_t *buff, uint32_t rx_us);
+    void (*RXdoneCallback1)(uint8_t *buff, uint32_t rx_us, size_t len);
     void (*TXdoneCallback1)(void);
 
     ////////// Packet Stats //////////
     volatile int16_t LastPacketRSSI;
     volatile int8_t LastPacketSNR;
-    const uint8_t RX_buffer_size;
 
 protected:
     void Reset(void);
@@ -98,13 +102,13 @@ protected:
     gpio_in _BUSY;
 
     ////////// Config Variables //////////
-    volatile uint32_t current_freq;
-    volatile int8_t current_power;
-
-    uint8_t module_type = MODULE_COUNT;
-    uint8_t _syncWord;
+    uint32_t current_freq;
     uint32_t _syncWordLong;
     uint16_t _cipher;
+    uint8_t _syncWord;
+    int8_t  current_power;
+    uint8_t module_type;
+    uint8_t ota_pkt_size;
 
 private:
     volatile enum isr_states p_state_isr;

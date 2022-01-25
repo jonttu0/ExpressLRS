@@ -24,8 +24,8 @@ extern CRSF_TX crsf;
 POWERMGNT DRAM_FORCE_ATTR PowerMgmt(GPIO_PIN_FAN_CTRL);
 
 static uint32_t DRAM_ATTR _rf_rxtx_counter;
-static uint8_t DMA_ATTR rx_buffer[OTA_PACKET_SIZE];
-static volatile uint8_t DRAM_ATTR rx_buffer_handle;
+static uint8_t DMA_ATTR rx_buffer[OTA_PAYLOAD_MAX];
+static volatile uint8_t DRAM_ATTR rx_buffer_size;
 static uint8_t red_led_state;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
@@ -139,8 +139,8 @@ void tx_common_init(void)
 
 ///////////////////////////////////////
 
-static void ProcessTLMpacket(uint8_t *buff, uint32_t rx_us);
-static void HandleTLM();
+static void PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, size_t payloadSize);
+static void TransmissionCompletedCallback();
 
 uint8_t tx_tlm_change_interval(uint8_t value, uint8_t init = 0)
 {
@@ -159,8 +159,8 @@ uint8_t tx_tlm_change_interval(uint8_t value, uint8_t init = 0)
     if (value != TLMinterval || init)
     {
         if (TLM_RATIO_NO_TLM < value) {
-            Radio->RXdoneCallback1 = ProcessTLMpacket;
-            Radio->TXdoneCallback1 = HandleTLM;
+            Radio->RXdoneCallback1 = PacketReceivedCallback;
+            Radio->TXdoneCallback1 = TransmissionCompletedCallback;
             connectionState = STATE_disconnected;
             ratio = TLMratioEnumToValue(value);
             DEBUG_PRINTF("TLM ratio %u\n", ratio);
@@ -252,12 +252,12 @@ static uint8_t SetRadioType(uint8_t type)
 
 ///////////////////////////////////////
 
-void process_rx_buffer(void)
+void process_rx_buffer(uint8_t payloadSize)
 {
     const uint32_t ms = millis();
-    const uint16_t crc = CalcCRC16((uint8_t*)rx_buffer, OTA_PACKET_DATA, CRCCaesarCipher);
-    const uint16_t crc_in = ((uint16_t)rx_buffer[OTA_PACKET_DATA] << 8) + rx_buffer[OTA_PACKET_DATA+1];
-    const uint8_t  type = RcChannels_packetTypeGet((uint8_t*)rx_buffer);
+    const uint16_t crc = CalcCRC16((uint8_t*)rx_buffer, payloadSize, CRCCaesarCipher);
+    const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
+    const uint8_t  type = RcChannels_packetTypeGet((uint8_t*)rx_buffer, payloadSize);
 
     if (crc_in != crc)
     {
@@ -313,23 +313,22 @@ void process_rx_buffer(void)
     }
 }
 
-static void FAST_CODE_1 ProcessTLMpacket(uint8_t *buff, uint32_t rx_us)
+static void FAST_CODE_1 PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, size_t payloadSize)
 {
     if (buff) {
         (void)rx_us;
-        memcpy(rx_buffer, buff, sizeof(rx_buffer));
-        rx_buffer_handle = 1;
+        memcpy(rx_buffer, buff, payloadSize);
+        rx_buffer_size = payloadSize - OTA_PACKET_CRC;
 
         //DEBUG_PRINTF(" R ");
     }
 }
 
-static void FAST_CODE_1 HandleTLM()
+static void FAST_CODE_1 TransmissionCompletedCallback()
 {
     //DEBUG_PRINTF("X ");
     uint32_t const tlm_ratio = tlm_check_ratio;
-    if (tlm_ratio && (_rf_rxtx_counter & tlm_ratio) == 0)
-    {
+    if (tlm_ratio && (_rf_rxtx_counter & tlm_ratio) == 0) {
         // receive tlm package
         PowerMgmt.pa_off();
         Radio->RXnb(FHSSgetCurrFreq());
@@ -362,10 +361,11 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
     uint32_t const rxtx_counter = _rf_rxtx_counter;
     uint32_t const tlm_ratio = tlm_check_ratio;
     // esp requires word aligned buffer
-    uint32_t __tx_buffer[(OTA_PACKET_SIZE + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
+    uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
     uint8_t * const tx_buffer = (uint8_t *)__tx_buffer;
-    uint16_t crc;
-    uint8_t index = OTA_PACKET_DATA, arm_state = RcChannels_get_arm_channel_state();
+    uint16_t crc_or_type;
+    const uint_fast8_t arm_state = RcChannels_get_arm_channel_state();
+    uint_fast8_t payloadSize = ExpressLRS_currAirRate->payloadSize - OTA_PACKET_CRC;
 
     // Check if telemetry RX ongoing
     if (tlm_ratio && (rxtx_counter & tlm_ratio) == 0) {
@@ -381,6 +381,7 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
     {
         GenerateSyncPacketData(tx_buffer, rxtx_counter);
         SyncPacketNextSend = current_us;
+        crc_or_type = UL_PACKET_SYNC;
     }
     else if (!arm_state && (tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
     {
@@ -389,26 +390,30 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
             msp_packet_tx.reset();
             tlm_msp_send = 0;
         }
+        crc_or_type = UL_PACKET_MSP;
     }
     else
     {
         RcChannels_get_packed_data(tx_buffer);
+        crc_or_type = UL_PACKET_RC_DATA;
 #if CRC16_POLY_TESTING
         memcpy(tx_buffer, CRC16_POLY_PKT, sizeof(CRC16_POLY_PKT));
 #endif
     }
 
+    RcChannels_packetTypeSet(tx_buffer, payloadSize, crc_or_type);
+
     // Calculate the CRC
-    crc = CalcCRC16(tx_buffer, index, CRCCaesarCipher);
-    tx_buffer[index++] = (crc >> 8);
-    tx_buffer[index++] = (crc & 0xFF);
+    crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
+    tx_buffer[payloadSize++] = (crc_or_type >> 8);
+    tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
     // Enable PA
     PowerMgmt.pa_on();
     // Debugging
     //delayMicroseconds(random(0, 400)); // 300 ok
     //if (random(0, 99) < 55) tx_buffer[1] = 0;
     // Send data to rf
-    Radio->TXnb(tx_buffer, index, freq);
+    Radio->TXnb(tx_buffer, payloadSize, freq);
 
 send_to_rf_exit:
     // Check if hopping is needed
@@ -590,6 +595,8 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
     TxTimer.updateInterval(config->interval);
 
     FHSSresetCurrIndex();
+    RcChannels_initRcPacket(config->payloadSize);
+    Radio->SetRxBufferSize(config->payloadSize);
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
@@ -660,9 +667,9 @@ static void MspOtaCommandsSend(mspPacket_t &packet)
 
 void tx_common_handle_rx_buffer(void)
 {
-    if (rx_buffer_handle) {
-        process_rx_buffer();
-        rx_buffer_handle = 0;
+    if (rx_buffer_size) {
+        process_rx_buffer(rx_buffer_size);
+        rx_buffer_size = 0;
         platform_wd_feed();
     }
 }

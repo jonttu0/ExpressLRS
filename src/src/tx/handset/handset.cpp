@@ -18,7 +18,12 @@
 static struct gpio_out debug;
 #endif
 
-static rc_channels_t DRAM_ATTR rc_data;
+typedef union {
+    rc_channels_handset_t ota_pkt;
+    uint16_t ch[NUM_ANALOGS + NUM_SWITCHES];
+} rc_channels_internal_u;
+
+static rc_channels_internal_u DRAM_ATTR rc_data;
 #if RC_CH_PRINT_INTERVAL
 static uint32_t last_rc_info;
 #endif
@@ -37,31 +42,32 @@ rc_data_collect(uint32_t const current_us)
 #ifdef DBG_PIN
     gpio_out_write(debug, 1);
 #endif
+    uint32_t const channelMax = RcChannels_channelMaxValueGet();
     uint16_t gimbals[NUM_ANALOGS];
     uint16_t aux[NUM_SWITCHES] = {0};
     uint16_t scale;
     uint8_t iter, index;
     gimbals_timer_adjust(current_us);
-    gimbals_get(gimbals);
+    gimbals_get(gimbals, channelMax);
     for (iter = 0; iter < NUM_ANALOGS; iter++) {
         index = pl_config.mixer[iter].index;
         if (pl_config.mixer[iter].inv) {
             gimbals[index] = ANALOG_MIN_VAL +
-                (ANALOG_MAX_VAL - gimbals[index]);
+                (channelMax - gimbals[index]);
         }
         scale = pl_config.mixer[iter].scale;
         if (scale) {
-            scale = (((uint32_t)ANALOG_MAX_VAL * scale) / 100U);
+            scale = ((channelMax * scale) / 100U);
             gimbals[index] =
                 MAP_U16(gimbals[index],
-                    ANALOG_MIN_VAL, ANALOG_MAX_VAL,
+                    ANALOG_MIN_VAL, channelMax,
                     ANALOG_MIN_VAL, scale);
         }
     }
-    rc_data.ch0 = gimbals[pl_config.mixer[0].index];
-    rc_data.ch1 = gimbals[pl_config.mixer[1].index];
-    rc_data.ch2 = gimbals[pl_config.mixer[2].index];
-    rc_data.ch3 = gimbals[pl_config.mixer[3].index];
+    rc_data.ch[0] = gimbals[pl_config.mixer[0].index];
+    rc_data.ch[1] = gimbals[pl_config.mixer[1].index];
+    rc_data.ch[2] = gimbals[pl_config.mixer[2].index];
+    rc_data.ch[3] = gimbals[pl_config.mixer[3].index];
     switches_collect(aux);
     for (iter = 0; iter < NUM_SWITCHES; iter++) {
         if (pl_config.mixer[(iter + 4)].inv) {
@@ -69,31 +75,39 @@ rc_data_collect(uint32_t const current_us)
             aux[index] = SWITCH_MAX - aux[index];
         }
     }
-    rc_data.ch4 = aux[pl_config.mixer[4].index];
-    rc_data.ch5 = aux[pl_config.mixer[5].index];
-    rc_data.ch6 = aux[pl_config.mixer[6].index];
-    rc_data.ch7 = aux[pl_config.mixer[7].index];
-    rc_data.ch8 = aux[pl_config.mixer[8].index];
-    rc_data.ch9 = aux[pl_config.mixer[9].index];
+    rc_data.ch[4] = aux[pl_config.mixer[4].index];
+    rc_data.ch[5] = aux[pl_config.mixer[5].index];
+#if 2 < NUM_SWITCHES
+    rc_data.ch[6] = aux[pl_config.mixer[6].index];
+#endif
+#if 3 < NUM_SWITCHES
+    rc_data.ch[7] = aux[pl_config.mixer[7].index];
+#endif
+#if 4 < NUM_SWITCHES
+    rc_data.ch[8] = aux[pl_config.mixer[8].index];
+#endif
+#if 5 < NUM_SWITCHES
+    rc_data.ch[9] = aux[pl_config.mixer[9].index];
+#endif
 #if 6 < NUM_SWITCHES
-    rc_data.ch10 = aux[pl_config.mixer[10].index];
+    rc_data.ch[10] = aux[pl_config.mixer[10].index];
+#endif
 #if 7 < NUM_SWITCHES
-    rc_data.ch11 = aux[pl_config.mixer[11].index];
+    rc_data.ch[11] = aux[pl_config.mixer[11].index];
+#endif
 #if 8 < NUM_SWITCHES
-    rc_data.ch12 = aux[pl_config.mixer[12].index];
+    rc_data.ch[12] = aux[pl_config.mixer[12].index];
+#endif
 #if 9 < NUM_SWITCHES
-    rc_data.ch13 = aux[pl_config.mixer[13].index];
+    rc_data.ch[13] = aux[pl_config.mixer[13].index];
+#endif
 #if 10 < NUM_SWITCHES
-    rc_data.ch14 = aux[pl_config.mixer[14].index];
+    rc_data.ch{14} = aux[pl_config.mixer[14].index];
+#endif
 #if 11 < NUM_SWITCHES
-    rc_data.ch15 = aux[pl_config.mixer[15].index];
+    rc_data.ch{15} = aux[pl_config.mixer[15].index];
 #endif
-#endif
-#endif
-#endif
-#endif
-#endif
-    RcChannels_processChannels(&rc_data);
+    RcChannels_processChannels(&rc_data.ota_pkt);
 #ifdef DBG_PIN
     gpio_out_write(debug, 0);
 #endif
@@ -209,8 +223,8 @@ void setup()
     TxTimer.start();
     while (1) {
         DEBUG_PRINTF("RC: %u, %u, %u, %u -- %u, %u, %u\n",
-            rc_data.ch0, rc_data.ch1, rc_data.ch2, rc_data.ch3,
-            rc_data.ch4, rc_data.ch5, rc_data.ch6);
+            rc_data.ch[0], rc_data.ch[1], rc_data.ch[2], rc_data.ch[3],
+            rc_data.ch[4], rc_data.ch[5], rc_data.ch[6]);
         delay(100);
     }
 #endif
@@ -251,9 +265,10 @@ void loop()
 #if RC_CH_PRINT_INTERVAL
     if (RC_CH_PRINT_INTERVAL <= (millis() - last_rc_info)) {
         last_rc_info = millis();
-        DEBUG_PRINTF("RC: %u|%u|%u|%u -- %u|%u|%u|%u|%u\n",
-            rc_data.ch0, rc_data.ch1, rc_data.ch2, rc_data.ch3,
-            rc_data.ch4, rc_data.ch5, rc_data.ch6, rc_data.ch7, rc_data.ch8);
+        DEBUG_PRINTF("RC: %u|%u|%u|%u -- %u|%u|%u|%u|%u|%u\n",
+            rc_data.ch[0], rc_data.ch[1], rc_data.ch[2], rc_data.ch[3],
+            rc_data.ch[4], rc_data.ch[5], rc_data.ch[6], rc_data.ch[7],
+            rc_data.ch[8], rc_data.ch[9]);
     }
 #endif // RC_CH_PRINT_INTERVAL
 

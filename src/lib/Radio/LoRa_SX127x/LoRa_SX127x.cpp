@@ -111,8 +111,8 @@ static void FAST_CODE_1 _rxtx_isr_handler_dio0(void)
 
 //////////////////////////////////////////////
 
-SX127xDriver::SX127xDriver(uint8_t payload_len):
-    RadioInterface(payload_len, SX127X_SPI_READ, SX127X_SPI_WRITE)
+SX127xDriver::SX127xDriver():
+    RadioInterface(SX127X_SPI_READ, SX127X_SPI_WRITE)
 {
     instance = this;
     p_bw_hz = 0;
@@ -307,10 +307,10 @@ void FAST_CODE_2 SX127xDriver::RxConfig(uint32_t freq)
     if (freq)
         SetFrequency(freq, 0xff);
 
-    if (p_last_payload_len != RX_buffer_size)
+    if (p_last_payload_len != ota_pkt_size)
     {
-        writeRegister(SX127X_REG_PAYLOAD_LENGTH, RX_buffer_size);
-        p_last_payload_len = RX_buffer_size;
+        writeRegister(SX127X_REG_PAYLOAD_LENGTH, ota_pkt_size);
+        p_last_payload_len = ota_pkt_size;
     }
 
     /* ESP requires aligned buffer when -Os is not set! */
@@ -333,7 +333,7 @@ void FAST_CODE_2 SX127xDriver::RxConfig(uint32_t freq)
 
 //////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static uint8_t DMA_ATTR RXdataBuffer[16];
+static uint8_t DMA_ATTR RXdataBuffer[RADIO_RX_BUFFER_SIZE];
 
 void FAST_CODE_1 SX127xDriver::RXnbISR(uint32_t rx_us, uint8_t irqs)
 {
@@ -343,13 +343,13 @@ void FAST_CODE_1 SX127xDriver::RXnbISR(uint32_t rx_us, uint8_t irqs)
         (irqs & SX127X_CLEAR_IRQ_FLAG_RX_DONE))
     {
         // fetch data from modem
-        readRegisterBurst((uint8_t)SX127X_REG_FIFO, RX_buffer_size, (uint8_t *)RXdataBuffer);
+        readRegisterBurst((uint8_t)SX127X_REG_FIFO, ota_pkt_size, (uint8_t *)RXdataBuffer);
         // fetch RSSI and SNR
         GetLastRssiSnr();
         // Push to application if callback is set
         ptr = RXdataBuffer;
     }
-    RXdoneCallback1(ptr, rx_us);
+    RXdoneCallback1(ptr, rx_us, ota_pkt_size);
 }
 
 void SX127xDriver::StopContRX()

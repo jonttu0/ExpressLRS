@@ -24,7 +24,7 @@ public:
     /////////////Packet Stats//////////
 
     ////////////////Configuration Functions/////////////
-    SX1280Driver(uint8_t payload_len = RX_BUFFER_LEN);
+    SX1280Driver();
     int8_t Begin(int sck, int miso, int mosi);
     void End(void);
     int16_t MeasureNoiseFloor(uint32_t num_meas, uint32_t freq);

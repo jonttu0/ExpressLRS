@@ -43,7 +43,7 @@ typedef enum
 class SX127xDriver: public RadioInterface
 {
 public:
-    SX127xDriver(uint8_t payload_len = RX_BUFFER_LEN);
+    SX127xDriver();
 
     ///////////Radio Variables////////
 

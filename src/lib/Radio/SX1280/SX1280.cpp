@@ -26,8 +26,8 @@ static void FAST_CODE_1 _rxtx_isr_handler(void)
 
 /////////////////////////////////////////////////////////////////
 
-SX1280Driver::SX1280Driver(uint8_t payload_len):
-    RadioInterface(payload_len)
+SX1280Driver::SX1280Driver():
+    RadioInterface()
 {
     instance = this;
     current_freq = 0; //2400000000;
@@ -109,7 +109,7 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
         DEBUG_PRINTF("SX1280: config FLRC\n");
         ConfigModParamsFLRC(bw, cr, sf);
         SetPacketParamsFLRC(SX1280_FLRC_PACKET_FIXED_LENGTH, /*crc=*/1,
-                            PreambleLength, RX_buffer_size);
+                            PreambleLength, ota_pkt_size);
         irqs |= SX1280_IRQ_CRC_ERROR;
     } else {
         DEBUG_PRINTF("SX1280: config LoRa\n");
@@ -117,7 +117,7 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
         SetPacketParamsLoRa(SX1280_LORA_PACKET_IMPLICIT,
                         (crc) ? SX1280_LORA_CRC_ON : SX1280_LORA_CRC_OFF,
                         ((_syncWord & 0x1) ? SX1280_LORA_IQ_INVERTED : SX1280_LORA_IQ_NORMAL),
-                        PreambleLength, RX_buffer_size);
+                        PreambleLength, ota_pkt_size);
         if (crc)
             irqs |= SX1280_IRQ_CRC_ERROR;
     }
@@ -505,12 +505,11 @@ void FAST_CODE_2 SX1280Driver::TXnb(const uint8_t *data, uint8_t length, uint32_
     ClearIrqStatus(SX1280_IRQ_RADIO_ALL);
     if (freq)
         SetFrequency(freq);
-    //SetFIFOaddr(0x00, 0x00);   // not 100% sure if needed again
     WriteBuffer(0x00, (uint8_t*)data, length);
     SetMode(SX1280_MODE_TX);
 }
 
-static uint8_t DMA_ATTR RXdataBuffer[16];
+static uint8_t DMA_ATTR RXdataBuffer[RADIO_RX_BUFFER_SIZE];
 
 void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
 {
@@ -523,7 +522,7 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
 
     // Check current status for data ready
     if ((status & SX1280_STATUS_CMD_STATUS_MASK) != SX1280_STATUS_CMD_STATUS_DATA_AVAILABLE) {
-        RXdoneCallback1(NULL, rx_us); // Error!
+        RXdoneCallback1(NULL, rx_us, 0); // Error!
         return;
     }
     status = GetLastPacketStatus();
@@ -532,14 +531,14 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
     if (!(irqs & SX1280_IRQ_RX_DONE) ||
             (irqs & (SX1280_IRQ_CRC_ERROR | SX1280_IRQ_RX_TX_TIMEOUT)) ||
             (status & ~(SX1280_FLRC_PKT_ERROR_PKT_RCVD | SX1280_FLRC_PKT_ERROR_HDR_RCVD))) {
-        RXdoneCallback1(NULL, rx_us); // Error!
+        RXdoneCallback1(NULL, rx_us, 0); // Error!
         return;
     }
     FIFOaddr = GetRxBufferAddr();
     if (FIFOaddr < 0) // RX len is not correct!
         return;
-    ReadBuffer(FIFOaddr, RXdataBuffer, RX_buffer_size);
-    RXdoneCallback1(RXdataBuffer, rx_us);
+    ReadBuffer(FIFOaddr, RXdataBuffer, ota_pkt_size);
+    RXdoneCallback1(RXdataBuffer, rx_us, ota_pkt_size);
 }
 
 void FAST_CODE_2 SX1280Driver::RXnb(uint32_t freq)
@@ -550,7 +549,6 @@ void FAST_CODE_2 SX1280Driver::RXnb(uint32_t freq)
     ClearIrqStatus(SX1280_IRQ_RADIO_ALL);
     if (freq)
         SetFrequency(freq);
-    //SetFIFOaddr(0x00, 0x00);
     SetMode(SX1280_MODE_RX);
 }
 

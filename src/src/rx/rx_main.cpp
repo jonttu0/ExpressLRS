@@ -138,8 +138,7 @@ void FAST_CODE_1 FillLinkStats()
     // 0 to 255 that maps to -1 * the negative part of the rssiDBM, so cap at 0.
     if (0 < rssiDBM) rssiDBM = 0;
     else if (rssiDBM < INT8_MIN) rssiDBM = INT8_MIN;
-    //CrsfChannels.ch15 = UINT10_to_CRSF(MAP(rssiDBM, -100, -50, 0, 1023));
-    //CrsfChannels.ch14 = UINT10_to_CRSF(MAP_U16(LinkStatistics.link.uplink_Link_quality, 0, 100, 0, 1023));
+
     LinkStatistics.link.uplink_RSSI_1 = -1 * rssiDBM; // to match BF
     LinkStatistics.link.uplink_SNR = LPF_UplinkSNR.update(Radio->LastPacketSNR * 10);
 }
@@ -192,9 +191,10 @@ void FAST_CODE_1 HandleSendTelemetryResponse(uint_fast8_t lq) // total ~79us
 {
     DEBUG_PRINTF(" X");
     // esp requires word aligned buffer
-    uint32_t __tx_buffer[(OTA_PACKET_SIZE + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
+    uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
     uint8_t *tx_buffer = (uint8_t *)__tx_buffer;
-    uint8_t index = OTA_PACKET_DATA;
+    uint16_t crc_or_type;
+    uint_fast8_t payloadSize = ExpressLRS_currAirRate->payloadSize - OTA_PACKET_CRC;
 
     if ((tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
     {
@@ -202,21 +202,24 @@ void FAST_CODE_1 HandleSendTelemetryResponse(uint_fast8_t lq) // total ~79us
             msp_packet_tx.reset();
             tlm_msp_send = 0;
         }
+        crc_or_type = DL_PACKET_TLM_MSP;
     }
     else if (RcChannels_gps_pack(tx_buffer, GpsTlm))
     {
-        RcChannels_packetTypeSet(tx_buffer, DL_PACKET_GPS);
+        crc_or_type = DL_PACKET_GPS;
     }
     else
     {
         RcChannels_link_stas_pack(tx_buffer, LinkStatistics, lq);
-        RcChannels_packetTypeSet(tx_buffer, DL_PACKET_TLM_LINK);
+        crc_or_type = DL_PACKET_TLM_LINK;
     }
 
-    uint16_t crc = CalcCRC16(tx_buffer, index, CRCCaesarCipher);
-    tx_buffer[index++] = (crc >> 8);
-    tx_buffer[index++] = (crc & 0xFF);
-    Radio->TXnb(tx_buffer, index, FHSSgetCurrFreq());
+    RcChannels_packetTypeSet(tx_buffer, payloadSize, crc_or_type);
+
+    crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
+    tx_buffer[payloadSize++] = (crc_or_type >> 8);
+    tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
+    Radio->TXnb(tx_buffer, payloadSize, FHSSgetCurrFreq());
 
     // Adds packet to LQ otherwise an artificial drop in LQ is seen due to sending TLM.
     LQ_packetAck();
@@ -369,7 +372,8 @@ void FAST_CODE_1 GotConnection()
     platform_connection_state(connectionState);
 }
 
-void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us)
+void FAST_CODE_1
+ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t payloadSize)
 {
     /* Processing takes:
         R9MM: ~160us
@@ -388,12 +392,14 @@ void FAST_CODE_1 ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t curr
     gpio_out_write(dbg_pin_rx, 1);
 #endif
 
+    payloadSize -= OTA_PACKET_CRC;
+
     //DEBUG_PRINTF("I");
     int32_t freq_err;
     const connectionState_e _conn_state = connectionState;
-    const uint16_t crc = CalcCRC16(rx_buffer, OTA_PACKET_PAYLOAD, CRCCaesarCipher);
-    const uint16_t crc_in = ((uint16_t)rx_buffer[OTA_PACKET_PAYLOAD] << 8) + rx_buffer[OTA_PACKET_PAYLOAD+1];
-    const uint8_t type = RcChannels_packetTypeGet(rx_buffer);
+    const uint16_t crc = CalcCRC16(rx_buffer, payloadSize, CRCCaesarCipher);
+    const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
+    const uint8_t type = RcChannels_packetTypeGet(rx_buffer, payloadSize);
 
     if (crc_in != crc)
     {
@@ -561,6 +567,8 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
 
     DEBUG_PRINTF("Set RF rate: %u (sync ch: %u)\n", config->rate, FHSScurrSequenceIndex());
 
+    RcChannels_initRcPacket(config->payloadSize);
+    Radio->SetRxBufferSize(config->payloadSize);
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
