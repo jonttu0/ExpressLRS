@@ -35,6 +35,7 @@ SX1280Driver::SX1280Driver():
     currOpmode = SX1280_MODE_UNKNOWN_MAX;
     _syncWord = _syncWordLong = _cipher = 0;
     module_type = MODULE_SX128x;
+    SetPacketInterval(0); // Disable timeout by default
 }
 
 int8_t SX1280Driver::Begin(int sck, int miso, int mosi)
@@ -129,17 +130,6 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
                     SX1280_IRQ_RADIO_NONE,
                     SX1280_IRQ_RADIO_NONE);
     ClearIrqStatus(SX1280_IRQ_RADIO_ALL);
-
-    if (packet_rate_ns) {
-        // Time-out duration = periodBase * periodBaseCount
-        // period base is configured to 62.5us
-        tx_timeout = rx_timeout = packet_rate_ns / 62500;
-    } else {
-        // periodBaseCount: 0xffff = Rx Continuous mode.
-        rx_timeout = 0xffff;
-        // periodBaseCount: 0x0 = no timeout, returns when TX is ready
-        tx_timeout = 0x0;
-    }
 }
 
 void SX1280Driver::SetPacketType(uint8_t const type)
@@ -222,8 +212,8 @@ void FAST_CODE_2 SX1280Driver::SetMode(SX1280_RadioOperatingModes_t OPmode)
     }
     case SX1280_MODE_RX: {
         buffer[0] = SX1280_RADIO_SET_RX;
-        // periodBase: 0x1 = 62.5us, page 66 (Table 11-22) in datasheet
-        buffer[1] = SX1280_RADIO_TICK_SIZE_62_5us;
+        // periodBase: page 66 (Table 11-22) in datasheet
+        buffer[1] = SX1280_RADIO_TICK_SIZE_15_625us;
         buffer[2] = (rx_timeout >> 8) & 0xFF;
         buffer[3] = rx_timeout & 0xFF;
         len = 4;
@@ -231,9 +221,10 @@ void FAST_CODE_2 SX1280Driver::SetMode(SX1280_RadioOperatingModes_t OPmode)
     }
     case SX1280_MODE_TX: {
         buffer[0] = SX1280_RADIO_SET_TX;
-        buffer[1] = SX1280_RADIO_TICK_SIZE_62_5us;
-        buffer[2] = (tx_timeout >> 8) & 0xFF;
-        buffer[3] = tx_timeout & 0xFF;
+        buffer[1] = SX1280_RADIO_TICK_SIZE_15_625us;
+        // periodBaseCount: 0x0 = no timeout, returns when TX is ready
+        buffer[2] = 0x0;
+        buffer[3] = 0x0;
         len = 4;
         break;
     }
@@ -493,6 +484,14 @@ void FAST_CODE_2 SX1280Driver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
     // Apply freq error correction
 }
 
+void FAST_CODE_1 SX1280Driver::SetPacketInterval(uint32_t const interval_us) {
+    // Time-out duration = periodBase * periodBaseCount
+    // period base is configured to 62.5us
+    // periodBaseCount: 0xffff = Rx Continuous mode.
+    rx_timeout = (interval_us) ? ((interval_us * 1000) / 15625) : 0xffff;
+    DEBUG_PRINTF("rx_timeout reg:%u\n", rx_timeout);
+}
+
 void FAST_CODE_1 SX1280Driver::TXnbISR(uint16_t irqs)
 {
     uint8_t const status = LastRadioStatus;
@@ -523,14 +522,14 @@ static uint8_t DMA_ATTR RXdataBuffer[RADIO_RX_BUFFER_SIZE];
 
 void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
 {
-    int32_t FIFOaddr;
+    uint8_t FIFOaddr;
     uint8_t status = LastRadioStatus;
 
     currOpmode = (SX1280_RadioOperatingModes_t)(
         (status & SX1280_STATUS_MODE_MASK) >> SX1280_STATUS_MODE_SHIFT);
 
     // Check current status for data ready
-    if ((status & SX1280_STATUS_CMD_STATUS_MASK) != SX1280_STATUS_CMD_STATUS_DATA_AVAILABLE) {
+    if (rx_timeout == 0xffff && (status & SX1280_STATUS_CMD_STATUS_MASK) != SX1280_STATUS_CMD_STATUS_DATA_AVAILABLE) {
         RXdoneCallback1(NULL, rx_us, 0); // Error!
         return;
     }
@@ -540,12 +539,11 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
     if (!(irqs & SX1280_IRQ_RX_DONE) ||
             (irqs & (SX1280_IRQ_CRC_ERROR | SX1280_IRQ_RX_TX_TIMEOUT)) ||
             (status & ~(SX1280_FLRC_PKT_ERROR_PKT_RCVD | SX1280_FLRC_PKT_ERROR_HDR_RCVD))) {
+        DEBUG_PRINTF("?");
         RXdoneCallback1(NULL, rx_us, 0); // Error!
         return;
     }
     FIFOaddr = GetRxBufferAddr();
-    if (FIFOaddr < 0) // RX len is not correct!
-        return;
     ReadBuffer(FIFOaddr, RXdataBuffer, ota_pkt_size);
     RXdoneCallback1(RXdataBuffer, rx_us, ota_pkt_size);
 }
@@ -621,13 +619,12 @@ void SX1280Driver::SetDioIrqParams(uint16_t const irqMask, uint16_t const dio1Ma
     TransferBuffer(buf, sizeof(buf), 0);
 }
 
-int32_t FAST_CODE_1 SX1280Driver::GetRxBufferAddr(void)
+uint8_t FAST_CODE_1 SX1280Driver::GetRxBufferAddr(void)
 {
     uint8_t status[] = {SX1280_RADIO_GET_RXBUFFERSTATUS, 0, 0, 0};
     TransferBuffer(status, sizeof(status), 1);
     // [1] status, [2] rxPayloadLength, [3] rxStartBufferPointer
     //LastRadioStatus = status[0];
-    //return (status[2] == sizeof(RXdataBuffer)) ? status[2] : -1;
     return status[3];
 }
 

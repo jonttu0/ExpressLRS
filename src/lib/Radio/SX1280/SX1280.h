@@ -41,6 +41,7 @@ public:
 #endif
     ;
     void setPPMoffsetReg(int32_t error_hz, uint32_t frf = 0);
+    void SetPacketInterval(uint32_t const interval_us);
 
     void TXnb(const uint8_t *data, uint8_t length, uint32_t freq = 0);
     void RXnb(uint32_t freq = 0);
@@ -59,7 +60,6 @@ private:
     SX1280_RadioOperatingModes_t currOpmode;
     efe_scaler_t p_efe_scaler;
     uint16_t rx_timeout;
-    uint16_t tx_timeout;
     uint8_t packet_mode;
     uint8_t LastRadioStatus;
 
@@ -81,7 +81,7 @@ private:
 
     void SetFIFOaddr(uint8_t txBaseAddr, uint8_t rxBaseAddr);
     void SetDioIrqParams(uint16_t irqMask, uint16_t dio1Mask, uint16_t dio2Mask, uint16_t dio3Mask);
-    int32_t GetRxBufferAddr(void);
+    uint8_t GetRxBufferAddr(void);
     uint8_t GetLastPacketStatus(void);
 
     ///////// SPI Interface
