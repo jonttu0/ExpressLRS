@@ -1,6 +1,11 @@
 #include "SX1280.h"
 #include "debug_elrs.h"
 
+
+#ifndef SX1280_REGULATOR_MODE_DCDC
+#define SX1280_REGULATOR_MODE_DCDC 0
+#endif
+
 /////////////////////////////////////////////////////////////////
 
 static SX1280Driver * DRAM_ATTR instance = NULL;
@@ -103,7 +108,7 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
     uint16_t irqs = (SX1280_IRQ_TX_DONE | SX1280_IRQ_RX_DONE | SX1280_IRQ_RX_TX_TIMEOUT);
     uint8_t const mode = flrc ? SX1280_PACKET_TYPE_FLRC : SX1280_PACKET_TYPE_LORA;
     SetMode(SX1280_MODE_STDBY_RC);
-    SetRegulatorMode(SX1280_USE_LDO);
+    SetRegulatorMode(SX1280_REGULATOR_MODE_DCDC ? SX1280_USE_DCDC : SX1280_USE_LDO);
     SetPacketType(mode);
     SetFrequency(freq);
     if (mode == SX1280_PACKET_TYPE_FLRC) {
