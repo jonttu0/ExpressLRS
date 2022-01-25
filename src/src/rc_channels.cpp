@@ -425,6 +425,7 @@ uint16_t RcChannels_channelMaxValueGet(void)
  */
 void RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
 {
+    uint16_t const * const ChannelDataIn = &rcChannels->ch[N_CONTROLS];
     uint_fast8_t switch_state, idx;
 
     /**
@@ -437,11 +438,11 @@ void RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
      */
     for (idx = 0; idx < N_SWITCHES; idx++) {
 #if N_SWITCHES <= 5 || 8 < N_SWITCHES
-        switch_state = rcChannels->ch[idx];
+        switch_state = ChannelDataIn[idx];
         if (0b11 < switch_state) switch_state = 0b11;
 #else
         // input is 0 - 2048, output is 0 - 7
-        switch_state = SWITCH2b_to_3b(rcChannels->ch[idx]);
+        switch_state = SWITCH2b_to_3b(ChannelDataIn[idx]);
         if (0b111 < switch_state) switch_state = 0b111;
 #endif
         // Check if state is changed
@@ -451,7 +452,8 @@ void RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
         }
     }
 
-    channels_pack(rcChannels->ch[0], rcChannels->ch[1], rcChannels->ch[2], rcChannels->ch[3]);
+    channels_pack(rcChannels->ch[0], rcChannels->ch[1],
+                  rcChannels->ch[2], rcChannels->ch[3]);
 }
 
 /**

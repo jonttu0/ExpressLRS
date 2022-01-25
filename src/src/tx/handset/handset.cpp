@@ -64,10 +64,11 @@ rc_data_collect(uint32_t const current_us)
                     ANALOG_MIN_VAL, scale);
         }
     }
-    rc_data.ch[0] = gimbals[pl_config.mixer[0].index];
-    rc_data.ch[1] = gimbals[pl_config.mixer[1].index];
-    rc_data.ch[2] = gimbals[pl_config.mixer[2].index];
-    rc_data.ch[3] = gimbals[pl_config.mixer[3].index];
+    // mix analog channels into output buffer
+    for (iter = 0; iter < NUM_ANALOGS; iter++) {
+        rc_data.ch[iter] = gimbals[pl_config.mixer[iter].index];
+    }
+    // get AUX channel positions
     switches_collect(aux);
     for (iter = 0; iter < NUM_SWITCHES; iter++) {
         if (pl_config.mixer[(iter + 4)].inv) {
@@ -75,38 +76,11 @@ rc_data_collect(uint32_t const current_us)
             aux[index] = SWITCH_MAX - aux[index];
         }
     }
-    rc_data.ch[4] = aux[pl_config.mixer[4].index];
-    rc_data.ch[5] = aux[pl_config.mixer[5].index];
-#if 2 < NUM_SWITCHES
-    rc_data.ch[6] = aux[pl_config.mixer[6].index];
-#endif
-#if 3 < NUM_SWITCHES
-    rc_data.ch[7] = aux[pl_config.mixer[7].index];
-#endif
-#if 4 < NUM_SWITCHES
-    rc_data.ch[8] = aux[pl_config.mixer[8].index];
-#endif
-#if 5 < NUM_SWITCHES
-    rc_data.ch[9] = aux[pl_config.mixer[9].index];
-#endif
-#if 6 < NUM_SWITCHES
-    rc_data.ch[10] = aux[pl_config.mixer[10].index];
-#endif
-#if 7 < NUM_SWITCHES
-    rc_data.ch[11] = aux[pl_config.mixer[11].index];
-#endif
-#if 8 < NUM_SWITCHES
-    rc_data.ch[12] = aux[pl_config.mixer[12].index];
-#endif
-#if 9 < NUM_SWITCHES
-    rc_data.ch[13] = aux[pl_config.mixer[13].index];
-#endif
-#if 10 < NUM_SWITCHES
-    rc_data.ch{14} = aux[pl_config.mixer[14].index];
-#endif
-#if 11 < NUM_SWITCHES
-    rc_data.ch{15} = aux[pl_config.mixer[15].index];
-#endif
+    // mix AUX channels into output buffer
+    for (iter = 4; iter < (NUM_ANALOGS + NUM_SWITCHES); iter++) {
+        rc_data.ch[iter] = aux[pl_config.mixer[iter].index];
+    }
+    // process channel data into OTA packet
     RcChannels_processChannels(&rc_data.ota_pkt);
 #ifdef DBG_PIN
     gpio_out_write(debug, 0);
