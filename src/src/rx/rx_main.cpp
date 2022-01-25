@@ -282,8 +282,8 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     uplink_Link_quality = lq;
     LQ_nextPacket();
 
-    if ((0 < tlm_ratio) && ((nonce & tlm_ratio) == 0))
-    {
+    if ((0 < tlm_ratio) && ((nonce & tlm_ratio) == 0)
+            && (connectionState == STATE_connected)) {
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_tmr, 0);
 #endif
