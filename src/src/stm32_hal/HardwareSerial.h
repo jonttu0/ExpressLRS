@@ -11,7 +11,11 @@
 #define UART_BUFF_SIZE 256
 
 #if defined(STM32F7xx)
+#ifndef PRINTF_NUM_BLOCKS
 #define UART_DMA_TX_BUFF    64
+#else
+#define UART_DMA_TX_BUFF    PRINTF_NUM_BLOCKS
+#endif
 #else
 #define UART_DMA_TX_BUFF    16
 #endif

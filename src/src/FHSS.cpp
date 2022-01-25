@@ -30,11 +30,14 @@ static void FHSSprintSequence(const uint8_t fhss_sequence_len)
     uint8_t iter;
     DEBUG_PRINTF("FHSS Sequence:");
     for (iter = 0; iter < fhss_sequence_len; iter++) {
-        if ((iter % 10) == 0)
+        if ((iter % 10) == 0) {
             DEBUG_PRINTF("\n");
-        DEBUG_PRINTF("%2u ", FHSS_sequence_lut[iter]);
+            delay(2);
+        }
+        DEBUG_PRINTF("%4u", FHSS_sequence_lut[iter]);
     }
     DEBUG_PRINTF("\n");
+    delay(2);
 #else
     (void)fhss_sequence_len;
 #endif

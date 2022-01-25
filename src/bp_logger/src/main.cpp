@@ -1424,13 +1424,13 @@ int serialEvent()
 
       msp_handler.markPacketFree();
     } else if (!msp_handler.mspOngoing()) {
-      if (inChar == '\r') {
-        continue;
-      } else if (inChar == '\n' || 64 <= inputString.length()) {
-        return 0;
-      }
-      if (isprint(inChar))
-        inputString += (char)inChar;
+
+      if (inChar == '\r') continue;
+      else if (inChar == '\n') return 0;
+      // add if printable char
+      if (isprint(inChar)) inputString += (char)inChar;
+      // for safety... send
+      if (70 <= inputString.length()) return 0;
     }
 
     //if (msp_handler.error())
