@@ -129,6 +129,17 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
                     SX1280_IRQ_RADIO_NONE,
                     SX1280_IRQ_RADIO_NONE);
     ClearIrqStatus(SX1280_IRQ_RADIO_ALL);
+
+    if (packet_rate_ns) {
+        // Time-out duration = periodBase * periodBaseCount
+        // period base is configured to 62.5us
+        tx_timeout = rx_timeout = packet_rate_ns / 62500;
+    } else {
+        // periodBaseCount: 0xffff = Rx Continuous mode.
+        rx_timeout = 0xffff;
+        // periodBaseCount: 0x0 = no timeout, returns when TX is ready
+        tx_timeout = 0x0;
+    }
 }
 
 void SX1280Driver::SetPacketType(uint8_t const type)
@@ -189,43 +200,43 @@ void FAST_CODE_2 SX1280Driver::SetMode(SX1280_RadioOperatingModes_t OPmode)
     switch (OPmode)
     {
 
-    case SX1280_MODE_SLEEP:
+    case SX1280_MODE_SLEEP: {
         buffer[0] = SX1280_RADIO_SET_SLEEP;
         buffer[1] = 0x1;
         break;
-
-    case SX1280_MODE_STDBY_RC:
+    }
+    case SX1280_MODE_STDBY_RC: {
         buffer[0] = SX1280_RADIO_SET_STANDBY;
         buffer[1] = SX1280_STDBY_RC;
         break;
-    case SX1280_MODE_STDBY_XOSC:
+    }
+    case SX1280_MODE_STDBY_XOSC: {
         buffer[0] = SX1280_RADIO_SET_STANDBY;
         buffer[1] = SX1280_STDBY_XOSC;
         break;
-
-    case SX1280_MODE_FS:
+    }
+    case SX1280_MODE_FS: {
         buffer[0] = SX1280_RADIO_SET_FS;
         buffer[1] = 0x00;
         break;
-
-    case SX1280_MODE_RX:
+    }
+    case SX1280_MODE_RX: {
         buffer[0] = SX1280_RADIO_SET_RX;
-        //uses timeout Time-out duration = periodBase * periodBaseCount
-        buffer[1] = 0x02; // periodBase: 0x2 = 1ms, page 71 datasheet
-        buffer[2] = 0xFF; // periodBaseCount: 0xffff = Rx Continuous mode.
-        buffer[3] = 0xFF;
+        // periodBase: 0x1 = 62.5us, page 66 (Table 11-22) in datasheet
+        buffer[1] = SX1280_RADIO_TICK_SIZE_62_5us;
+        buffer[2] = (rx_timeout >> 8) & 0xFF;
+        buffer[3] = rx_timeout & 0xFF;
         len = 4;
         break;
-
-    case SX1280_MODE_TX:
+    }
+    case SX1280_MODE_TX: {
         buffer[0] = SX1280_RADIO_SET_TX;
-        //uses timeout Time-out duration = periodBase * periodBaseCount
-        buffer[1] = 0x02; // periodBase: 0x2 = 1ms, page 71 datasheet
-        buffer[2] = 0x00; // periodBaseCount: 0x0 = no timeout, returns when TX is ready
-        buffer[3] = 0x00;
+        buffer[1] = SX1280_RADIO_TICK_SIZE_62_5us;
+        buffer[2] = (tx_timeout >> 8) & 0xFF;
+        buffer[3] = tx_timeout & 0xFF;
         len = 4;
         break;
-
+    }
     case SX1280_MODE_CALIBRATION:
     case SX1280_MODE_CAD:
     default:
@@ -491,9 +502,8 @@ void FAST_CODE_1 SX1280Driver::TXnbISR(uint16_t irqs)
         (status & SX1280_STATUS_MODE_MASK) >> SX1280_STATUS_MODE_SHIFT);
 
     // Ignore if not a TX DONE ISR
-    if (!(irqs & SX1280_IRQ_TX_DONE))
-        return;
-
+    //if (!(irqs & SX1280_IRQ_TX_DONE))
+    //    return;
     TXdoneCallback1();
 }
 
@@ -516,7 +526,6 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t rx_us, uint16_t irqs)
     int32_t FIFOaddr;
     uint8_t status = LastRadioStatus;
 
-    //currOpmode = SX1280_MODE_FS;
     currOpmode = (SX1280_RadioOperatingModes_t)(
         (status & SX1280_STATUS_MODE_MASK) >> SX1280_STATUS_MODE_SHIFT);
 

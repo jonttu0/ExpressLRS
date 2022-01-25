@@ -32,8 +32,8 @@ class RadioInterface : public RadioHalSpi
 {
 public:
     RadioInterface(uint8_t read = 0, uint8_t write = 0):
-            RadioHalSpi(read, write), module_type(MODULE_COUNT),
-            ota_pkt_size(RADIO_RX_BUFFER_SIZE) {
+            RadioHalSpi(read, write), packet_rate_ns(0),
+            module_type(MODULE_COUNT), ota_pkt_size(RADIO_RX_BUFFER_SIZE) {
         RXdoneCallback1 = RadioInterface::rx_nullCallback;
         TXdoneCallback1 = RadioInterface::tx_nullCallback;
     }
@@ -60,6 +60,9 @@ public:
     void SetCaesarCipher(uint16_t const cipher) {
         _cipher = cipher;
     };
+    void SetPacketInterval(uint32_t const rate_us) {
+        packet_rate_ns = rate_us * 1000;
+    }
     virtual void SetOutputPower(int8_t power, uint8_t init=0) = 0;
     virtual void setPPMoffsetReg(int32_t error_hz, uint32_t frf = 0) = 0;
     virtual int32_t GetFrequencyError() = 0;
@@ -102,6 +105,7 @@ protected:
     gpio_in _BUSY;
 
     ////////// Config Variables //////////
+    uint32_t packet_rate_ns;
     uint32_t current_freq;
     uint32_t _syncWordLong;
     uint16_t _cipher;

@@ -569,6 +569,7 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
 
     RcChannels_initRcPacket(config->payloadSize);
     Radio->SetRxBufferSize(config->payloadSize);
+    //Radio->SetPacketInterval(config->interval);
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),

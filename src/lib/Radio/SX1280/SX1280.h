@@ -58,6 +58,8 @@ public:
 private:
     SX1280_RadioOperatingModes_t currOpmode;
     efe_scaler_t p_efe_scaler;
+    uint16_t rx_timeout;
+    uint16_t tx_timeout;
     uint8_t packet_mode;
     uint8_t LastRadioStatus;
 
