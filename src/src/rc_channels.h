@@ -205,8 +205,8 @@ typedef struct rc_channels_rx_s {
     unsigned int ch10 : 3;
     unsigned int ch11 : 3;
 } PACKED rc_channels_rx_t;
-#elif PROTOCOL_CRSF_V3_TO_FC
 
+#elif PROTOCOL_CRSF_V3_TO_FC
 enum {
     CRSFv3_RES_10B = 0,
     CRSFv3_RES_11B,
@@ -255,8 +255,28 @@ typedef struct rc_channels_rx_s {
     uint32_t ch15 : CRSFv3_BITS;
 #endif
 } PACKED rc_channels_rx_t;
+
 #else // !PROTOCOL_ELRS_TO_FC
-typedef rc_channels_module_t rc_channels_rx_t;
+typedef struct {
+    /* CRSF V1 and V2 is 16 channels, 11b each */
+    unsigned ch0  : 11;
+    unsigned ch1  : 11;
+    unsigned ch2  : 11;
+    unsigned ch3  : 11;
+    unsigned ch4  : 11;
+    unsigned ch5  : 11;
+    unsigned ch6  : 11;
+    unsigned ch7  : 11;
+    unsigned ch8  : 11;
+    unsigned ch9  : 11;
+    unsigned ch10 : 11;
+    unsigned ch11 : 11;
+    unsigned ch12 : 11;
+    unsigned ch13 : 11;
+    unsigned ch14 : 11;
+    unsigned ch15 : 11;
+} PACKED rc_channels_rx_t;
+
 #endif // PROTOCOL_ELRS_TO_FC
 
 
