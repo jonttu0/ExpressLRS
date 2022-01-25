@@ -569,7 +569,6 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
 
     RcChannels_initRcPacket(config->payloadSize);
     Radio->SetRxBufferSize(config->payloadSize);
-    //Radio->SetPacketInterval(config->interval);
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
@@ -810,12 +809,15 @@ void loop()
 #if PRINT_RATE && NO_DATA_TO_FC
     if ((1000U <= (uint32_t)(now - print_Rate_cnt_time)) &&
         (_conn_state == STATE_connected)) {
-        DEBUG_PRINTF(" Rate: -%u +%u LQ:%u RSSI:%d SNR:%d\n",
+        DEBUG_PRINTF(" Rate: -%u +%u LQ:%u RSSI:%d SNR:%d - RC: %u|%u|%u|%u|*|%u|%u|%u|%u|\n",
             read_u32(&print_rate_cnt_fail),
             read_u32(&print_rate_cnt),
             read_u8(&uplink_Link_quality),
             LPF_UplinkRSSI.value(),
-            LPF_UplinkSNR.value());
+            LPF_UplinkSNR.value(),
+            CrsfChannels.ch0, CrsfChannels.ch1, CrsfChannels.ch2, CrsfChannels.ch3,
+            CrsfChannels.ch4, CrsfChannels.ch5, CrsfChannels.ch6, CrsfChannels.ch7
+            );
         write_u32(&print_rate_cnt, 0);
         write_u32(&print_rate_cnt_fail, 0);
         print_Rate_cnt_time = now;
