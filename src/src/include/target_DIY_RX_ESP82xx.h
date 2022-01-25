@@ -7,16 +7,23 @@
 #define GPIO_PIN_RST         2
 #define GPIO_PIN_LED         16
 #define GPIO_PIN_BUTTON      0
-#if DOMAIN_24GHZ
-    #define GPIO_PIN_DIO0    4
-    #define GPIO_PIN_BUSY    5
-    #define TARGET_INDENTIFIER "2400ESPRX"
+#if TARGET_IFLIGHT_RX_2400
+    #define GPIO_PIN_DIO0       5
+    #define GPIO_PIN_BUSY       4
+    #define GPIO_PIN_RX_ENABLE  9
+    #define GPIO_PIN_TX_ENABLE  10
+    #define TARGET_INDENTIFIER  "2400IFLIGHTRX"
+    #define SX1280_REGULATOR_MODE_DCDC 1
+#elif DOMAIN_24GHZ
+    #define GPIO_PIN_DIO0       4
+    #define GPIO_PIN_BUSY       5
+    #define TARGET_INDENTIFIER  "2400ESPRX"
 #elif TARGET_NAMIMNORC_900_ESP_RX
-    #define GPIO_PIN_DIO0    5
-    #define GPIO_PIN_DIO1    4
-    #define TARGET_INDENTIFIER "900VOYAGERRX"
+    #define GPIO_PIN_DIO0       5
+    #define GPIO_PIN_DIO1       4
+    #define TARGET_INDENTIFIER  "900VOYAGERRX"
 #else
-    #define GPIO_PIN_DIO0    4
-    #define GPIO_PIN_DIO1    5
-    #define TARGET_INDENTIFIER "900ESPRX"
+    #define GPIO_PIN_DIO0       4
+    #define GPIO_PIN_DIO1       5
+    #define TARGET_INDENTIFIER  "900ESPRX"
 #endif
