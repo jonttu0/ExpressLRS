@@ -38,9 +38,8 @@ if platform in ['ststm32']:
     upload_protocols = board.get("upload.protocols", "")
 
     # Default to ST-Link uploading
-    # Note: this target is also used to build 'firmware.elrs' binary
-    #       for handset flashing
-    env.Replace(UPLOADCMD=stlink.on_upload)
+    default_upload_cmd = stlink.on_upload
+
     env.AddCustomTarget(tgt_STLINK,
         ["$BUILD_DIR/${PROGNAME}.bin"],
         [stlink.on_upload],
@@ -55,7 +54,7 @@ if platform in ['ststm32']:
             # and that can be ignored when '.elrs' file is used.
             env.AddPostAction("buildprog", opentx.gen_elrs)
             env.AddPreAction("upload", opentx.gen_elrs)
-            wifi_targets.append(opentx.gen_elrs)
+            # wifi_targets.append(opentx.gen_elrs)
         if find_build_flag("HAS_WIFI_BACKPACK") or \
                 "HAS_WIFI_BACKPACK" in features or \
                 "wifi" in upload_protocols:
@@ -65,7 +64,13 @@ if platform in ['ststm32']:
                 ["$BUILD_DIR/${PROGNAME}.bin"],
                 wifi_targets,
                 title="Upload via WiFi", description="")
+            # Default to ST-Link uploading
+            default_upload_cmd = wifi_targets
+
     elif "_RX" in target_name:
+        # Default to passthrough uploading
+        default_upload_cmd = UARTupload.on_upload
+
         # Check whether the target is using FC passthrough upload (receivers)
         env.AddCustomTarget(tgt_PASSTHROUGH,
             ["$BUILD_DIR/${PROGNAME}.bin"],
@@ -82,6 +87,10 @@ if platform in ['ststm32']:
             dependencies=["$BUILD_DIR/${PROGNAME}.bin"],
             actions=command,
             title="Upload via DFU", description="")
+
+    # Override default upload command
+    if default_upload_cmd is not None:
+        env.Replace(UPLOADCMD=default_upload_cmd)
 
 elif platform in ['espressif8266']:
     env.AddPostAction("buildprog", esp_compress.compressFirmware)
