@@ -5,7 +5,7 @@
 #include "crc.h"
 #include "targets.h"
 
-
+//#define FHSS_TABLE_PRINT    1
 #define FHSS_SEQ_TABLE_SIZE 256
 
 // Actual sequence of hops as indexes into the frequency list
@@ -25,19 +25,19 @@ static void FHSSupdateFrequencies(uint8_t mode);
 static void FHSSrandomiseSequence(uint32_t nbr_fhss_freqs);
 static void FHSSprintSequence(const uint8_t fhss_sequence_len)
 {
-#ifdef DEBUG_SERIAL
+#if defined(DEBUG_SERIAL) && defined(FHSS_TABLE_PRINT)
     // output FHSS sequence
     uint8_t iter;
     DEBUG_PRINTF("FHSS Sequence:");
     for (iter = 0; iter < fhss_sequence_len; iter++) {
         if ((iter % 10) == 0) {
             DEBUG_PRINTF("\n");
-            delay(2);
+            delay(5);
         }
-        DEBUG_PRINTF("%4u", FHSS_sequence_lut[iter]);
+        DEBUG_PRINTF(" %3u", FHSS_sequence_lut[iter]);
     }
     DEBUG_PRINTF("\n");
-    delay(2);
+    delay(5);
 #else
     (void)fhss_sequence_len;
 #endif
