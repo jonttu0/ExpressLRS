@@ -10,7 +10,7 @@ def on_upload(source, target, env):
     if not isstm and platform in ['espressif32']:
         # Update ESP transmitter
         upload_addr = ['elrs_tx.local', 'elrs_tx']
-    elif not isstm and platform in ['espressif8266']:
+    elif not isstm and "LOGGER_" not in target_name and platform in ['espressif8266']:
         # Update ESP receiver
         upload_addr = ['elrs_rx.local', 'elrs_rx']
     else:
