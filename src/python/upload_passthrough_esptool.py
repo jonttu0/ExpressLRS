@@ -48,29 +48,31 @@ def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=False)
 
     # Reset into bootloader
     if not skip_reset:
-        dbg_print("======== RESET TO BOOTLOADER ========")
+        dbg_print("======== RESET TO BOOTLOADER ========\n")
         s = serial.Serial(port=port, baudrate=detected_baud,
             bytesize=8, parity='N', stopbits=1,
             timeout=1, xonxoff=0, rtscts=0)
         rl = SerialHelper.SerialHelper(s, 3.)
         rl.clear()
+        #'''
         # Let the CRSFv3 to fallback to 420k baud
         time.sleep(1.5)
         rl.write(cmd_reboot_to_bootloader)
         s.flush()
         rx_target = rl.read_line().strip()
-        dbg_print("  Receiver reported '%s' target" % rx_target)
+        dbg_print("  Receiver reported '%s' target\n" % rx_target)
+        #'''
         '''
         flash_target = re.sub("_VIA_.*", "", args.target.upper())
         if rx_target == "":
-            dbg_print("Cannot detect RX target, blindly flashing!")
+            dbg_print("Cannot detect RX target, blindly flashing!\n")
         elif rx_target != flash_target:
             if query_yes_no("\n\n\nWrong target selected! your RX is '%s', trying to flash '%s', continue? Y/N\n" % (rx_target, flash_target)):
-                dbg_print("Ok, flashing anyway!")
+                dbg_print("Ok, flashing anyway!\n")
             else:
                 raise WrongTargetSelected("Wrong target selected your RX is '%s', trying to flash '%s'" % (rx_target, flash_target))
         elif flash_target != "":
-            dbg_print("Verified RX target '%s'" % (flash_target))
+            dbg_print("Verified RX target '%s'\n" % (flash_target))
         '''
         time.sleep(.5)
         s.close()
@@ -85,7 +87,7 @@ def uart_upload(port, filename, baudrate, key=None, target="", skip_reset=False)
         "write_flash", "0x0", os.path.abspath(filename)
     ]
     cmd = " ".join(args)
-    dbg_print("======== UPLOADING ========")
-    dbg_print("  Using command: '%s'" % cmd)
+    dbg_print("\n======== UPLOADING ========\n")
+    dbg_print("  Using command: '%s'\n\n" % cmd)
 
     esptool_main(args)
