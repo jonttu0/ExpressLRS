@@ -2,43 +2,13 @@
 
 #include "platform.h"
 #include "RadioInterface.h"
+#include "LoRa_SX127x_Regs.h"
 #include <stdint.h>
 
-typedef enum
-{
-    BW_7_80_KHZ = 0,
-    BW_10_40_KHZ = 1,
-    BW_15_60_KHZ = 2,
-    BW_20_80_KHZ = 3,
-    BW_31_25_KHZ = 4,
-    BW_41_70_KHZ = 5,
-    BW_62_50_KHZ = 6,
-    BW_125_00_KHZ = 7,
-    BW_250_00_KHZ = 8,
-    BW_500_00_KHZ = 9
-} Bandwidth;
-
-typedef enum
-{
-    SF_6,
-    SF_7,
-    SF_8,
-    SF_9,
-    SF_10,
-    SF_11,
-    SF_12
-} SpreadingFactor;
-
-typedef enum
-{
-    CR_4_5,
-    CR_4_6,
-    CR_4_7,
-    CR_4_8
-} CodingRate;
 
 #define SX127X_SYNC_WORD    201  //  201 - default ExpressLRS sync word
 #define SX127X_SPI_SPEED    10000000
+
 
 class SX127xDriver: public RadioInterface
 {

@@ -1,5 +1,4 @@
 #include "LoRa_SX127x.h"
-#include "LoRa_SX127x_Regs.h"
 #include "debug_elrs.h"
 #include <stdio.h>
 #include <string.h>
@@ -415,7 +414,6 @@ void SX127xDriver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
                           uint8_t crc, uint8_t flrc)
 {
     (void)flrc;
-    uint8_t newBandwidth, newSpreadingFactor, newCodingRate;
 
     if (freq == 0)
         freq = current_freq;
@@ -426,118 +424,48 @@ void SX127xDriver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
         return;
     }
 
-    // check the supplied BW, CR and SF values
-    switch ((Bandwidth)bw)
-    {
-        case BW_7_80_KHZ:
-            newBandwidth = SX127X_BW_7_80_KHZ;
-            break;
-        case BW_10_40_KHZ:
-            newBandwidth = SX127X_BW_10_40_KHZ;
-            break;
-        case BW_15_60_KHZ:
-            newBandwidth = SX127X_BW_15_60_KHZ;
-            break;
-        case BW_20_80_KHZ:
-            newBandwidth = SX127X_BW_20_80_KHZ;
-            break;
-        case BW_31_25_KHZ:
-            newBandwidth = SX127X_BW_31_25_KHZ;
-            break;
-        case BW_41_70_KHZ:
-            newBandwidth = SX127X_BW_41_70_KHZ;
-            break;
-        case BW_62_50_KHZ:
-            newBandwidth = SX127X_BW_62_50_KHZ;
-            break;
-        case BW_125_00_KHZ:
-            newBandwidth = SX127X_BW_125_00_KHZ;
-            break;
-        case BW_250_00_KHZ:
-            newBandwidth = SX127X_BW_250_00_KHZ;
-            break;
-        case BW_500_00_KHZ:
-            newBandwidth = SX127X_BW_500_00_KHZ;
-            break;
-        default:
-            return;
-    }
-
-    switch ((SpreadingFactor)sf)
-    {
-        case SF_6:
-            newSpreadingFactor = SX127X_SF_6;
-            break;
-        case SF_7:
-            newSpreadingFactor = SX127X_SF_7;
-            break;
-        case SF_8:
-            newSpreadingFactor = SX127X_SF_8;
-            break;
-        case SF_9:
-            newSpreadingFactor = SX127X_SF_9;
-            break;
-        case SF_10:
-            newSpreadingFactor = SX127X_SF_10;
-            break;
-        case SF_11:
-            newSpreadingFactor = SX127X_SF_11;
-            break;
-        case SF_12:
-            newSpreadingFactor = SX127X_SF_12;
-            break;
-        default:
-            return;
-    }
-
-    switch ((CodingRate)cr)
-    {
-        case CR_4_5:
-            newCodingRate = SX127X_CR_4_5;
-            break;
-        case CR_4_6:
-            newCodingRate = SX127X_CR_4_6;
-            break;
-        case CR_4_7:
-            newCodingRate = SX127X_CR_4_7;
-            break;
-        case CR_4_8:
-            newCodingRate = SX127X_CR_4_8;
-            break;
-        default:
-            return;
-    }
-
     // configure common registers
-    SX127xConfig(newBandwidth, newSpreadingFactor, newCodingRate, freq, _syncWord, crc);
+    SX127xConfig(bw, sf, cr, freq, _syncWord, crc);
     SetPreambleLength(PreambleLength);
 
     // save the new settings
     current_freq = freq;
 
-    switch ((Bandwidth)bw) {
-        case BW_7_80_KHZ:
+    switch (bw)
+    {
+        case SX127X_BW_7_80_KHZ:
             p_bw_hz = 7800;
-        case BW_10_40_KHZ:
+            break;
+        case SX127X_BW_10_40_KHZ:
             p_bw_hz = 10400;
-        case BW_15_60_KHZ:
+            break;
+        case SX127X_BW_15_60_KHZ:
             p_bw_hz = 15600;
-        case BW_20_80_KHZ:
+            break;
+        case SX127X_BW_20_80_KHZ:
             p_bw_hz = 20800;
-        case BW_31_25_KHZ:
+            break;
+        case SX127X_BW_31_25_KHZ:
             p_bw_hz = 31250;
-        case BW_41_70_KHZ:
+            break;
+        case SX127X_BW_41_70_KHZ:
             p_bw_hz = 41667;
-        case BW_62_50_KHZ:
+            break;
+        case SX127X_BW_62_50_KHZ:
             p_bw_hz = 62500;
-        case BW_125_00_KHZ:
+            break;
+        case SX127X_BW_125_00_KHZ:
             p_bw_hz = 125000;
-        case BW_250_00_KHZ:
+            break;
+        case SX127X_BW_250_00_KHZ:
             p_bw_hz = 250000;
-        case BW_500_00_KHZ:
+            break;
+        case SX127X_BW_500_00_KHZ:
             p_bw_hz = 500000;
+            break;
         default:
             p_bw_hz = 0;
+            break;
     }
 }
 
