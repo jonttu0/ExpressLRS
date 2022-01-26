@@ -186,7 +186,7 @@ typedef struct rc_channels_s {
 typedef struct {
     /* 16 channels */
     uint16_t ch[N_CHANNELS];
-} PACKED rc_channels_handset_t;
+} rc_channels_handset_t;
 
 
 #if PROTOCOL_ELRS_TO_FC
