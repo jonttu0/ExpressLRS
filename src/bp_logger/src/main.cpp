@@ -23,10 +23,6 @@
 #include "comm_espnow.h"
 
 
-#define STRINGIFY(s) #s
-#define STRINGIFY_TMP(A) STRINGIFY(A)
-#define CONCAT(A, B) A##B
-
 //#define INVERTED_SERIAL // Comment this out for non-inverted serial
 
 #ifndef WIFI_AP_SSID
@@ -60,7 +56,8 @@ ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
 
-const char *hostname = "elrs_logger";
+static const char hostname[] = "elrs_logger";
+static const char target_name[] = STR(TARGET_NAME);
 
 String inputString = "";
 #if WIFI_DBG
@@ -788,6 +785,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
     websocket_send(info_str, num);
     websocket_send(espnow_get_info(), num);
 
+    websocket_send(target_name, num);
 #if defined(LATEST_COMMIT)
     info_str = "Current version (SHA): ";
     uint8_t commit_sha[] = {LATEST_COMMIT};
@@ -1121,11 +1119,7 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
     MDNS.setInstanceName(hostname);
     MDNSResponder::hMDNSService service = MDNS.addService(instance.c_str(), "http", "tcp", 80);
     MDNS.addServiceTxt(service, "vendor", "elrs");
-#ifdef TARGET_INDENTIFIER
-    MDNS.addServiceTxt(service, "target", TARGET_INDENTIFIER);
-#else
-    MDNS.addServiceTxt(service, "target", "ESP82xx Logger");
-#endif
+    MDNS.addServiceTxt(service, "target", target_name);
     MDNS.addServiceTxt(service, "version", LATEST_COMMIT_STR);
     MDNS.addServiceTxt(service, "type", "rx");
 

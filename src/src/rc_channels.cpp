@@ -419,6 +419,7 @@ uint16_t RcChannels_channelMaxValueGet(void)
 }
 
 
+#if TARGET_HANDSET
 /**
  * Store channels input to local buffers for OTA packet.
  * Note: this does not do any scaling!!
@@ -455,6 +456,7 @@ void RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
     channels_pack(rcChannels->ch[0], rcChannels->ch[1],
                   rcChannels->ch[2], rcChannels->ch[3]);
 }
+#endif
 
 /**
  * Convert received CRSF serial packet from handset and

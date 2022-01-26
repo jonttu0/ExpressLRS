@@ -781,11 +781,7 @@ void web_services_start(void)
     MDNS.setInstanceName(instance);
     MDNS.addService("http", "tcp", SERVER_PORT);
     MDNS.addServiceTxt("http", "tcp", "vendor", "elrs");
-#ifdef TARGET_INDENTIFIER
-    MDNS.addServiceTxt("http", "tcp", "target", TARGET_INDENTIFIER);
-#else
-    MDNS.addServiceTxt("http", "tcp", "target", "ESP32 Generic TX");
-#endif
+    MDNS.addServiceTxt("http", "tcp", "target", target_name);
     MDNS.addServiceTxt("http", "tcp", "version", LATEST_COMMIT_STR);
     MDNS.addServiceTxt("http", "tcp", "type", "tx");
 

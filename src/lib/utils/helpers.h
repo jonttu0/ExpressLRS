@@ -3,6 +3,9 @@
 
 #include <stdint.h>
 
+#define QUOTE(arg) #arg
+#define STR(macro) QUOTE(macro)
+
 #define PACKED __attribute__((packed))
 #define CONSTRAIN(amt, low, high) ((amt) < (low) ? (low) : ((amt) > (high) ? (high) : (amt)))
 

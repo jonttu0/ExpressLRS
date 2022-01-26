@@ -146,7 +146,7 @@ print("sha_string: '%s'" % sha_string)
 print("Current SHA: %s" % sha)
 env['BUILD_FLAGS'].append("-DLATEST_COMMIT="+sha)
 env['BUILD_FLAGS'].append('-DLATEST_COMMIT_STR="\\"%s\\""' % sha_string)
-env['BUILD_FLAGS'].append("-DTARGET_NAME=" + re.sub("_VIA_.*", "", target_name.upper()))
+env['BUILD_FLAGS'].append(f"-DTARGET_NAME={target_name}")
 
 header = f"src/include/target_{target_name}.h"
 if os.path.exists(header) and \

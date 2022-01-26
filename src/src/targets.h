@@ -8,6 +8,8 @@
 /// General Features ///
 #define LED_MAX_BRIGHTNESS 50 //0..255 for max led brightness
 
+extern const char target_name[];
+extern const uint8_t target_name_len;
 
 /**********************************
            DEFAULTS

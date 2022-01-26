@@ -275,7 +275,6 @@ RadioInterface* common_config_radio(uint8_t type)
     return radio;
 }
 
-
 int8_t validate_bl_indentifier(const uint8_t * info)
 {
 #ifdef TARGET_INDENTIFIER
@@ -289,7 +288,12 @@ int8_t validate_bl_indentifier(const uint8_t * info)
         }
     }
 #endif // TARGET_INDENTIFIER
-    DEBUG_PRINTF("Jumping to Bootloader...\n");
+#if RX_MODULE
+    uint32_t irq = _SAVE_IRQ();
+    CrsfSerial.write((uint8_t*)target_name, target_name_len);
+    _RESTORE_IRQ(irq);
+#endif
+    //DEBUG_PRINTF("Jumping to Bootloader...\n");
     delay(200);
     return 0;
 }

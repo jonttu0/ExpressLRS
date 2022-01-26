@@ -32,7 +32,6 @@
 #define SERVER_PORT    80
 
 
-//MDNSResponder MDNS;
 ESP8266WebServer httpServer(SERVER_PORT);
 ESP8266HTTPUpdateServer httpUpdater;
 
@@ -115,11 +114,7 @@ void BeginWebUpdate(void)
         MDNS.setInstanceName(host);
         MDNSResponder::hMDNSService service = MDNS.addService(instance.c_str(), "http", "tcp", SERVER_PORT);
         MDNS.addServiceTxt(service, "vendor", "elrs");
-#ifdef TARGET_INDENTIFIER
-        MDNS.addServiceTxt(service, "target", TARGET_INDENTIFIER);
-#else
-        MDNS.addServiceTxt(service, "target", "ESP82xx Generic RX");
-#endif
+        MDNS.addServiceTxt(service, "target", target_name);
         MDNS.addServiceTxt(service, "version", LATEST_COMMIT_STR);
         MDNS.addServiceTxt(service, "type", "rx");
 
