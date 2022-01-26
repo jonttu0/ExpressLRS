@@ -10,6 +10,7 @@ import upload_passthrough_edgetx
 FAIL = '\033[91m'
 #FAIL = '\033[47;31m'
 
+tgt_UART = "uart"
 tgt_WIFI = "wifi"
 tgt_STLINK = "stlink"
 tgt_PASSTHROUGH = "passthrough"
@@ -100,10 +101,20 @@ elif platform in ['espressif8266']:
                      [esp_compress.compress_files])
     env.AddPostAction("${BUILD_DIR}/${ESP8266_FS_IMAGE_NAME}.bin",
                      [esp_compress.compress_fs_bin])
+
+    # Move current command to custom targets
+    env.AddCustomTarget(tgt_UART,
+        ["$BUILD_DIR/${PROGNAME}.bin"],
+        env.get("UPLOADCMD", ""),
+        title="Upload via UART", description="")
+    # Add WiFi upload custom target
+    wifi_targets = [esp_compress.compressFirmware, upload_via_esp8266_backpack.on_upload]
     env.AddCustomTarget(tgt_WIFI,
         ["$BUILD_DIR/${PROGNAME}.bin"],
-        [esp_compress.compressFirmware, upload_via_esp8266_backpack.on_upload],
+        wifi_targets,
         title="Upload via WiFi", description="")
+    # Default is wifi upload
+    env.Replace(UPLOADCMD=wifi_targets)
     if "_RX" in target_name:
         # Check whether the target is using FC passthrough upload (receivers)
         env.AddCustomTarget(tgt_PASSTHROUGH,
