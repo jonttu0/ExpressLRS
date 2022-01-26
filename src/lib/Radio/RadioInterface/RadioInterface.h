@@ -82,8 +82,8 @@ public:
     void (*TXdoneCallback1)(void);
 
     ////////// Packet Stats //////////
-    volatile int16_t LastPacketRSSI;
-    volatile int8_t LastPacketSNR;
+    int16_t LastPacketRSSI;
+    int8_t LastPacketSNR;
 
 protected:
     void Reset(void);

@@ -3,6 +3,19 @@
 #include <stdio.h>
 #include <string.h>
 
+
+#ifndef SX127X_OUTPUT_POWER
+    #if defined(TARGET_MODULE_LORA1276F30)
+        #define SX127X_OUTPUT_POWER (1 << 4)
+    #else
+        #define SX127X_OUTPUT_POWER SX127X_MAX_POWER_MASK
+    #endif
+#endif
+#ifndef SX127X_PA_OUTPUT_RFO
+    #define SX127X_PA_OUTPUT_RFO 0  // Default to PA_BOOST
+#endif
+
+
 /////////////////////////////////////////////////////////////////
 // Note: ignore default LoRaWAM (0x34/52) sync word!
 
@@ -114,18 +127,14 @@ SX127xDriver::SX127xDriver():
     RadioInterface(SX127X_SPI_READ, SX127X_SPI_WRITE)
 {
     instance = this;
-    p_bw_hz = 0;
     _syncWord = SX127X_SYNC_WORD;
-    current_freq = 0;
-    current_power = 0xF; // outside range to make sure the power is initialized
     module_type = MODULE_SX127x;
 }
 
 int8_t SX127xDriver::Begin(int sck, int miso, int mosi)
 {
-    p_bw_hz = 0;
     current_freq = 0;
-    current_power = 0xF; // outside range to make sure the power is initialized
+    current_power = -1; // outside range to make sure the power is initialized
 
     TxRxDisable();
 
@@ -163,19 +172,28 @@ void SX127xDriver::End(void)
 
 void SX127xDriver::SetOutputPower(int8_t Power, uint8_t init)
 {
-    Power &= 0xF; // 4bits
+    Power &= SX127X_OUTPUT_POWER_MASK;
     if (current_power == Power && !init)
         return;
     uint8_t reg = Power;
+    reg |= SX127X_OUTPUT_POWER;
+#if SX127X_PA_OUTPUT_RFO
+    reg |= SX127X_PA_SELECT_RFO;
+#else // SX127X_PA_OUTPUT_PA_BOOST
     reg |= SX127X_PA_SELECT_BOOST;
-#if defined(TARGET_MODULE_LORA1276F30)
-    reg |= (0x1 << 4);
-#else
-    reg |= SX127X_MAX_OUTPUT_POWER;
 #endif
     writeRegister(SX127X_REG_PA_CONFIG, reg);
-    writeRegister(SX127X_REG_PA_DAC,
-        (0x80 | ((Power == 0xf) ? SX127X_PA_BOOST_ON : SX127X_PA_BOOST_OFF)));
+
+#if !SX127X_PA_OUTPUT_RFO
+    /* Enables the +20dBm option on PA_BOOST pin
+     *  0x04 : Default value
+     *  0x07 : +20dBm on PA_BOOST when OutputPower=1111
+     */
+    reg = 0x10; // bits 7-3 reserved default 0x10 according to datasheet
+    reg |= (Power == SX127X_OUTPUT_POWER_MASK) ? SX127X_PA_BOOST_ON : SX127X_PA_BOOST_OFF;
+    writeRegister(SX127X_REG_PA_DAC, reg);
+#endif
+
     DEBUG_PRINTF("SetOutputPower: %d\n", Power);
     current_power = Power;
 }
@@ -407,65 +425,16 @@ void SX127xDriver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
                           uint32_t freq, uint16_t PreambleLength,
                           uint8_t crc, uint8_t flrc)
 {
+    uint8_t reg;
     (void)flrc;
 
     if (freq == 0)
         freq = current_freq;
 
-    if ((freq < 137000000) || (freq > 1020000000))
-    {
+    if ((freq < 2244608 /*137000000*/) || (freq > 16711680 /*1020000000*/)) {
         DEBUG_PRINTF("Invalid Frequnecy!: %u\n", freq);
         return;
     }
-
-    // configure common registers
-    SX127xConfig(bw, sf, cr, freq, _syncWord, crc);
-    SetPreambleLength(PreambleLength);
-
-    // save the new settings
-    current_freq = freq;
-
-    switch (bw)
-    {
-        case SX127X_BW_7_80_KHZ:
-            p_bw_hz = 7800;
-            break;
-        case SX127X_BW_10_40_KHZ:
-            p_bw_hz = 10400;
-            break;
-        case SX127X_BW_15_60_KHZ:
-            p_bw_hz = 15600;
-            break;
-        case SX127X_BW_20_80_KHZ:
-            p_bw_hz = 20800;
-            break;
-        case SX127X_BW_31_25_KHZ:
-            p_bw_hz = 31250;
-            break;
-        case SX127X_BW_41_70_KHZ:
-            p_bw_hz = 41667;
-            break;
-        case SX127X_BW_62_50_KHZ:
-            p_bw_hz = 62500;
-            break;
-        case SX127X_BW_125_00_KHZ:
-            p_bw_hz = 125000;
-            break;
-        case SX127X_BW_250_00_KHZ:
-            p_bw_hz = 250000;
-            break;
-        case SX127X_BW_500_00_KHZ:
-            p_bw_hz = 500000;
-            break;
-        default:
-            p_bw_hz = 0;
-            break;
-    }
-}
-
-void SX127xDriver::SX127xConfig(uint8_t bw, uint8_t sf, uint8_t cr, uint32_t freq, uint8_t syncWord, uint8_t crc)
-{
-    uint8_t reg;
 
     // set mode to SLEEP
     SetMode(SX127X_SLEEP);
@@ -488,8 +457,91 @@ void SX127xDriver::SX127xConfig(uint8_t bw, uint8_t sf, uint8_t cr, uint32_t fre
     // turn off frequency hopping
     writeRegister(SX127X_REG_HOP_PERIOD, SX127X_HOP_PERIOD_OFF);
 
+    // basic setting (bw, cr, sf, header mode and CRC)
+    reg = (sf | SX127X_TX_MODE_SINGLE); // RX timeout MSB = 0b00
+    reg |= (crc) ? SX127X_RX_CRC_MODE_ON : SX127X_RX_CRC_MODE_OFF;
+    writeRegister(SX127X_REG_MODEM_CONFIG_2, reg);
+
+    if (sf == SX127X_SF_6) {
+        reg = SX127X_DETECT_OPTIMIZE_SF_6;
+        writeRegister(SX127X_REG_DETECTION_THRESHOLD, SX127X_DETECTION_THRESHOLD_SF_6);
+    } else {
+        reg = SX127X_DETECT_OPTIMIZE_SF_7_12;
+        writeRegister(SX127X_REG_DETECTION_THRESHOLD, SX127X_DETECTION_THRESHOLD_SF_7_12);
+    }
+    if (bw == SX127X_BW_500_00_KHZ)
+        reg |= (1u << 7); // Errata: bit 7 to 1
+    writeRegister(SX127X_REG_DETECT_OPTIMIZE, reg);
+
+    //  Errata fix
+    switch (bw) {
+        case SX127X_BW_7_80_KHZ:
+            reg = 0x48;
+            break;
+        case SX127X_BW_10_40_KHZ:
+            reg = 0x44;
+            break;
+        case SX127X_BW_15_60_KHZ:
+            reg = 0x44;
+            break;
+        case SX127X_BW_20_80_KHZ:
+            reg = 0x44;
+            break;
+        case SX127X_BW_31_25_KHZ:
+            reg = 0x44;
+            break;
+        case SX127X_BW_41_70_KHZ:
+            reg = 0x44;
+            break;
+        case SX127X_BW_62_50_KHZ:
+        case SX127X_BW_125_00_KHZ:
+        case SX127X_BW_250_00_KHZ:
+            reg = 0x40;
+            break;
+        case SX127X_BW_500_00_KHZ:
+        default:
+            reg = 0;
+            break;
+    }
+
+    if (reg)
+        writeRegister(0x2F, reg);
+
+    if (bw != SX127X_BW_500_00_KHZ)
+        writeRegister(0x30, 0x00);
+
+    // set the sync word
+    reg = SyncWordFindValid(_syncWord, sf);
+    DEBUG_PRINTF("Using sync word %u (input %u)\n", reg, _syncWord);
+    writeRegister(SX127X_REG_SYNC_WORD, reg);
+
+    reg = SX127X_AGC_AUTO_ON;
+    if ((bw == SX127X_BW_125_00_KHZ) && ((sf == SX127X_SF_11) || (sf == SX127X_SF_12)))
+        reg |= SX127X_LOW_DATA_RATE_OPT_ON;
+    else
+        reg |= SX127X_LOW_DATA_RATE_OPT_OFF;
+    writeRegister(SX127X_REG_MODEM_CONFIG_3, reg);
+
+    reg = bw | cr | SX127X_HEADER_IMPL_MODE;
+    writeRegister(SX127X_REG_MODEM_CONFIG_1, reg);
+
+    if (bw == SX127X_BW_500_00_KHZ) {
+        //datasheet errata reconmendation http://caxapa.ru/thumbs/972894/SX1276_77_8_ErrataNote_1.1_STD.pdf
+        writeRegister(0x36, 0x02);
+        writeRegister(0x3a, 0x64);
+    } else {
+        writeRegister(0x36, 0x03);
+    }
+
+    SetPreambleLength(PreambleLength);
+
     // Invert IQ according to sync word
 #if 0
+    // read reg and clear bit 6
+    reg = readRegister(SX127X_REG_INVERT_IQ) & ~(0x1 << 6);
+    reg |= (syncWord & 0x1) << 6;
+    writeRegister(SX127X_REG_INVERT_IQ, reg);
+#elif 0
     //  Code copied from: https://github.com/StuartsProjects/SX12XX-LoRa/blob/master/src/SX127XLT.cpp
     if (syncWord & 0x1) {
         DEBUG_PRINTF("Inverted IQ!\n");
@@ -505,104 +557,11 @@ void SX127xDriver::SX127xConfig(uint8_t bw, uint8_t sf, uint8_t cr, uint32_t fre
     //writeRegister(SX127X_REG_INVERT_IQ, reg);
 #endif
 
-    // basic setting (bw, cr, sf, header mode and CRC)
-    reg = (sf | SX127X_TX_MODE_SINGLE); // RX timeout MSB = 0b00
-    reg |= (crc) ? SX127X_RX_CRC_MODE_ON : SX127X_RX_CRC_MODE_OFF;
-    writeRegister(SX127X_REG_MODEM_CONFIG_2, reg);
-
-    if (sf == SX127X_SF_6)
-    {
-        reg = SX127X_DETECT_OPTIMIZE_SF_6;
-        writeRegister(SX127X_REG_DETECTION_THRESHOLD, SX127X_DETECTION_THRESHOLD_SF_6);
-    }
-    else
-    {
-        reg = SX127X_DETECT_OPTIMIZE_SF_7_12;
-        writeRegister(SX127X_REG_DETECTION_THRESHOLD, SX127X_DETECTION_THRESHOLD_SF_7_12);
-    }
-    if (bw == SX127X_BW_500_00_KHZ)
-        reg |= (1u << 7); // Errata: bit 7 to 1
-    writeRegister(SX127X_REG_DETECT_OPTIMIZE, reg);
-
-    //  Errata fix
-    switch (bw)
-    {
-        case SX127X_BW_7_80_KHZ:
-            p_freqOffset = 7810;
-            reg = 0x48;
-            break;
-        case SX127X_BW_10_40_KHZ:
-            p_freqOffset = 10420;
-            reg = 0x44;
-            break;
-        case SX127X_BW_15_60_KHZ:
-            p_freqOffset = 15620;
-            reg = 0x44;
-            break;
-        case SX127X_BW_20_80_KHZ:
-            p_freqOffset = 20830;
-            reg = 0x44;
-            break;
-        case SX127X_BW_31_25_KHZ:
-            p_freqOffset = 31250;
-            reg = 0x44;
-            break;
-        case SX127X_BW_41_70_KHZ:
-            p_freqOffset = 41670;
-            reg = 0x44;
-            break;
-        case SX127X_BW_62_50_KHZ:
-        case SX127X_BW_125_00_KHZ:
-        case SX127X_BW_250_00_KHZ:
-            p_freqOffset = 0;
-            reg = 0x40;
-            break;
-        case SX127X_BW_500_00_KHZ:
-        default:
-            p_freqOffset = 0;
-            reg = 0;
-            break;
-    }
-
-    if (reg)
-        writeRegister(0x2F, reg);
-
-    if (bw != SX127X_BW_500_00_KHZ)
-        writeRegister(0x30, 0x00);
-
-    // set the sync word
-    syncWord = SyncWordFindValid(syncWord, sf);
-    DEBUG_PRINTF("Using sync word %u (input %u)\n",
-                 syncWord, _syncWord);
-    writeRegister(SX127X_REG_SYNC_WORD, syncWord);
-
-    reg = SX127X_AGC_AUTO_ON;
-    if ((bw == SX127X_BW_125_00_KHZ) && ((sf == SX127X_SF_11) || (sf == SX127X_SF_12)))
-    {
-        reg |= SX127X_LOW_DATA_RATE_OPT_ON;
-    }
-    else
-    {
-        reg |= SX127X_LOW_DATA_RATE_OPT_OFF;
-    }
-    writeRegister(SX127X_REG_MODEM_CONFIG_3, reg);
-
-    reg = bw | cr | SX127X_HEADER_IMPL_MODE;
-    writeRegister(SX127X_REG_MODEM_CONFIG_1, reg);
-
-    if (bw == SX127X_BW_500_00_KHZ)
-    {
-        //datasheet errata reconmendation http://caxapa.ru/thumbs/972894/SX1276_77_8_ErrataNote_1.1_STD.pdf
-        writeRegister(0x36, 0x02);
-        writeRegister(0x3a, 0x64);
-    }
-    else
-    {
-        writeRegister(0x36, 0x03);
-    }
-
     // set mode to STANDBY
     SetMode(SX127X_STANDBY);
+
+    // save the new settings
+    current_freq = freq;
 }
 
 void FAST_CODE_2 SX127xDriver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
@@ -612,7 +571,7 @@ void FAST_CODE_2 SX127xDriver::setPPMoffsetReg(int32_t error_hz, uint32_t frf)
     if (!frf)
         return;
     // Calc new PPM
-    uint8_t regValue = (uint8_t)((error_hz * 1e6 / frf) * 95 / 100);
+    uint8_t regValue = (uint8_t)(((error_hz * 1e6 / frf) * 95) / 100);
     if (regValue == p_ppm_off)
         return;
     p_ppm_off = regValue;
@@ -661,7 +620,6 @@ void SX127xDriver::reg_dio1_rx_done(void)
     // 0b00 == DIO0 RxDone
     writeRegister(SX127X_REG_DIO_MAPPING_1, SX127X_DIO0_RX_DONE);
     writeRegister(SX127X_REG_IRQ_FLAGS_MASK, SX127X_MASK_IRQ_FLAG_RX_DONE);
-    //p_isr_mask = SX127X_MASK_IRQ_FLAG_RX_DONE;
 }
 
 void SX127xDriver::reg_dio1_tx_done(void)
@@ -669,7 +627,6 @@ void SX127xDriver::reg_dio1_tx_done(void)
     // 0b00 == DIO0 TxDone
     writeRegister(SX127X_REG_DIO_MAPPING_1, SX127X_DIO0_TX_DONE);
     writeRegister(SX127X_REG_IRQ_FLAGS_MASK, SX127X_MASK_IRQ_FLAG_TX_DONE);
-    //p_isr_mask = SX127X_MASK_IRQ_FLAG_TX_DONE;
 }
 
 void SX127xDriver::reg_dio1_isr_mask_write(uint8_t mask)
@@ -677,10 +634,4 @@ void SX127xDriver::reg_dio1_isr_mask_write(uint8_t mask)
     // write mask and clear irqs
     uint8_t cfg[2] = {mask, 0xff};
     writeRegisterBurst(SX127X_REG_IRQ_FLAGS_MASK, cfg, sizeof(cfg));
-
-    /*if (p_isr_mask != mask)
-    {
-        writeRegister(SX127X_REG_IRQ_FLAGS_MASK, mask);
-        p_isr_mask = mask;
-    }*/
 }

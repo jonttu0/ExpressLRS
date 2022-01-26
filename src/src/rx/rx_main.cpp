@@ -131,7 +131,7 @@ static void FAST_CODE_1 handle_tlm_ratio(uint8_t interval)
 
 void FAST_CODE_1 FillLinkStats()
 {
-    int32_t rssiDBM = Radio->LastPacketRSSI;
+    int32_t rssiDBM = (int16_t)read_u16(&Radio->LastPacketRSSI);
     rssiDBM = LPF_UplinkRSSI.update(rssiDBM);
     // our rssiDBM is currently in the range -128 to 98, but BF wants a value in the range
     // 0 to 255 that maps to -1 * the negative part of the rssiDBM, so cap at 0.
@@ -139,7 +139,7 @@ void FAST_CODE_1 FillLinkStats()
     else if (rssiDBM < INT8_MIN) rssiDBM = INT8_MIN;
 
     LinkStatistics.link.uplink_RSSI_1 = -1 * rssiDBM; // to match BF
-    LinkStatistics.link.uplink_SNR = LPF_UplinkSNR.update(Radio->LastPacketSNR * 10);
+    LinkStatistics.link.uplink_SNR = LPF_UplinkSNR.update((int8_t)read_u8(&Radio->LastPacketSNR) * 10);
 }
 
 uint8_t FAST_CODE_1 RadioFreqErrorCorr(void)

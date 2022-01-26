@@ -285,8 +285,8 @@ void process_rx_buffer(uint8_t payloadSize)
         case DL_PACKET_TLM_LINK:
         {
             RcChannels_link_stas_extract((uint8_t*)rx_buffer, LinkStatistics,
-                                         Radio->LastPacketSNR,
-                                         Radio->LastPacketRSSI);
+                                         (int8_t)read_u8(&Radio->LastPacketSNR),
+                                         (int16_t)read_u16(&Radio->LastPacketRSSI));
             tlm_updated |= (TLM_UPDATES_LNK_STATS | TLM_UPDATES_BATTERY);
 
             // Check RSSI and update TX power if needed

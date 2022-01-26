@@ -47,14 +47,10 @@ public:
     uint8_t RunCAD(uint32_t timeout = 500);
 
 private:
-    uint32_t p_bw_hz;
-    uint32_t p_freqOffset;
     uint8_t p_ppm_off;
-    //uint8_t p_isr_mask;
     uint8_t p_last_payload_len;
 
     uint8_t CheckChipVersion();
-    void SX127xConfig(uint8_t bw, uint8_t sf, uint8_t cr, uint32_t freq, uint8_t syncWord, uint8_t crc);
     void SetPreambleLength(uint16_t PreambleLen);
     void SetMode(uint8_t mode);
 
