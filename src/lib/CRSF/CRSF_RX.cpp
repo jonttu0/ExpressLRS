@@ -59,7 +59,7 @@ void CRSF_RX::Begin(void)
 
 void FAST_CODE_1 CRSF_RX::sendFrameToFC(uint8_t *buff, uint8_t const size) const
 {
-    buff[size - 1] = CalcCRC8len(&buff[2], (buff[1] - 1), 0, CRSF_GEN_POLY);
+    buff[size - 1] = CalcCRC(&buff[2], (buff[1] - 1));
 #if !NO_DATA_TO_FC
     uint32_t irq = _SAVE_IRQ();
     _dev->write(buff, size);
@@ -148,7 +148,7 @@ void CRSF_RX::negotiate_baud(void) const
     req.proposal.sub_command = CRSF_COMMAND_SUBCMD_GENERAL_CRSF_SPEED_PROPOSAL;
     req.proposal.portID = CRSF_v3_PORT_ID;
     req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
-    req.crc_cmd = CalcCRC8len(&req.header.type, (sizeof(req) - 4), 0, CRSF_CMD_POLY);
+    req.crc_cmd = CalcCRC(&req.header.type, (sizeof(req) - 4));
     sendFrameToFC((uint8_t*)&req, sizeof(req));
     delay(20); // Wait DMA to finish its job
 #endif // PROTOCOL_CRSF_V3_TO_FC

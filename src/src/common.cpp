@@ -157,7 +157,7 @@ uint8_t get_elrs_current_radio_type(void)
 uint8_t my_uid_crc8(void)
 {
     uint8_t UID[6] = {MY_UID};
-    return CalcCRC8len(UID, sizeof(UID));
+    return CalcCRC8len(UID, sizeof(UID), 0, 0xD5);
 }
 
 uint32_t my_uid_crc32(void)

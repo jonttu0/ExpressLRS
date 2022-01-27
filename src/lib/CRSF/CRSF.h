@@ -398,6 +398,7 @@ public:
     GpsCallback_t GpsCallback;
 
 protected:
+    uint8_t CalcCRC(uint8_t const * data, uint8_t size) const;
     uint8_t *ParseInByte(uint8_t inChar);
     virtual void LinkStatisticsSend(LinkStatsLink_t & stats) const = 0;
 

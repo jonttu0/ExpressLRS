@@ -1,6 +1,9 @@
 #include "CRSF.h"
 #include "debug_elrs.h"
 
+
+GenericLutCRC<uint8_t, CRSF_GEN_POLY, 8> DMA_ATTR crc_crsf;
+
 uint8_t DMA_ATTR SerialInBuffer[/*CRSF_EXT_FRAME_SIZE(CRSF_PAYLOAD_SIZE_MAX)*/256];
 
 //#define DBF_PIN_CRSF_PACKET 2
@@ -22,6 +25,11 @@ void CRSF::Begin()
     CRSFframeActive = false;
 
     _dev->flush_read();
+}
+
+uint8_t CRSF::CalcCRC(uint8_t const * data, uint8_t size) const
+{
+    return crc_crsf.calc(data, size);
 }
 
 uint8_t *CRSF::ParseInByte(uint8_t inChar)
@@ -115,7 +123,7 @@ uint8_t *CRSF::ParseInByte(uint8_t inChar)
             else
             {
                 // Calc crc on the fly
-                SerialInCrc = CalcCRC8(inChar, SerialInCrc, CRSF_GEN_POLY);
+                SerialInCrc = crc_crsf.calc(inChar, SerialInCrc);
             }
         }
     }

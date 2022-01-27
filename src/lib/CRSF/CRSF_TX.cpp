@@ -89,7 +89,7 @@ void CRSF_TX::Begin(void)
 
 void FAST_CODE_2 CRSF_TX::CrsfFramePushToFifo(uint8_t *buff, uint8_t size) const
 {
-    buff[size - 1] = CalcCRC8len(&buff[2], (buff[1] - 1));
+    buff[size - 1] = CalcCRC(&buff[2], (buff[1] - 1));
     _dev->write(buff, size);
     platform_wd_feed();
 #if defined(BT_SERIAL)

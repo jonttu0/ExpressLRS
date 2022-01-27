@@ -30,6 +30,9 @@ n+8     checksum                uint8, (n= payload size), CRC8 POLY = 0xD5
 
 #define MSP_POLY 0xD5
 
+GenericLutCRC<uint8_t, MSP_POLY, 8> DMA_ATTR crc_msp;
+
+
 bool MSP::processReceivedByte(uint8_t c)
 {
     switch (m_inputState)
@@ -159,7 +162,7 @@ bool MSP::processReceivedByte(uint8_t c)
         case MSP_HEADER_V2_NATIVE:
             // Read bytes until we have a full header
             m_packet.payload[m_offset++] = c;
-            m_crc = CalcCRC8(c, m_crc, MSP_POLY);
+            m_crc = crc_msp.calc(c, m_crc);
 
             // If we've received the correct amount of bytes for a full header
             if (m_offset == sizeof(mspHeaderV2_t))
@@ -178,7 +181,7 @@ bool MSP::processReceivedByte(uint8_t c)
         case MSP_PAYLOAD_V2_NATIVE:
             // Read bytes until we reach payloadSize
             m_packet.payload[m_offset++] = c;
-            m_crc = CalcCRC8(c, m_crc, MSP_POLY);
+            m_crc = crc_msp.calc(c, m_crc);
 
             // If we've received the correct amount of bytes for payload
             if (m_offset == m_packet.payloadSize)
@@ -286,14 +289,14 @@ bool MSP::sendPacket(CtrlSerial *port, mspPacketType_e type,
         {
             data = headerBuffer[i];
             *buff++ = (data);
-            crc = CalcCRC8(data, crc, MSP_POLY);
+            crc = crc_msp.calc(data, crc);
         }
         // Write out the payload, adding each byte to the crc
         for (i = 0; i < payloadSize; ++i)
         {
             data = payload[i];
             *buff++ = (data);
-            crc = CalcCRC8(data, crc, MSP_POLY);
+            crc = crc_msp.calc(data, crc);
         }
     }
     else

@@ -1,10 +1,13 @@
 #include "GHST.h"
-#include "CRSF.h" // CRSF_FRAMETYPE_LINK_STATISTICS
+#include "CRSF.h" // CRSF_FRAMETYPE_COMMAND
 #include "crc.h"
 #include "platform.h"
 #include "utils.h"
 #include "debug_elrs.h"
 
+
+#define GHST_POLY 0xD5
+GenericLutCRC<uint8_t, GHST_POLY, 8> DMA_ATTR crc_ghst;
 
 static ghstRcFrame_t rc_data;
 
@@ -81,7 +84,7 @@ void GHST::sendMSPFrameToFC(mspPacket_t & msp) const
 
 void GHST::sendFrameToFC(uint8_t *buff, uint8_t size) const
 {
-    buff[size - 1] = CalcCRC8len(&buff[sizeof(ghstHeader_t)], (size - sizeof(ghstHeader_t) - 1));
+    buff[size - 1] = crc_ghst.calc(&buff[sizeof(ghstHeader_t)], (size - sizeof(ghstHeader_t) - 1));
 #if !NO_DATA_TO_FC
     uint32_t irq = _SAVE_IRQ();
     _dev->write(buff, size);
@@ -152,7 +155,7 @@ uint8_t *GHST::ParseInByte(uint8_t inChar)
                 SerialInPacketLen = 0;
             } else {
                 // Calc crc on the fly
-                SerialInCrc = CalcCRC8(inChar, SerialInCrc);
+                SerialInCrc = crc_ghst.calc(inChar, SerialInCrc);
             }
         }
     }
