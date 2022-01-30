@@ -70,6 +70,8 @@ def compress_files(source, target, env):
     print(' ***** Packing html files *****')
 
     data_dir = env.get('PROJECTDATA_DIR')
+    if "$PROJECT_DATA_DIR" in data_dir:
+        data_dir = env.get('PROJECT_DATA_DIR')
 
     if not os.path.exists(data_src_dir):
         print('    HTML source "%s" does not found.' % data_src_dir)
@@ -80,7 +82,7 @@ def compress_files(source, target, env):
         shutil.rmtree(data_dir)
 
     print('    MK data dir: ' + data_dir)
-    os.mkdir(data_dir)
+    os.makedirs(data_dir)
 
     files_to_gzip = []
     for extension in filetypes_to_gzip:
