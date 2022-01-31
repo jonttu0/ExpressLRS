@@ -2,7 +2,6 @@
 #define __CRC_H_
 
 #include "platform.h"
-#include "debug_elrs.h"
 #include "helpers.h"
 #include <stdint.h>
 
@@ -62,21 +61,6 @@ public:
     /*T calc(volatile uint8_t *data, size_t len, T crc = 0) {
         return calc((uint8_t*)data, len, crc);
     }*/
-    void print_lut(void)
-    {
-#if defined(DEBUG_SERIAL) && CRC_LUT_PRINT
-        for (size_t iter = 0; iter < ARRAY_SIZE(crctab); iter++) {
-            /* Pretty formatting */
-            if ((iter % 4) == 0) {
-                DEBUG_PRINTF("\n");
-                delay(10);
-            }
-            DEBUG_PRINTF("0x%04X,", crctab[iter]);
-        }
-        DEBUG_PRINTF("\n");
-        delay(10);
-#endif
-    }
 private:
     T crctab[256];
 };
