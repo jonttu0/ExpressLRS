@@ -54,6 +54,7 @@ static volatile int32_t DRAM_ATTR rx_freqerror;
 static volatile int32_t DRAM_ATTR rx_hw_isr_running;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
+static uint16_t DRAM_ATTR CRCCaesarCipherXored;
 
 #if SERVO_OUTPUTS_ENABLED
 #if !SERVO_WRITE_FROM_ISR
@@ -88,6 +89,8 @@ static uint32_t DRAM_ATTR RFmodeNextCycle;
 static uint8_t DRAM_ATTR scanIndex;
 static uint8_t DRAM_ATTR tentative_cnt;
 static uint8_t DRAM_ATTR no_sync_armed;
+static int8_t DRAM_ATTR rcvd_rate_index;
+static int8_t DRAM_ATTR rcvd_pkt_type;
 
 ///////////////////////////////////////
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
@@ -405,13 +408,18 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
             //DEBUG_PRINTF(" S");
             ElrsSyncPacket_s const * const sync = (ElrsSyncPacket_s*)rx_buffer;
 
-            if ((sync->CRCCaesarCipher == CRCCaesarCipher) &&
-                (sync->sync_key == SYNC_KEY) &&
-                (sync->arm_aux == AUX_CHANNEL_ARM))
+            if (sync->CRCCaesarCipher == CRCCaesarCipherXored)
             {
                 if ((_conn_state == STATE_disconnected) || (_conn_state == STATE_lost))
                 {
-                    TentativeConnection(freq_err);
+                    /* Jump to tentative if the pkt mode and rate are correct */
+                    if (sync->radio_mode == ExpressLRS_currAirRate->pkt_type &&
+                            sync->rate_index == current_rate_config) {
+                        TentativeConnection(freq_err);
+                    } else {
+                        rcvd_pkt_type = sync->radio_mode;
+                        rcvd_rate_index = sync->rate_index;
+                    }
                     freq_err = 0;
                 }
                 else if (_conn_state == STATE_tentative)
@@ -674,6 +682,7 @@ void setup()
     connectionState = STATE_disconnected;
     tentative_cnt = 0;
     CRCCaesarCipher = my_uid_crc16();
+    CRCCaesarCipherXored = CRCCaesarCipher ^ my_uid_to_u32();
 
 #if !SERVO_OUTPUTS_ENABLED
     CrsfSerial.Begin(RX_BAUDRATE);
@@ -697,6 +706,8 @@ void setup()
     TxTimer.init();
     // Init first scan index
     scanIndex = RATE_DEFAULT;
+    rcvd_pkt_type = rcvd_rate_index = -1;
+
 #if SERVO_OUTPUTS_ENABLED
     servo_out_init();
 #else
@@ -736,8 +747,19 @@ void loop()
 #endif
         }
     } else if (_conn_state == STATE_disconnected) {
+        /* Force mode if correct values are received from sync message */
+        if (0 <= rcvd_pkt_type && 0 <= rcvd_rate_index &&
+                (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RFmodeNextCycle))) {
+#if RADIO_SX128x_FLRC
+            radio_prepare((rcvd_pkt_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x);
+            scanIndex = rcvd_rate_index;
+#endif
+            SetRFLinkRate((scanIndex % get_elrs_airRateMax()));
+            rcvd_pkt_type = rcvd_rate_index = -1;
+            RFmodeNextCycle = now;
+
         /* Cycle only if initial connection search */
-        if ((!ExpressLRS_currAirRate) ||
+        } else if ((!ExpressLRS_currAirRate) ||
             (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RFmodeNextCycle))) {
             uint8_t max_rate = get_elrs_airRateMax();
 #if RADIO_SX128x_FLRC

@@ -94,17 +94,18 @@ enum {
     DL_PACKET_TLM_LINK = 0b11,
 };
 
-#define SYNC_KEY    0x2A
 
 typedef struct ElrsSyncPacket_s {
-    uint16_t CRCCaesarCipher;
+    uint16_t CRCCaesarCipher;  // XORed by UID[4,5]
     uint8_t fhssIndex;
     uint8_t rxtx_counter;
-    uint8_t tlm_interval    : 3,
+    uint8_t free            : 3,
             no_sync_armed   : 1,
             arm_aux         : 4;
     uint8_t pkt_type        : 2,
-            sync_key        : 6;
+            rate_index      : 2,
+            radio_mode      : 1,
+            tlm_interval    : 3;
 } ElrsSyncPacket_s;
 
 

@@ -32,12 +32,13 @@ static volatile uint8_t DRAM_ATTR rx_buffer_size;
 static uint8_t red_led_state;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
+static uint16_t DRAM_ATTR CRCCaesarCipherXored;
 
 struct platform_config DRAM_ATTR pl_config;
 
 /////////// SYNC PACKET ////////
-static uint32_t DRAM_ATTR SyncPacketNextSend;
-static uint32_t DRAM_ATTR sync_send_interval; // Default is send always
+static uint32_t DRAM_ATTR SyncPacketSent_ms;
+static uint32_t DRAM_ATTR SyncPacketInterval_ms; // Default is send always
 
 /////////// CONNECTION /////////
 static uint32_t DRAM_ATTR LastPacketRecvMillis;
@@ -217,6 +218,7 @@ void platform_radio_force_stop(void)
 
 static uint8_t SetRadioType(uint8_t type)
 {
+    uint32_t const uid_u32 = my_uid_to_u32();
     /* Configure if ratio not set or its type will be changed */
     if ((type < RADIO_TYPE_MAX) && (type != pl_config.rf_mode || !Radio)) {
         /* Stop radio processing if chaning RF type */
@@ -232,12 +234,13 @@ static uint8_t SetRadioType(uint8_t type)
             pl_config.rf[type].mode % get_elrs_airRateMax();
         if (type == RADIO_TYPE_128x_VANILLA) {
             TLMinterval = TLM_RATIO_NO_TLM;
-            CRCCaesarCipher = my_uid_to_u32() & 0xffff;
+            CRCCaesarCipher = uid_u32 & 0xffff;
             // Sync word must be set To make IQ inversion correct
-            Radio->SetSyncWord(CRCCaesarCipher & 0xff);
+            Radio->SetSyncWord(uid_u32 & 0xff);
         } else {
             TLMinterval = pl_config.rf[type].tlm;
             CRCCaesarCipher = my_uid_crc16();
+            CRCCaesarCipherXored = CRCCaesarCipher ^ uid_u32;
             Radio->SetSyncWord(my_uid_crc8());
         }
 
@@ -358,13 +361,16 @@ static void FAST_CODE_1
 GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
 {
     ElrsSyncPacket_s * sync = (ElrsSyncPacket_s*)output;
-    sync->CRCCaesarCipher = CRCCaesarCipher;
+    sync->CRCCaesarCipher = CRCCaesarCipherXored;
     sync->fhssIndex = FHSSgetCurrIndex();
     sync->rxtx_counter = rxtx_counter;
     sync->tlm_interval = TLMinterval;
+    sync->rate_index = current_rate_config;
+    sync->radio_mode = ExpressLRS_currAirRate->pkt_type;
+
     sync->no_sync_armed = TX_SKIP_SYNC;
     sync->arm_aux = AUX_CHANNEL_ARM;
-    sync->sync_key = SYNC_KEY;
+
     sync->pkt_type = UL_PACKET_SYNC;
 }
 
@@ -382,10 +388,10 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
 
     // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
-        (sync_send_interval <= (uint32_t)(current_us - SyncPacketNextSend)))
+        (SyncPacketInterval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
     {
         GenerateSyncPacketData(tx_buffer, rxtx_counter);
-        SyncPacketNextSend = current_us;
+        SyncPacketSent_ms = current_us;
         crc_or_type = UL_PACKET_SYNC;
     }
     else if (!arm_state && (tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
@@ -428,10 +434,10 @@ ota_packet_generate_vanilla(uint8_t * const tx_buffer,
 
     // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
-        (sync_send_interval <= (uint32_t)(current_us - SyncPacketNextSend)))
+        (SyncPacketInterval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
     {
         OTA_vanilla_SyncPacketData(tx_buffer, rxtx_counter, TLMinterval);
-        SyncPacketNextSend = current_us;
+        SyncPacketSent_ms = current_us;
     }
     else
     {
@@ -686,7 +692,7 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
 
     tx_tlm_change_interval(TLMinterval, init);
 
-    write_u32(&sync_send_interval, config->syncInterval);
+    write_u32(&SyncPacketInterval_ms, config->syncInterval);
 
     platform_connection_state(connectionState);
 
