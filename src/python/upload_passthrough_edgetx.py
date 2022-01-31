@@ -1,7 +1,14 @@
 import serial
 import time
 import sys
-import streamexpect
+try:
+    import streamexpect
+except ImportError:
+    env.Execute('"$PYTHONEXE" -m pip install six')
+    try:
+        import streamexpect
+    except ImportError:
+        raise SystemExit("Run 'pip install six' manually")
 
 
 def dbg_print(line=''):
