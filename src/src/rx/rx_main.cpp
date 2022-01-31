@@ -354,7 +354,7 @@ void FAST_CODE_1 GotConnection()
     connectionState = STATE_connected; //we got a packet, therefore no lost connection
 
     led_set_state(1); // turn on led
-    DEBUG_PRINTF("connected\n");
+    DEBUG_PRINTF("connected in %d ms\n", (int32_t)(LastValidPacket - RFmodeNextCycle));
 
     platform_connection_state(connectionState);
 }
@@ -747,16 +747,18 @@ void loop()
 #endif
         }
     } else if (_conn_state == STATE_disconnected) {
+        uint8_t current_radio_type = get_elrs_current_radio_type();
         /* Force mode if correct values are received from sync message */
-        if (0 <= rcvd_pkt_type && 0 <= rcvd_rate_index &&
-                (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RFmodeNextCycle))) {
+        if (0 <= rcvd_pkt_type && 0 <= rcvd_rate_index) {
 #if RADIO_SX128x_FLRC
-            radio_prepare((rcvd_pkt_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x);
+            rcvd_pkt_type = (rcvd_pkt_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x;
+            if (current_radio_type != rcvd_pkt_type)
+                radio_prepare(rcvd_pkt_type);
             scanIndex = rcvd_rate_index;
 #endif
             SetRFLinkRate((scanIndex % get_elrs_airRateMax()));
             rcvd_pkt_type = rcvd_rate_index = -1;
-            RFmodeNextCycle = now;
+            write_u32(&connectionState, STATE_lost); // Mark lost to stay on config
 
         /* Cycle only if initial connection search */
         } else if ((!ExpressLRS_currAirRate) ||
@@ -764,7 +766,9 @@ void loop()
             uint8_t max_rate = get_elrs_airRateMax();
 #if RADIO_SX128x_FLRC
             if (max_rate <= scanIndex) {
-                radio_prepare((get_elrs_current_radio_type() == RADIO_TYPE_128x_FLRC) ? RADIO_TYPE_128x : RADIO_TYPE_128x_FLRC);
+                current_radio_type = (current_radio_type == RADIO_TYPE_128x_FLRC) ?
+                        RADIO_TYPE_128x : RADIO_TYPE_128x_FLRC;
+                radio_prepare(current_radio_type);
                 scanIndex = 0;
                 max_rate = get_elrs_airRateMax();
             }
@@ -772,7 +776,7 @@ void loop()
             SetRFLinkRate((scanIndex % max_rate)); // switch between rates
             scanIndex++;
 #if RADIO_SX128x_FLRC
-            if (get_elrs_current_radio_type() == RADIO_TYPE_128x)
+            if (current_radio_type == RADIO_TYPE_128x)
 #endif
                 if (max_rate <= scanIndex)
                     platform_connection_state(STATE_search_iteration_done);
