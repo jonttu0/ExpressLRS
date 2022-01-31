@@ -2,7 +2,19 @@
 #define __CRC_H_
 
 #include "platform.h"
+#include "debug_elrs.h"
+#include "helpers.h"
 #include <stdint.h>
+
+#define CRC_LUT_PRINT   0
+
+// --------------------------------------------------------
+
+#if CRC16_POLY_TESTING
+extern uint8_t CRC16_POLY_PKT[5];
+#endif
+
+// --------------------------------------------------------
 
 uint8_t CalcCRCxor(uint8_t const *data, uint16_t length, uint8_t crc = 0);
 uint8_t CalcCRCxor(uint8_t data, uint8_t crc = 0);
@@ -13,11 +25,6 @@ uint8_t CalcCRC8len(uint8_t const *data, uint16_t length, uint8_t crc = 0, uint8
 uint16_t CalcCRC16(uint8_t const *data, uint16_t length, uint16_t crc = 0);
 
 uint32_t CalcCRC32(uint8_t const *data, uint16_t len);
-
-#if CRC16_POLY_TESTING
-extern uint8_t CRC16_POLY_PKT[5];
-#endif
-
 
 // --------------------------------------------------------
 
@@ -55,6 +62,21 @@ public:
     /*T calc(volatile uint8_t *data, size_t len, T crc = 0) {
         return calc((uint8_t*)data, len, crc);
     }*/
+    void print_lut(void)
+    {
+#if defined(DEBUG_SERIAL) && CRC_LUT_PRINT
+        for (size_t iter = 0; iter < ARRAY_SIZE(crctab); iter++) {
+            /* Pretty formatting */
+            if ((iter % 4) == 0) {
+                DEBUG_PRINTF("\n");
+                delay(10);
+            }
+            DEBUG_PRINTF("0x%04X,", crctab[iter]);
+        }
+        DEBUG_PRINTF("\n");
+        delay(10);
+#endif
+    }
 private:
     T crctab[256];
 };

@@ -652,7 +652,6 @@ void radio_prepare(uint8_t type)
 
 void setup()
 {
-    uint8_t UID[6] = {MY_UID};
     uint8_t radio_type;
 #if RADIO_SX127x
     radio_type = RADIO_TYPE_127x;
@@ -674,7 +673,7 @@ void setup()
     ExpressLRS_currAirRate = NULL;
     connectionState = STATE_disconnected;
     tentative_cnt = 0;
-    CRCCaesarCipher = CalcCRC16(UID, sizeof(UID), 0);
+    CRCCaesarCipher = my_uid_crc16();
 
 #if !SERVO_OUTPUTS_ENABLED
     CrsfSerial.Begin(RX_BAUDRATE);

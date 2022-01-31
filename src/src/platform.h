@@ -55,8 +55,18 @@ static inline uint8_t read_u8(const void *addr) {
 * v0 - initial
 * v1 - tlm added
 * v2 - power range changed (dynamic added)
+* ...
+* v8 - SX128x FLRC
+*       } rf[2 -> 3];
+* v9 - Vanilla OTA support for sx128x (handset)
+*       } rf[3 -> 4];
 */
-#define ELRS_EEPROM_KEY 0x454c5208 // ELR + version nbr
+#define ELRS_EEPROM_VERSION  0x09
+
+#define ELRS_EEPROM_KEY_BASE 0x454c5200 // ELR + version nbr
+#define ELRS_EEPROM_KEY_MASK 0xFFFFFF00
+#define ELRS_EEPROM_KEY      (ELRS_EEPROM_KEY_BASE + ELRS_EEPROM_VERSION)
+
 
 struct platform_config
 {
@@ -66,7 +76,7 @@ struct platform_config
         uint32_t mode;
         uint32_t power;
         uint32_t tlm;
-    } rf[3]; // rf_mode: 0 = SX127x, 1 = SX128x, 2 = SX128x_FLRC
+    } rf[4]; // rf_mode: see RADIO_TYPE_MAX
 
     /* Handset specific data */
     struct gimbal_limit gimbals[TX_NUM_ANALOGS];
@@ -76,6 +86,7 @@ extern struct platform_config pl_config;
 
 int8_t platform_config_load(struct platform_config &config);
 int8_t platform_config_save(struct platform_config &config);
+int8_t platform_config_migrate(void *oldptr, struct platform_config &config);
 void platform_setup(void);
 void platform_mode_notify(uint8_t mode);
 void platform_loop(int state);

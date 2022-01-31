@@ -9,6 +9,7 @@
 #include "gimbals.h"
 #include "switches.h"
 #include "rc_channels.h"
+#include "OTAvanilla.h"
 #include <stdlib.h>
 
 #define RC_CH_PRINT_INTERVAL    2000
@@ -42,17 +43,28 @@ rc_data_collect(uint32_t const current_us)
 #ifdef DBG_PIN
     gpio_out_write(debug, 1);
 #endif
-    uint32_t const channelMax = RcChannels_channelMaxValueGet();
+    uint16_t const channelMax =
+#if OTA_VANILLA_ENABLED
+        (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA) ?
+            OTA_vanilla_get_channelMaxValue():
+#endif
+            RcChannels_channelMaxValueGet();
+    uint16_t const channelMin =
+#if OTA_VANILLA_ENABLED
+        (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA) ?
+            OTA_vanilla_get_channelMinValue():
+#endif
+            ANALOG_MIN_VAL;
     uint16_t gimbals[NUM_ANALOGS];
     uint16_t aux[NUM_SWITCHES] = {0};
     uint16_t scale;
     uint8_t iter, index;
     gimbals_timer_adjust(current_us);
-    gimbals_get(gimbals, channelMax);
+    gimbals_get(gimbals, channelMin, channelMax);
     for (iter = 0; iter < NUM_ANALOGS; iter++) {
         index = pl_config.mixer[iter].index;
         if (pl_config.mixer[iter].inv) {
-            gimbals[index] = ANALOG_MIN_VAL +
+            gimbals[index] = channelMin +
                 (channelMax - gimbals[index]);
         }
         scale = pl_config.mixer[iter].scale;
@@ -60,8 +72,8 @@ rc_data_collect(uint32_t const current_us)
             scale = ((channelMax * scale) / 100U);
             gimbals[index] =
                 MAP_U16(gimbals[index],
-                    ANALOG_MIN_VAL, channelMax,
-                    ANALOG_MIN_VAL, scale);
+                    channelMin, channelMax,
+                    channelMin, scale);
         }
     }
     // mix analog channels into output buffer
@@ -81,6 +93,16 @@ rc_data_collect(uint32_t const current_us)
         rc_data.ch[iter] = aux[pl_config.mixer[iter].index];
     }
     // process channel data into OTA packet
+#if OTA_VANILLA_ENABLED
+    if (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA) {
+        for (iter = 4; iter < (NUM_ANALOGS + NUM_SWITCHES); iter++) {
+            rc_data.ch[iter] = MAP_U16(rc_data.ch[iter],
+                    SWITCH_MIN, SWITCH_MAX,
+                    channelMin, channelMax);
+        }
+        OTA_vanilla_processChannels(&rc_data.ota_pkt);
+    } else
+#endif
     RcChannels_processChannels(&rc_data.ota_pkt);
 #ifdef DBG_PIN
     gpio_out_write(debug, 0);

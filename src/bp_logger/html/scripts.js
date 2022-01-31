@@ -123,7 +123,7 @@ function setting_set(type, value) {
                 rf_module.disabled = false;
             }
 
-            if (!(value & 0x70)) {
+            if (!(value & 0x40)) {
                 /* Disable tabs if not handset */
                 var tabs = $name('handset');
                 for (tab in tabs) {
@@ -132,7 +132,7 @@ function setting_set(type, value) {
             }
             value = value & 0x3F;
 
-            var domain_info = "Regulatory domain ";
+            var domain_info = "Domain ";
             if (value == 0)
                 domain_info += "915MHz";
             else if (value == 1)
@@ -143,9 +143,14 @@ function setting_set(type, value) {
                 domain_info += "2400MHz ISM (LoRa)";
             else if (value == 5)
                 domain_info += "2400MHz ISM (FLRC)";
+            else if (value == 6)
+                domain_info += "2400MHz ISM (LoRa, VANILLA)";
             else
                 domain_info += "UNKNOWN";
             elem.innerHTML = domain_info;
+
+            // disable telemetry options if vanilla mode
+            $id("tlm_input").disabled = (value == 6);
 
             // update rate options
             var rates = $id("rates_input");
@@ -153,14 +158,14 @@ function setting_set(type, value) {
                 rates.remove(rates.length-1);
             }
             var options = [];
-            if (5 == value) {
-                options = ['500Hz'];
+            if (6 == value) {
+                options = ['500Hz', '250Hz', '150Hz', '50Hz'];
+                rf_module.selectedIndex = 4;
+            } else if (5 == value) {
+                options = ['1000Hz', '500Hz'];
                 rf_module.selectedIndex = 3;
             } else if (3 <= value && value <= 4) {
                 options = ['500Hz', '250Hz', '125Hz', '50Hz'];
-                /*if (value == 4) {
-                    options.unshift('800Hz');
-                }*/
                 rf_module.selectedIndex = 2;
             } else if (value <= 2) {
                 options = ['200Hz', '100Hz', '50Hz'];

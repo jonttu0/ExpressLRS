@@ -68,43 +68,6 @@
 #define CRSF_CHANNEL_IN_BITS (2047 < CRSF_CHANNEL_IN_VALUE_MAX ? 12 : 11)
 
 
-// 7 state aka 3b switches use 0...6 as values to represent 7 different values
-// 1984 / 6 = 330 => taken down a bit to align result more evenly
-// (1811-172) / 6 = 273
-#define CRSF_to_SWITCH3b(val) ((val) / 300)
-#if PROTOCOL_CRSF_V3_TO_FC
-#if CRSFv3_BITS == 10
-#define SWITCH3b_to_CRSF(val) ((val) * 170) // round down 170.5 to 170
-#elif CRSFv3_BITS == 11
-#define SWITCH3b_to_CRSF(val) ((val) * 341) // round down 341.17 to 341
-#elif CRSFv3_BITS == 12
-#define SWITCH3b_to_CRSF(val) ((val) * 682) // round down 682.5 to 682
-#endif
-#else
-#define SWITCH3b_to_CRSF(val) ((val) * 273 + CRSF_CHANNEL_OUT_VALUE_MIN)
-#endif
-
-// 3 state aka 2b switches use 0, 1 and 2 as values to represent low, middle and high
-// 819 = (1811-172) / 2
-#define CRSF_to_SWITCH2b(val) ((val) / 819)
-#if PROTOCOL_CRSF_V3_TO_FC
-#if CRSFv3_BITS == 10
-#define SWITCH2b_to_CRSF(val) ((val) * 511) // round down 511.5 to 511
-#elif CRSFv3_BITS == 11
-#define SWITCH2b_to_CRSF(val) ((val) * 1023) // round down 1023.5 to 1023
-#elif CRSFv3_BITS == 12
-#define SWITCH2b_to_CRSF(val) ((val) * 2047) // round down 2047.5 to 2047
-#endif
-#else
-#define SWITCH2b_to_CRSF(val) (((val) * 819) + CRSF_CHANNEL_OUT_VALUE_MIN)
-#endif
-
-#define CRSF_to_BIT(val) (((val) > 1000) ? 1 : 0)
-#define BIT_to_CRSF(val) ((val) ? CRSF_CHANNEL_OUT_VALUE_MAX : CRSF_CHANNEL_OUT_VALUE_MIN)
-
-#define SWITCH2b_to_3b(_D) ((_D) ? ((2 == (_D)) ? 6 : 3) : 0)
-
-
 /* This can be used to check if switch is set or not */
 #if PROTOCOL_ELRS_TO_FC
 #define SWITCH_IS_SET(val) (0 < (val))
@@ -281,6 +244,8 @@ typedef struct {
 
 
 void RcChannels_initRcPacket(uint_fast8_t payloadSize);
+uint8_t RcChannels_payloadSizeGet(void);
+
 uint16_t RcChannels_channelMaxValueGet(void);
 void
 RcChannels_processChannels(rc_channels_handset_t const *const channels);

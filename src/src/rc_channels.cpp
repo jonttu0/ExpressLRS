@@ -6,13 +6,59 @@
 
 #include <assert.h>
 
+// ------------------------------------------------------------------
+
 #if N_SWITCHES < 2
 #error "At least two (2) AUX channels are needed!"
 #endif
 #if 12 < N_SWITCHES
 #error "Up to 12 AUX channels supported!"
 #endif
+#if (16 < N_CHANNELS)
+#error "CRSF Channels Config is not OK"
+#endif
 
+// ------------------------------------------------------------------
+
+// 7 state aka 3b switches use 0...6 as values to represent 7 different values
+// 1984 / 6 = 330 => taken down a bit to align result more evenly
+// (1811-172) / 6 = 273
+#define CRSF_to_SWITCH3b(val) ((val) / 300)
+#if PROTOCOL_CRSF_V3_TO_FC
+#if CRSFv3_BITS == 10
+#define SWITCH3b_to_CRSF(val) ((val) * 170) // round down 170.5 to 170
+#elif CRSFv3_BITS == 11
+#define SWITCH3b_to_CRSF(val) ((val) * 341) // round down 341.17 to 341
+#elif CRSFv3_BITS == 12
+#define SWITCH3b_to_CRSF(val) ((val) * 682) // round down 682.5 to 682
+#endif
+#else
+#define SWITCH3b_to_CRSF(val) ((val) * 273 + CRSF_CHANNEL_OUT_VALUE_MIN)
+#endif
+
+// ------------------------------------------------------------------
+
+// 3 state aka 2b switches use 0, 1 and 2 as values to represent low, middle and high
+// 819 = (1811-172) / 2
+#define CRSF_to_SWITCH2b(val) ((val) / 819)
+#if PROTOCOL_CRSF_V3_TO_FC
+#if CRSFv3_BITS == 10
+#define SWITCH2b_to_CRSF(val) ((val) * 511) // round down 511.5 to 511
+#elif CRSFv3_BITS == 11
+#define SWITCH2b_to_CRSF(val) ((val) * 1023) // round down 1023.5 to 1023
+#elif CRSFv3_BITS == 12
+#define SWITCH2b_to_CRSF(val) ((val) * 2047) // round down 2047.5 to 2047
+#endif
+#else
+#define SWITCH2b_to_CRSF(val) (((val) * 819) + CRSF_CHANNEL_OUT_VALUE_MIN)
+#endif
+
+#define CRSF_to_BIT(val) (((val) > 1000) ? 1 : 0)
+#define BIT_to_CRSF(val) ((val) ? CRSF_CHANNEL_OUT_VALUE_MAX : CRSF_CHANNEL_OUT_VALUE_MIN)
+
+#define SWITCH2b_to_3b(_D) ((_D) ? ((2 == (_D)) ? 6 : 3) : 0)
+
+// ------------------------------------------------------------------
 
 typedef void
 (*channels_pack_t)(uint16_t const ch1, uint16_t const ch2,
@@ -23,10 +69,6 @@ static channels_pack_t DRAM_ATTR channels_pack_ptr;
 /*************************************************************************************
  * RC OTA PACKET
  *************************************************************************************/
-
-#if (16 < N_CHANNELS)
-#error "CRSF Channels Config is not OK"
-#endif
 
 typedef struct
 {
@@ -410,8 +452,12 @@ void RcChannels_initRcPacket(uint_fast8_t const payloadSize)
     channels_pack_ptr = channels_pack_full;
 }
 
+uint8_t FAST_CODE_1 RcChannels_payloadSizeGet(void)
+{
+    return packed_buffer_size;
+}
 
-uint16_t RcChannels_channelMaxValueGet(void)
+uint16_t FAST_CODE_1 RcChannels_channelMaxValueGet(void)
 {
     uint16_t const maxVal = (packed_buffer_size == sizeof(RcDataPacketFull_s)) ?
             ANALOG_MAX_VAL(RC_BITS_FULL) : ANALOG_MAX_VAL(RC_BITS_LEGACY);
@@ -424,7 +470,8 @@ uint16_t RcChannels_channelMaxValueGet(void)
  * Store channels input to local buffers for OTA packet.
  * Note: this does not do any scaling!!
  */
-void RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
+void FAST_CODE_1
+RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
 {
     uint16_t const * const ChannelDataIn = &rcChannels->ch[N_CONTROLS];
     uint_fast8_t switch_state, idx;
@@ -462,7 +509,8 @@ void RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
  * Convert received CRSF serial packet from handset and
  * store it to local buffers for OTA packet
  */
-void RcChannels_processChannelsCrsf(rc_channels_module_t const *const rcChannels)
+void FAST_CODE_1
+RcChannels_processChannelsCrsf(rc_channels_module_t const *const rcChannels)
 {
     uint16_t const maxVal = RcChannels_channelMaxValueGet();
     // channels input range: 0...2048

@@ -113,6 +113,8 @@ int8_t platform_config_load(struct platform_config &config)
         /* load ok, copy values */
         memcpy(&config, &temp, sizeof(temp));
         res = 0;
+    } else if ((temp.key & ELRS_EEPROM_KEY_MASK) == ELRS_EEPROM_KEY_BASE) {
+        platform_config_migrate(&temp, config);
     }
 #else
     int8_t res = 0;

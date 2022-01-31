@@ -429,18 +429,18 @@ gimbals_timer_adjust(uint32_t us)
 }
 
 void FAST_CODE_1
-gimbals_get(uint16_t * const out, uint16_t const channelMax)
+gimbals_get(uint16_t * const out, uint16_t const channelMin, uint16_t const channelMax)
 {
     struct gimbal_limit * limit;
     uint32_t curr;
-    uint16_t const midValue = (channelMax + 1) / 2;
+    uint16_t const midValue = channelMin + ((channelMax - channelMin) + 1) / 2;
     uint8_t iter;
     for (iter = 0; iter < ARRAY_SIZE(pl_config.gimbals); iter++) {
         limit = &pl_config.gimbals[iter];
         curr = filters[iter].getCurrent();
         if (curr <= limit->mid)
             out[iter] = MAP_U16((uint16_t)curr, limit->low, limit->mid,
-                                ANALOG_MIN_VAL, midValue);
+                                channelMin, midValue);
         else
             out[iter] = MAP_U16((uint16_t)curr, limit->mid+1, limit->high,
                                 midValue, channelMax);

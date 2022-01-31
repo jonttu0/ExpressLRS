@@ -27,12 +27,12 @@ static volatile uint32_t DRAM_ATTR FHSS_sequence_index;
 static volatile int32_t  DRAM_ATTR FreqCorrection;
 static uint32_t DRAM_ATTR FHSS_frequencies[FHSS_SEQ_TABLE_SIZE];
 
-static uint32_t FHSSupdateFrequencies(uint8_t mode);
-static void FHSSrandomiseSequence(uint32_t nbr_fhss_freqs);
+static uint32_t FHSSupdateFrequencies(uint8_t mode, uint32_t &rng_seed);
+static void FHSSrandomiseSequence(uint32_t nbr_fhss_freqs, uint32_t rng_seed);
 
 static void FHSSprintSequence(const uint8_t sequence_len)
 {
-#if defined(DEBUG_SERIAL) && defined(FHSS_TABLE_PRINT)
+#if defined(DEBUG_SERIAL) && (TARGET_HANDSET || defined(FHSS_TABLE_PRINT))
     // output FHSS sequence
     uint8_t iter;
     DEBUG_PRINTF("FHSS Sequence:");
@@ -52,20 +52,9 @@ static void FHSSprintSequence(const uint8_t sequence_len)
 
 void FHSS_init(uint8_t const mode)
 {
-#if 0
-    if (RADIO_SX127x && mode == RADIO_TYPE_127x) {
-#if defined(Regulatory_Domain_AU_915) || defined(Regulatory_Domain_FCC_915)
-        DEBUG_PRINTF("Setting 915MHz Mode\n");
-#elif defined Regulatory_Domain_EU_868 || defined Regulatory_Domain_EU_868_R9
-        DEBUG_PRINTF("Setting 868MHz Mode\n");
-#elif defined(Regulatory_Domain_AU_433) || defined(Regulatory_Domain_EU_433)
-        DEBUG_PRINTF("Setting 433MHz Mode\n");
-#endif
-    } else if (RADIO_SX128x && mode == RADIO_TYPE_128x) {
-        DEBUG_PRINTF("Setting ISM 2400 Mode\n");
-    }
-#endif
-    FHSSrandomiseSequence(FHSSupdateFrequencies(mode));
+    uint32_t rng_seed = 0;
+    uint32_t band_count = FHSSupdateFrequencies(mode, rng_seed);
+    FHSSrandomiseSequence(band_count, rng_seed);
     FHSSprintSequence(FHSS_sequence_len);
 }
 
@@ -132,7 +121,7 @@ static void CalculateFhssFrequencies(uint32_t base, uint32_t bw,
     }
 }
 
-static uint32_t FHSSupdateFrequencies(uint8_t const mode)
+static uint32_t FHSSupdateFrequencies(uint8_t const mode, uint32_t &rng_seed)
 {
     uint32_t freq_base = 0;
     uint32_t bandwidth = 0;
@@ -147,6 +136,9 @@ static uint32_t FHSSupdateFrequencies(uint8_t const mode)
 #elif RADIO_SX128x
         SX1280_FREQ_STEP;
 #endif
+
+    rng_seed = 0;
+
     /* Fill/calc FHSS frequencies base on requested mode */
     switch (mode) {
         case RADIO_TYPE_127x: {
@@ -197,7 +189,18 @@ static uint32_t FHSSupdateFrequencies(uint8_t const mode)
             band_count = 242;
             break;
         }
+#if OTA_VANILLA_ENABLED
+        case RADIO_TYPE_128x_VANILLA: {
+            freq_base = 2400400000;
+            bandwidth = 1000000;
+            band_count = 80;
+            rng_seed = my_uid_to_u32();
+            break;
+        }
+#endif
     }
+    if (!rng_seed)
+        rng_seed = my_uid_crc32();
 
     DEBUG_PRINTF("FHSS freq base:%u, bw:%u, count:%u\n",
                  freq_base, bandwidth, band_count);
@@ -223,7 +226,7 @@ Approach:
   another random entry, excluding the sync channel.
 */
 static void
-FHSSrandomiseSequence(const uint32_t nbr_fhss_freqs)
+FHSSrandomiseSequence(const uint32_t nbr_fhss_freqs, const uint32_t rng_seed)
 {
     uint8_t const sync_channel = nbr_fhss_freqs / 2;
     // Number of hops in the FHSS_sequence_lut list before circling back around,
@@ -235,7 +238,7 @@ FHSSrandomiseSequence(const uint32_t nbr_fhss_freqs)
     DEBUG_PRINTF("FHSS sequence len: %u, sync channel: %u\n",
                  fhss_sequence_len, sync_channel);
 
-    rngSeed(my_uid_crc32());
+    rngSeed(rng_seed);
 
     // initialize the sequence array
     for (iter = 0; iter < fhss_sequence_len; iter++) {

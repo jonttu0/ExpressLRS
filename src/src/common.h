@@ -31,6 +31,7 @@ enum {
     RADIO_RF_MODE_2400_ISM,
     RADIO_RF_MODE_2400_ISM_500Hz,
     RADIO_RF_MODE_2400_ISM_FLRC,
+    RADIO_RF_MODE_2400_ISM_VANILLA,
     RADIO_RF_MODE_MAX, // 0x1f = 32 values!
     ExLRS_RF_MODE_FLRC      = 0x80,
     ExLRS_RF_MODE_HANDSET   = 0x40,
@@ -43,6 +44,7 @@ enum {
     RADIO_TYPE_127x,
     RADIO_TYPE_128x,
     RADIO_TYPE_128x_FLRC,
+    RADIO_TYPE_128x_VANILLA,
     RADIO_TYPE_MAX
 };
 
@@ -91,7 +93,7 @@ enum
     OSD_MODE_250Hz,
     OSD_MODE_500Hz,
     OSD_MODE_500Hz_FLRC,
-    OSD_MODE_800Hz,
+    OSD_MODE_1kHz_FLRC,
 };
 
 typedef enum
@@ -136,7 +138,10 @@ static inline uint8_t get_elrs_airRateOsd(void) {
 void forced_stop(void);
 #endif /* RX_MODULE */
 
+void my_uid_print(void);
 uint8_t my_uid_crc8(void);
+uint16_t my_uid_crc16(void);
 uint32_t my_uid_crc32(void);
+uint32_t my_uid_to_u32(void);
 
 int8_t validate_bl_indentifier(const uint8_t * id);

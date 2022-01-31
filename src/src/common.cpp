@@ -7,9 +7,9 @@
 #include "targets.h"
 #include "helpers.h"
 #include "debug_elrs.h"
-
-//#define FLRC_ENABLE_1k 1
-
+#if OTA_VANILLA_ENABLED
+#include "OTAvanilla.h"
+#endif
 #if RADIO_SX127x
 #include "LoRa_SX127x.h"
 #endif
@@ -34,13 +34,12 @@ static expresslrs_mod_settings_t * current_settings;
 #if RADIO_SX128x
 #if RADIO_SX128x_FLRC
 static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x_FLRC[] = {
-#if FLRC_ENABLE_1k
+#if TARGET_HANDSET || RX_MODULE
     /* 1000Hz */
-    //{RADIO_FLRC, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 1000, 250000u, 1000, 32, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz_FLRC, OTA_PAYLOAD_SX128x}, // 0.39ms
-#else
-    /* 500Hz */
-    {RADIO_FLRC, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 250000u, 500, 32, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_500Hz_FLRC, OTA_PAYLOAD_SX128x}, // 0.49ms
+    {RADIO_FLRC, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 1000, 250000u, 1000, 32, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_8, OSD_MODE_1kHz_FLRC,  OTA_PAYLOAD_SX128x}, // 0.49ms
 #endif
+    /*  500Hz */
+    {RADIO_FLRC, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 2000, 250000u,  500, 32, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz_FLRC, OTA_PAYLOAD_SX128x}, // 0.49ms
 };
 #endif
 
@@ -48,16 +47,14 @@ static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x[]
     // NOTE! Preamble len is calculate MANT*2^EXP when MANT is bits [3:0] and EXP is bits [7:4]
 #if RADIO_SX128x_BW800
     /* 500Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6,  2000, 250000u, 500, 0b01100 /*12*/, 1000,  1000, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_500Hz, OTA_PAYLOAD_SX128x}, // 1.51ms
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6,  2000, 250000u, 500, 0b01100 /*12*/, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz, OTA_PAYLOAD_SX128x}, // 1.51ms
     /* 250Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF6, SX1280_LORA_CR_LI_4_7,  4000, 250000u, 250, 0b01110 /*14*/, 1000,  1000, TLM_RATIO_1_64,   FHSS_1, OSD_MODE_250Hz, OTA_PAYLOAD_SX128x}, // 3.33ms
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF6, SX1280_LORA_CR_LI_4_7,  4000, 250000u, 250, 0b01110 /*14*/, 1000, 1000, TLM_RATIO_1_64,   FHSS_4, OSD_MODE_250Hz, OTA_PAYLOAD_SX128x}, // 3.33ms
     /* 125Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF7, SX1280_LORA_CR_LI_4_7,  8000, 500000u, 125, 0b11001 /*18*/, 1000, 1500, TLM_RATIO_1_32,   FHSS_1, OSD_MODE_125Hz, OTA_PAYLOAD_SX128x}, // 6.82ms
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF7, SX1280_LORA_CR_LI_4_7,  8000, 500000u, 125, 0b11001 /*18*/, 1000, 1500, TLM_RATIO_1_32,   FHSS_2, OSD_MODE_125Hz, OTA_PAYLOAD_SX128x}, // 6.82ms
     /* 50Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF8, SX1280_LORA_CR_LI_4_7, 20000, 750000u,  50, 0b11010 /*20*/, 1000, 2000, TLM_RATIO_1_16,   FHSS_1, OSD_MODE_50Hz,  OTA_PAYLOAD_SX128x}, // 13.32ms
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF8, SX1280_LORA_CR_LI_4_7, 20000, 750000u,  50, 0b11010 /*20*/, 1000, 2000, TLM_RATIO_1_16,   FHSS_2, OSD_MODE_50Hz,  OTA_PAYLOAD_SX128x}, // 13.32ms
 #else // 1600MHz BW
-    /* 800Hz */
-    //{RADIO_LORA, SX1280_LORA_BW_1600, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_5, 1250, 250000u, 800, 0b01100 /*12*/, 1000, 1500, TLM_RATIO_1_128, FHSS_4, OSD_MODE_800Hz, OTA_PAYLOAD_SX128x}, // 0.68ms
     /* 500Hz */
     {RADIO_LORA, SX1280_LORA_BW_1600, SX1280_LORA_SF6, SX1280_LORA_CR_LI_4_6,  2000, 250000u, 500, 0b01100 /*12*/, 1000, 1500, TLM_RATIO_1_128, FHSS_2, OSD_MODE_500Hz, OTA_PAYLOAD_SX128x}, // 1.35ms
     /* 250Hz */
@@ -68,6 +65,20 @@ static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x[]
     {RADIO_LORA, SX1280_LORA_BW_1600, SX1280_LORA_SF9, SX1280_LORA_CR_LI_4_7, 20000, 750000u,  50, 0b11010 /*20*/, 1000, 2500, TLM_RATIO_1_16,  FHSS_1, OSD_MODE_50Hz,  OTA_PAYLOAD_SX128x},
 #endif // RADIO_SX128x_BW800
 };
+
+#if OTA_VANILLA_ENABLED
+static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x_VANILLA[] = {
+    /* 500Hz */
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6,  2000, 250000u, 500, 12, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz, 8}, // 1.51ms
+    /* 250Hz */
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF6, SX1280_LORA_CR_LI_4_7,  4000, 250000u, 250, 12, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_250Hz, 8}, // 3.33ms
+    /* 150Hz */
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF7, SX1280_LORA_CR_LI_4_7,  6666, 500000u, 150, 12, 1000, 1500, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_125Hz, 8}, // 6.82ms
+    /* 50Hz */
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF9, SX1280_LORA_CR_LI_4_6, 20000, 750000u,  50, 12, 1000, 2000, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_50Hz,  8}, // 13.32ms
+};
+#endif // OTA_VANILLA_ENABLED
+
 #endif /* RADIO_SX128x */
 
 #if RADIO_SX127x
@@ -82,7 +93,7 @@ static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_127x[]
 #endif /* RADIO_SX127x */
 
 
-static expresslrs_mod_settings_t* get_air_rate_config(uint8_t type)
+static expresslrs_mod_settings_t* get_air_rate_config(uint8_t const type)
 {
     switch (type) {
 #if RADIO_SX127x
@@ -95,6 +106,10 @@ static expresslrs_mod_settings_t* get_air_rate_config(uint8_t type)
 #if RADIO_SX128x_FLRC
         case RADIO_TYPE_128x_FLRC:
             return ExpressLRS_AirRateConfig_128x_FLRC;
+#endif
+#if OTA_VANILLA_ENABLED
+        case RADIO_TYPE_128x_VANILLA:
+            return ExpressLRS_AirRateConfig_128x_VANILLA;
 #endif
 #endif
         default:
@@ -129,6 +144,10 @@ uint8_t get_elrs_airRateMax(void)
     if (current_settings == ExpressLRS_AirRateConfig_128x_FLRC)
         return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_FLRC);
 #endif
+#if OTA_VANILLA_ENABLED
+    if (current_settings == ExpressLRS_AirRateConfig_128x_VANILLA)
+        return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_VANILLA);
+#endif
 #endif
     return 0;
 }
@@ -146,6 +165,10 @@ uint8_t get_elrs_current_radio_type(void)
     if (current_settings == ExpressLRS_AirRateConfig_128x_FLRC)
         return RADIO_TYPE_128x_FLRC;
 #endif
+#if OTA_VANILLA_ENABLED
+    if (current_settings == ExpressLRS_AirRateConfig_128x_VANILLA)
+        return RADIO_TYPE_128x_VANILLA;
+#endif
 #endif
     return RADIO_TYPE_MAX;
 }
@@ -154,16 +177,46 @@ uint8_t get_elrs_current_radio_type(void)
 #error "UID is mandatory!"
 #endif
 
+void my_uid_print(void)
+{
+    uint8_t UID[6] = {MY_UID};
+    DEBUG_PRINTF("MY_ID: 0x%X,0x%X0x%X0x%X0x%X0x%X\n",
+                 UID[0], UID[1], UID[2], UID[3], UID[4], UID[5]);
+}
+
 uint8_t my_uid_crc8(void)
 {
     uint8_t UID[6] = {MY_UID};
     return CalcCRC8len(UID, sizeof(UID), 0, 0xD5);
 }
 
+uint16_t my_uid_crc16(void)
+{
+    uint8_t UID[6] = {MY_UID};
+    return CalcCRC16(UID, sizeof(UID), 0);
+}
+
 uint32_t my_uid_crc32(void)
 {
     uint8_t UID[6] = {MY_UID};
     return CalcCRC32(UID, sizeof(UID));
+}
+
+uint32_t my_uid_to_u32(void)
+{
+    uint32_t ret;
+    uint8_t UID[6] = {MY_UID};
+    ret = UID[2];
+    ret <<= 8;
+    ret += UID[3];
+    ret <<= 8;
+    ret += UID[4];
+    ret <<= 8;
+    ret += UID[5];
+
+    //return ((uint32_t)UID[2] << 24) + ((uint32_t)UID[3] << 16) +
+    //       ((uint32_t)UID[4] << 8) + UID[5];
+    return ret;
 }
 
 typedef struct {
@@ -210,6 +263,7 @@ static RadioParameters_t* get_radio_type_cfg(uint8_t type)
             return &RadioType[RADIO_TYPE_127x];
         case RADIO_TYPE_128x:
         case RADIO_TYPE_128x_FLRC:
+        case RADIO_TYPE_128x_VANILLA:
             return &RadioType[RADIO_TYPE_128x];
     }
 #endif
@@ -232,6 +286,10 @@ uint8_t common_config_get_radio_type(uint8_t mode)
 #if RADIO_SX128x_FLRC
         case RADIO_RF_MODE_2400_ISM_FLRC:
             return RADIO_TYPE_128x_FLRC;
+#endif
+#if OTA_VANILLA_ENABLED
+        case RADIO_RF_MODE_2400_ISM_VANILLA:
+            return RADIO_TYPE_128x_VANILLA;
 #endif
 #endif
         default:

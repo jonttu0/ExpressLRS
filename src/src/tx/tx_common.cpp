@@ -8,6 +8,9 @@
 #include "debug_elrs.h"
 #include "LowPassFilter.h"
 #include "tx_common.h"
+#if OTA_VANILLA_ENABLED
+#include "OTAvanilla.h"
+#endif
 #include <stdlib.h>
 
 #if (GPIO_PIN_RCSIGNAL_RX != UNDEF_PIN) || (GPIO_PIN_RCSIGNAL_TX != UNDEF_PIN)
@@ -68,9 +71,8 @@ static uint8_t SetRFLinkRate(uint8_t rate, uint8_t init=0);
 
 ///////////////////////////////////////
 
-void tx_common_init_globals(void) {
-    uint8_t UID[6] = {MY_UID};
-
+void tx_common_init_globals(void)
+{
     current_rate_config = RATE_DEFAULT;
 
     pl_config.key = 0;
@@ -88,7 +90,6 @@ void tx_common_init_globals(void) {
 #endif
 
     connectionState = STATE_disconnected;
-    CRCCaesarCipher = CalcCRC16(UID, sizeof(UID), 0);
 
     msp_packet_tx.reset();
     msp_packet_rx.reset();
@@ -111,6 +112,7 @@ void tx_common_init(void)
 #endif
     DEBUG_PRINTF("\n");
 #endif
+    my_uid_print();
 
     platform_config_load(pl_config);
     TxTimer.callbackTick = &SendRCdataToRF;
@@ -228,13 +230,23 @@ static uint8_t SetRadioType(uint8_t type)
 
         current_rate_config =
             pl_config.rf[type].mode % get_elrs_airRateMax();
-        TLMinterval = pl_config.rf[type].tlm;
+        if (type == RADIO_TYPE_128x_VANILLA) {
+            TLMinterval = TLM_RATIO_NO_TLM;
+            CRCCaesarCipher = my_uid_to_u32() & 0xffff;
+            // Sync word must be set To make IQ inversion correct
+            Radio->SetSyncWord(CRCCaesarCipher & 0xff);
+        } else {
+            TLMinterval = pl_config.rf[type].tlm;
+            CRCCaesarCipher = my_uid_crc16();
+            Radio->SetSyncWord(my_uid_crc8());
+        }
+
         PowerLevels_e power =
             (PowerLevels_e)(pl_config.rf[type].power % PWR_UNKNOWN);
         platform_mode_notify(get_elrs_airRateMax() - current_rate_config);
 
-        DEBUG_PRINTF("SetRadioType type:%u, rate:%u, tlm:%u, pwr:%u\n",
-            type, current_rate_config, TLMinterval, power);
+        DEBUG_PRINTF("SetRadioType type:%u, rate:%u, tlm:%u, pwr:%u, cipher:0x%X\n",
+            type, current_rate_config, TLMinterval, power, CRCCaesarCipher);
 
 #if DAC_IN_USE
         PowerMgmt.Begin(Radio, &r9dac);
@@ -340,6 +352,7 @@ static void FAST_CODE_1 TransmissionCompletedCallback()
 }
 
 ///////////////////////////////////////
+// Internal OTA implementation
 
 static void FAST_CODE_1
 GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
@@ -355,29 +368,19 @@ GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
     sync->pkt_type = UL_PACKET_SYNC;
 }
 
-static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
+///////////////////////////////////////
+// Internal OTA implementation
+
+uint_fast8_t FAST_CODE_1
+ota_packet_generate_internal(uint8_t * const tx_buffer,
+                             uint32_t const rxtx_counter,
+                             uint32_t const current_us)
 {
-    //gpio_out_write(debug_pin_tx, 1);
-    // Called by HW timer
-    uint32_t freq;
-    uint32_t const rxtx_counter = _rf_rxtx_counter;
-    uint32_t const tlm_ratio = tlm_check_ratio;
-    // esp requires word aligned buffer
-    uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
-    uint8_t * const tx_buffer = (uint8_t *)__tx_buffer;
     uint16_t crc_or_type;
+    uint_fast8_t payloadSize = RcChannels_payloadSizeGet();
     const uint_fast8_t arm_state = RcChannels_get_arm_channel_state();
-    uint_fast8_t payloadSize = ExpressLRS_currAirRate->payloadSize - OTA_PACKET_CRC;
 
-    // Check if telemetry RX ongoing
-    if (tlm_ratio && (rxtx_counter & tlm_ratio) == 0) {
-        // Skip TX because TLM RX is ongoing
-        goto send_to_rf_exit;
-    }
-
-    freq = FHSSgetCurrFreq();
-
-    //only send sync when its time and only on channel 0;
+    // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
         (sync_send_interval <= (uint32_t)(current_us - SyncPacketNextSend)))
     {
@@ -409,6 +412,74 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
     crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
     tx_buffer[payloadSize++] = (crc_or_type >> 8);
     tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
+
+    return payloadSize;
+}
+
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
+
+uint_fast8_t FAST_CODE_1
+ota_packet_generate_vanilla(uint8_t * const tx_buffer,
+                            uint32_t const rxtx_counter,
+                            uint32_t const current_us)
+{
+    uint_fast8_t payloadSize = OTA_VANILLA_SIZE;
+    const uint_fast8_t arm_state = OTA_vanilla_getArmChannelState();
+
+    // only send sync when its time and only on sync channel;
+    if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
+        (sync_send_interval <= (uint32_t)(current_us - SyncPacketNextSend)))
+    {
+        OTA_vanilla_SyncPacketData(tx_buffer, rxtx_counter, TLMinterval);
+        SyncPacketNextSend = current_us;
+    }
+    else
+    {
+        uint8_t NonceFHSSresult = rxtx_counter % ExpressLRS_currAirRate->FHSShopInterval;
+        OTA_vanilla_PackChannelData(tx_buffer, rxtx_counter, NonceFHSSresult);
+    }
+
+    OTA_vanilla_calculateCrc(tx_buffer, CRCCaesarCipher);
+
+    return payloadSize;
+}
+#endif // TARGET_HANDSET
+
+
+///////////////////////////////////////
+// Generic TX ISR handler
+
+static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
+{
+    //gpio_out_write(debug_pin_tx, 1);
+    // Called by HW timer
+    uint32_t freq;
+    uint32_t const rxtx_counter = _rf_rxtx_counter;
+    uint32_t const tlm_ratio = tlm_check_ratio;
+    // esp requires word aligned buffer
+    uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
+    uint8_t * const tx_buffer = (uint8_t *)__tx_buffer;
+    uint_fast8_t payloadSize;
+
+    // Check if telemetry RX ongoing
+    if (tlm_ratio && (rxtx_counter & tlm_ratio) == 0) {
+        // Skip TX because TLM RX is ongoing
+        goto send_to_rf_exit;
+    }
+
+    freq = FHSSgetCurrFreq();
+
+    // ------------------------------------------------------------------
+
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
+    if (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA)
+        payloadSize = ota_packet_generate_vanilla(tx_buffer, (rxtx_counter -1), current_us);
+    else
+#endif // TARGET_HANDSET
+        payloadSize = ota_packet_generate_internal(tx_buffer, rxtx_counter, current_us);
+
+    // ------------------------------------------------------------------
+
     // Enable PA
     PowerMgmt.pa_on();
     // Debugging
@@ -521,6 +592,8 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
             buff[4] = RADIO_RF_MODE_2400_ISM_500Hz;
         else if (pl_config.rf_mode == RADIO_TYPE_128x_FLRC)
             buff[4] = RADIO_RF_MODE_2400_ISM_FLRC;
+        else if (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA)
+            buff[4] = RADIO_RF_MODE_2400_ISM_VANILLA;
     }
 #if DOMAIN_BOTH
     buff[4] |= ExLRS_RF_MODE_DUAL;
