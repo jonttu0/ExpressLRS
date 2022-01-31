@@ -115,13 +115,13 @@ void POWERMGNT::setPower(PowerLevels_e power)
 
 void FAST_CODE_1 POWERMGNT::pa_off(void) const
 {
-    if (p_dac && p_radio->GetModuleType() == MODULE_SX127x)
+    if (p_dac)
         p_dac->standby();
 }
 
 void FAST_CODE_1 POWERMGNT::pa_on(void) const
 {
-    if (p_dac && p_radio->GetModuleType() == MODULE_SX127x)
+    if (p_dac)
         p_dac->resume();
 }
 
@@ -137,7 +137,7 @@ void POWERMGNT::p_set_power(PowerLevels_e power)
 
     DEBUG_PRINTF("MGMT set pwr:%u, type:%u\n", power, type);
 
-    if (p_dac && type == MODULE_SX127x) {
+    if (p_dac) {
         p_dac->setPower(power);
     } else {
         PowerArray_t * powers = &power_array[type];
