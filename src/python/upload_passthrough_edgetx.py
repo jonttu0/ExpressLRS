@@ -1,11 +1,11 @@
-Import("env")
 import serial
 import time
 import sys
+import subprocess
 try:
     import streamexpect
 except ImportError:
-    env.Execute('"$PYTHONEXE" -m pip install six')
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "six"])
     try:
         import streamexpect
     except ImportError:
