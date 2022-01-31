@@ -1,3 +1,4 @@
+Import("env")
 import serial
 import time
 import sys
