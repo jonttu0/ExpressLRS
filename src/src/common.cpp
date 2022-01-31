@@ -7,7 +7,7 @@
 #include "targets.h"
 #include "helpers.h"
 #include "debug_elrs.h"
-#if OTA_VANILLA_ENABLED
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
 #include "OTAvanilla.h"
 #endif
 #if RADIO_SX127x
@@ -66,7 +66,7 @@ static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x[]
 #endif // RADIO_SX128x_BW800
 };
 
-#if OTA_VANILLA_ENABLED
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
 static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x_VANILLA[] = {
     /* 500Hz */
     {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6,  2000, 250000u, 500, 12, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz, 8}, // 1.51ms
@@ -107,7 +107,7 @@ static expresslrs_mod_settings_t* get_air_rate_config(uint8_t const type)
         case RADIO_TYPE_128x_FLRC:
             return ExpressLRS_AirRateConfig_128x_FLRC;
 #endif
-#if OTA_VANILLA_ENABLED
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
         case RADIO_TYPE_128x_VANILLA:
             return ExpressLRS_AirRateConfig_128x_VANILLA;
 #endif
@@ -144,7 +144,7 @@ uint8_t get_elrs_airRateMax(void)
     if (current_settings == ExpressLRS_AirRateConfig_128x_FLRC)
         return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_FLRC);
 #endif
-#if OTA_VANILLA_ENABLED
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
     if (current_settings == ExpressLRS_AirRateConfig_128x_VANILLA)
         return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_VANILLA);
 #endif
@@ -165,7 +165,7 @@ uint8_t get_elrs_current_radio_type(void)
     if (current_settings == ExpressLRS_AirRateConfig_128x_FLRC)
         return RADIO_TYPE_128x_FLRC;
 #endif
-#if OTA_VANILLA_ENABLED
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
     if (current_settings == ExpressLRS_AirRateConfig_128x_VANILLA)
         return RADIO_TYPE_128x_VANILLA;
 #endif
@@ -179,9 +179,11 @@ uint8_t get_elrs_current_radio_type(void)
 
 void my_uid_print(void)
 {
+#if defined(DEBUG_SERIAL)
     uint8_t UID[6] = {MY_UID};
     DEBUG_PRINTF("MY_ID: 0x%X,0x%X0x%X0x%X0x%X0x%X\n",
                  UID[0], UID[1], UID[2], UID[3], UID[4], UID[5]);
+#endif
 }
 
 uint8_t my_uid_crc8(void)
@@ -287,7 +289,7 @@ uint8_t common_config_get_radio_type(uint8_t mode)
         case RADIO_RF_MODE_2400_ISM_FLRC:
             return RADIO_TYPE_128x_FLRC;
 #endif
-#if OTA_VANILLA_ENABLED
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
         case RADIO_RF_MODE_2400_ISM_VANILLA:
             return RADIO_TYPE_128x_VANILLA;
 #endif
