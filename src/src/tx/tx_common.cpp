@@ -384,10 +384,11 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
     uint16_t crc_or_type;
     uint_fast8_t payloadSize = RcChannels_payloadSizeGet();
     const uint_fast8_t arm_state = RcChannels_get_arm_channel_state();
+    const uint32_t sync_interval_ms = SyncPacketInterval_ms / (arm_state + 1);
 
     // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
-        (SyncPacketInterval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
+        (sync_interval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
     {
         GenerateSyncPacketData(tx_buffer, rxtx_counter);
         SyncPacketSent_ms = current_us;
@@ -430,10 +431,11 @@ ota_packet_generate_vanilla(uint8_t * const tx_buffer,
 {
     uint_fast8_t payloadSize = OTA_VANILLA_SIZE;
     const uint_fast8_t arm_state = OTA_vanilla_getArmChannelState();
+    const uint32_t sync_interval_ms = SyncPacketInterval_ms / (arm_state + 1);
 
     // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
-        (SyncPacketInterval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
+        (sync_interval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
     {
         OTA_vanilla_SyncPacketData(tx_buffer, rxtx_counter, TLMinterval);
         SyncPacketSent_ms = current_us;

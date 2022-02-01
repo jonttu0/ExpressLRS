@@ -607,7 +607,7 @@ RcChannels_get_arm_channel_state(void)
     #if (N_SWITCHES <= AUX_CHANNEL_ARM)
         #error "Invalid AUX channel for arming!"
     #endif
-    return currentSwitches[AUX_CHANNEL_ARM];
+    return !!currentSwitches[AUX_CHANNEL_ARM];
 #else
     return 0;
 #endif

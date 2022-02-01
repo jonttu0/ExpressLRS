@@ -317,7 +317,7 @@ void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
                                        uint8_t PayloadLength)
 {
     if (PreambleLength < 8) PreambleLength = 8;
-        PreambleLength = ((PreambleLength / 4) - 1) << 4;
+    PreambleLength = ((PreambleLength / 4) - 1) << 4;
     crc = (crc) ? SX1280_FLRC_CRC_2_BYTE : SX1280_FLRC_CRC_OFF;
 
     uint8_t buf[8];
