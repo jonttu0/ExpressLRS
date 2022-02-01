@@ -95,18 +95,17 @@ enum {
 };
 
 
+#define SYNC_CIPHER_MASK  ((0x1 << 23) - 1)
 typedef struct ElrsSyncPacket_s {
-    uint16_t CRCCaesarCipher;  // XORed by UID[4,5]
-    uint8_t fhssIndex;
-    uint8_t rxtx_counter;
-    uint8_t free            : 3,
-            no_sync_armed   : 1,
-            arm_aux         : 4;
-    uint8_t pkt_type        : 2,
-            rate_index      : 2,
-            radio_mode      : 1,
-            tlm_interval    : 3;
-} ElrsSyncPacket_s;
+    uint32_t fhssIndex      : 8,
+             no_sync_armed  : 1,
+             cipher         : 23;
+    uint8_t  rxtx_counter;
+    uint8_t  pkt_type       : 2,
+             rate_index     : 2,
+             radio_mode     : 1,
+             tlm_interval   : 3;
+} PACKED ElrsSyncPacket_s;
 
 
 static FORCED_INLINE uint8_t

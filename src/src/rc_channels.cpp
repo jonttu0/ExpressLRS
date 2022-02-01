@@ -66,6 +66,8 @@ typedef void
 static channels_pack_t DRAM_ATTR channels_pack_ptr;
 
 
+static_assert(6 == sizeof(ElrsSyncPacket_s), "Incorrect sync packet size!");
+
 /*************************************************************************************
  * RC OTA PACKET
  *************************************************************************************/
@@ -602,6 +604,9 @@ uint8_t FAST_CODE_1
 RcChannels_get_arm_channel_state(void)
 {
 #if TX_SKIP_SYNC
+    #if (N_SWITCHES <= AUX_CHANNEL_ARM)
+        #error "Invalid AUX channel for arming!"
+    #endif
     return currentSwitches[AUX_CHANNEL_ARM];
 #else
     return 0;

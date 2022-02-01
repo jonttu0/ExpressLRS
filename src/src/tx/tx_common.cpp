@@ -32,7 +32,7 @@ static volatile uint8_t DRAM_ATTR rx_buffer_size;
 static uint8_t red_led_state;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
-static uint16_t DRAM_ATTR CRCCaesarCipherXored;
+static uint32_t DRAM_ATTR SyncCipher;
 
 struct platform_config DRAM_ATTR pl_config;
 
@@ -240,7 +240,7 @@ static uint8_t SetRadioType(uint8_t type)
         } else {
             TLMinterval = pl_config.rf[type].tlm;
             CRCCaesarCipher = my_uid_crc16();
-            CRCCaesarCipherXored = CRCCaesarCipher ^ uid_u32;
+            SyncCipher = (CRCCaesarCipher ^ uid_u32) & SYNC_CIPHER_MASK;
             Radio->SetSyncWord(my_uid_crc8());
         }
 
@@ -361,7 +361,7 @@ static void FAST_CODE_1
 GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
 {
     ElrsSyncPacket_s * sync = (ElrsSyncPacket_s*)output;
-    sync->CRCCaesarCipher = CRCCaesarCipherXored;
+    sync->cipher = SyncCipher;
     sync->fhssIndex = FHSSgetCurrIndex();
     sync->rxtx_counter = rxtx_counter;
     sync->tlm_interval = TLMinterval;
@@ -369,7 +369,6 @@ GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
     sync->radio_mode = ExpressLRS_currAirRate->pkt_type;
 
     sync->no_sync_armed = TX_SKIP_SYNC;
-    sync->arm_aux = AUX_CHANNEL_ARM;
 
     sync->pkt_type = UL_PACKET_SYNC;
 }

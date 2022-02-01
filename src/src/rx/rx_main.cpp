@@ -54,7 +54,7 @@ static volatile int32_t DRAM_ATTR rx_freqerror;
 static volatile int32_t DRAM_ATTR rx_hw_isr_running;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
-static uint16_t DRAM_ATTR CRCCaesarCipherXored;
+static uint32_t DRAM_ATTR SyncCipher;
 
 #if SERVO_OUTPUTS_ENABLED
 #if !SERVO_WRITE_FROM_ISR
@@ -98,6 +98,34 @@ struct gpio_out dbg_pin_tmr;
 #endif
 #if (DBG_PIN_RX_ISR != UNDEF_PIN)
 struct gpio_out dbg_pin_rx;
+#endif
+
+#if AUX_CHANNEL_ARM == 0
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch4))
+#elif AUX_CHANNEL_ARM == 1
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch5))
+#elif AUX_CHANNEL_ARM == 2
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch6))
+#elif AUX_CHANNEL_ARM == 3
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch7))
+#elif AUX_CHANNEL_ARM == 4
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch8))
+#elif AUX_CHANNEL_ARM == 5
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch9))
+#elif AUX_CHANNEL_ARM == 6
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch10))
+#elif AUX_CHANNEL_ARM == 7
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch11))
+#elif AUX_CHANNEL_ARM == 8
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch12))
+#elif AUX_CHANNEL_ARM == 9
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch13))
+#elif AUX_CHANNEL_ARM == 10
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch14))
+#elif AUX_CHANNEL_ARM == 11
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch15))
+#else
+    #define ARM_CH_CHECK() 1
 #endif
 
 ///////////////////////////////////////
@@ -408,7 +436,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
             //DEBUG_PRINTF(" S");
             ElrsSyncPacket_s const * const sync = (ElrsSyncPacket_s*)rx_buffer;
 
-            if (sync->CRCCaesarCipher == CRCCaesarCipherXored)
+            if (sync->cipher == SyncCipher)
             {
                 if ((_conn_state == STATE_disconnected) || (_conn_state == STATE_lost))
                 {
@@ -435,7 +463,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
                         LostConnection();
                         return;
                     }
-                } else if (no_sync_armed && SWITCH_IS_SET(CrsfChannels.ch4)) {
+                } else if (no_sync_armed && ARM_CH_CHECK()) {
                     /* Sync should not be received, ignore it */
                     rx_last_valid_us = 0;
                     freq_err = 0;
@@ -487,7 +515,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
             break;
 
         case UL_PACKET_MSP: {
-            if (no_sync_armed && SWITCH_IS_SET(CrsfChannels.ch4)) {
+            if (no_sync_armed && ARM_CH_CHECK()) {
                 /* Not a valid packet, ignore it */
                 rx_last_valid_us = 0;
                 freq_err = 0;
@@ -682,7 +710,7 @@ void setup()
     connectionState = STATE_disconnected;
     tentative_cnt = 0;
     CRCCaesarCipher = my_uid_crc16();
-    CRCCaesarCipherXored = CRCCaesarCipher ^ my_uid_to_u32();
+    SyncCipher = (CRCCaesarCipher ^ my_uid_to_u32()) & SYNC_CIPHER_MASK;
 
 #if !SERVO_OUTPUTS_ENABLED
     CrsfSerial.Begin(RX_BAUDRATE);
