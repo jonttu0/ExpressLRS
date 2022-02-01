@@ -73,9 +73,9 @@ static LPF DRAM_FORCE_ATTR LPF_UplinkSNR(5);
 //////////////////////////////////////////////////////////////
 ////// Variables for Telemetry and Link Quality //////////////
 
-static uint32_t DRAM_ATTR LastValidPacket; //Time the last valid packet was recv
+static uint32_t DRAM_ATTR LastValidPacket_ms; //Time the last valid packet was recv
 #if !SERVO_OUTPUTS_ENABLED
-static uint32_t DRAM_ATTR SendLinkStatstoFCintervalNextSend;
+static uint32_t DRAM_ATTR LinkStatsSentToFc_ms;
 #endif
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_rx;
 static uint32_t DRAM_ATTR msp_packet_rx_sent;
@@ -85,7 +85,7 @@ static uint8_t DRAM_ATTR uplink_Link_quality;
 
 ///////////////////////////////////////////////////////////////
 ///////////// Variables for Sync Behaviour ////////////////////
-static uint32_t DRAM_ATTR RFmodeNextCycle;
+static uint32_t DRAM_ATTR RfModeCycled_ms;
 static uint8_t DRAM_ATTR scanIndex;
 static uint8_t DRAM_ATTR tentative_cnt;
 static uint8_t DRAM_ATTR no_sync_armed;
@@ -290,6 +290,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #if PRINT_RATE && NO_DATA_TO_FC
         print_rate_cnt_fail++;
 #endif
+        DEBUG_PRINTF("-");
         TxTimer.reset(0); // Reset timer interval
     }
 
@@ -368,7 +369,6 @@ void FAST_CODE_1 TentativeConnection(int32_t freqerror)
 {
     /* Do initial freq correction */
     Radio->setPPMoffsetReg(FHSSfreqCorrectionApply(freqerror));
-    rx_last_valid_us = 0;
 
     tentative_cnt = 0;
     connectionState = STATE_tentative;
@@ -382,23 +382,18 @@ void FAST_CODE_1 GotConnection()
     connectionState = STATE_connected; //we got a packet, therefore no lost connection
 
     led_set_state(1); // turn on led
-    DEBUG_PRINTF("connected in %d ms\n", (int32_t)(LastValidPacket - RFmodeNextCycle));
+    DEBUG_PRINTF("connected in %d ms\n", (int32_t)(LastValidPacket_ms - RfModeCycled_ms));
 
     platform_connection_state(connectionState);
 }
 
 void FAST_CODE_1
-ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t payloadSize, int32_t freq_err)
+ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadSize, int32_t freq_err)
 {
-    /* Processing takes:
-        R9MM: ~160us
-    */
-    if (rx_hw_isr_running)
-        // Skip if hw isr is triggered already (e.g. TX has some weird latency)
-        return;
-
-    /* Error in reception (CRC etc), kick hw timer */
-    if (!rx_buffer) {
+    /* Skip if hw isr is triggered already (e.g. TX has some weird latency)
+     * or  error in reception (CRC etc), kick hw timer
+     */
+    if (rx_hw_isr_running || !rx_buffer) {
         DEBUG_PRINTF("_");
         return;
     }
@@ -426,9 +421,6 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
 
     //DEBUG_PRINTF("E%d ", freq_err);
 
-    rx_last_valid_us = current_us;
-    LastValidPacket = millis();
-
     switch (type)
     {
         case UL_PACKET_SYNC:
@@ -444,6 +436,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
                     if (sync->radio_mode == ExpressLRS_currAirRate->pkt_type &&
                             sync->rate_index == current_rate_config) {
                         TentativeConnection(freq_err);
+                        current_us = 0;
                     } else {
                         rcvd_pkt_type = sync->radio_mode;
                         rcvd_rate_index = sync->rate_index;
@@ -461,13 +454,16 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
                     else if (2 < (tentative_cnt++))
                     {
                         LostConnection();
-                        return;
+                        current_us = 0;
+                        freq_err = 0;
+                        goto exit_rx_isr;
                     }
                 } else if (no_sync_armed && ARM_CH_CHECK()) {
                     /* Sync should not be received, ignore it */
-                    rx_last_valid_us = 0;
+                    DEBUG_PRINTF(".");
+                    current_us = 0;
                     freq_err = 0;
-                    return;
+                    goto exit_rx_isr;
                 }
 
                 //DEBUG_PRINTF("nonce: %u <= %u\n", NonceRXlocal, sync->rxtx_counter);
@@ -476,10 +472,11 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
                 FHSSsetCurrIndex(sync->fhssIndex);
                 NonceRXlocal = sync->rxtx_counter;
             } else {
+                DEBUG_PRINTF("_");
                 /* Not a valid packet, ignore it */
-                rx_last_valid_us = 0;
+                current_us = 0;
                 freq_err = 0;
-                return;
+                goto exit_rx_isr;
             }
             break;
         }
@@ -517,9 +514,10 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
         case UL_PACKET_MSP: {
             if (no_sync_armed && ARM_CH_CHECK()) {
                 /* Not a valid packet, ignore it */
-                rx_last_valid_us = 0;
+                DEBUG_PRINTF(":");
+                current_us = 0;
                 freq_err = 0;
-                return;
+                goto exit_rx_isr;
             }
 #if !SERVO_OUTPUTS_ENABLED
             //DEBUG_PRINTF(" M");
@@ -532,15 +530,14 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
 
         case UL_PACKET_UNKNOWN:
         default:
-            //DEBUG_PRINTF(" _");
+            DEBUG_PRINTF("?");
             /* Not a valid packet, ignore it */
-            rx_last_valid_us = 0;
+            current_us = 0;
             freq_err = 0;
-            return;
-            //break;
+            goto exit_rx_isr;
     }
 
-    rx_freqerror = freq_err;
+    LastValidPacket_ms = millis();
 
     LQ_packetAck();
     FillLinkStats();
@@ -553,6 +550,10 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, const uint32_t current_us, size_t pa
 #endif
 
     TxTimer.triggerSoon(); // Trigger FHSS ISR
+
+exit_rx_isr:
+    rx_last_valid_us = current_us;
+    rx_freqerror = freq_err;
 }
 
 void forced_stop(void)
@@ -757,7 +758,7 @@ void loop()
 
     if (STATE_lost < _conn_state) {
         // check if connection is lost or in very bad shape
-        if (ExpressLRS_currAirRate->connectionLostTimeout <= (int32_t)(now - read_u32(&LastValidPacket))
+        if (ExpressLRS_currAirRate->connectionLostTimeout <= (int32_t)(now - read_u32(&LastValidPacket_ms))
             /*|| read_u8(&uplink_Link_quality) <= 10*/) {
             LostConnection();
         } else if (_conn_state == STATE_connected) {
@@ -767,10 +768,10 @@ void loop()
                 servo_out_write(&CrsfChannels);
 #endif
 #else
-            if (SEND_LINK_STATS_TO_FC_INTERVAL <= (uint32_t)(now - SendLinkStatstoFCintervalNextSend)) {
+            if (SEND_LINK_STATS_TO_FC_INTERVAL <= (uint32_t)(now - LinkStatsSentToFc_ms)) {
                 LinkStatistics.link.uplink_Link_quality = read_u8(&uplink_Link_quality);
                 crsf.LinkStatisticsSend(LinkStatistics.link);
-                SendLinkStatstoFCintervalNextSend = now;
+                LinkStatsSentToFc_ms = now;
             }
 #endif
         }
@@ -790,7 +791,7 @@ void loop()
 
         /* Cycle only if initial connection search */
         } else if ((!ExpressLRS_currAirRate) ||
-            (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RFmodeNextCycle))) {
+            (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RfModeCycled_ms))) {
             uint8_t max_rate = get_elrs_airRateMax();
 #if RADIO_SX128x_FLRC
             if (max_rate <= scanIndex) {
@@ -809,7 +810,7 @@ void loop()
                 if (max_rate <= scanIndex)
                     platform_connection_state(STATE_search_iteration_done);
 
-            RFmodeNextCycle = now;
+            RfModeCycled_ms = now;
         } else if (150 <= (uint32_t)(now - led_toggle_ms)) {
             led_toggle();
             led_toggle_ms = now;
@@ -843,17 +844,23 @@ void loop()
 #if PRINT_RATE && NO_DATA_TO_FC
     if ((1000U <= (uint32_t)(now - print_Rate_cnt_time)) &&
         (_conn_state == STATE_connected)) {
+#if 1
+        uint32_t const bad = read_u32(&print_rate_cnt_fail);
+        uint32_t const good = read_u32(&print_rate_cnt);
+        write_u32(&print_rate_cnt_fail, 0);
+        write_u32(&print_rate_cnt, 0);
         DEBUG_PRINTF(" Rate: -%u +%u LQ:%u RSSI:%d SNR:%d - RC: %u|%u|%u|%u|*|%u|%u|%u|%u|\n",
-            read_u32(&print_rate_cnt_fail),
-            read_u32(&print_rate_cnt),
+            bad,
+            good,
             read_u8(&uplink_Link_quality),
             LPF_UplinkRSSI.value(),
             LPF_UplinkSNR.value(),
             CrsfChannels.ch0, CrsfChannels.ch1, CrsfChannels.ch2, CrsfChannels.ch3,
             CrsfChannels.ch4, CrsfChannels.ch5, CrsfChannels.ch6, CrsfChannels.ch7
             );
-        write_u32(&print_rate_cnt, 0);
-        write_u32(&print_rate_cnt_fail, 0);
+#else
+        DEBUG_PRINTF("\n");
+#endif
         print_Rate_cnt_time = now;
     }
 #endif
