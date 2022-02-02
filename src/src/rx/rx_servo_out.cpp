@@ -1,5 +1,6 @@
 #include "rx_servo_out.h"
 #include "LowPassFilter.h"
+#include "platform.h"
 
 #if SERVO_OUTPUTS_ENABLED
 
@@ -7,7 +8,9 @@
 #define US_OUT_MAX 2000
 
 #define SERVO_USE_LPF 1
-#define SERVO_UPDATE_INTERVAL 100 //ms
+
+#define SERVO_UPDATE_INTERVAL_MS  100U
+#define SERVO_UPDATE_INTERVAL_US (SERVO_UPDATE_INTERVAL_MS * 1000) //us
 
 #undef CRSF_CHANNEL_IN_VALUE_MIN
 #define CRSF_CHANNEL_IN_VALUE_MIN 188
@@ -62,7 +65,7 @@ static LPF DRAM_FORCE_ATTR lpf_ch4(LPF_SMOOTHING_FACTOR);
 #endif // SERVO_USE_LPF
 #endif
 
-static uint32_t DRAM_ATTR last_update;
+static uint32_t DRAM_ATTR last_update_us;
 
 
 void servo_out_init(void) {
@@ -137,13 +140,11 @@ void FAST_CODE_2 servo_out_fail_safe(void)
 }
 
 
-void FAST_CODE_2 servo_out_write(rc_channels_rx_t const * const channels) {
+void FAST_CODE_2 servo_out_write(rc_channels_rx_t const * const channels, uint32_t const now_us)
+{
     /* set pwm outputs for servos */
-    uint32_t now = millis();
 
-#if !SERVO_WRITE_FROM_ISR
     uint32_t irq = _SAVE_IRQ();
-#endif // SERVO_WRITE_FROM_ISR
 
 #if SERVO_USE_LPF
 #if (SERVO_PIN_CH1 != UNDEF_PIN)
@@ -173,11 +174,9 @@ void FAST_CODE_2 servo_out_write(rc_channels_rx_t const * const channels) {
 #endif
 #endif // SERVO_USE_LPF
 
-#if !SERVO_WRITE_FROM_ISR
     _RESTORE_IRQ(irq);
-#endif // SERVO_WRITE_FROM_ISR
 
-    if (SERVO_UPDATE_INTERVAL < (now - last_update)) {
+    if (SERVO_UPDATE_INTERVAL_US < (now_us - last_update_us)) {
 #if (SERVO_PIN_CH1 != UNDEF_PIN)
         // 188 ... 1792
         ch1.writeMicroseconds(CRSF_IN_to_US(ch0_val));
@@ -191,7 +190,7 @@ void FAST_CODE_2 servo_out_write(rc_channels_rx_t const * const channels) {
 #if (SERVO_PIN_CH4 != UNDEF_PIN)
         ch4.writeMicroseconds(CRSF_IN_to_US(ch3_val));
 #endif
-        last_update = now;
+        last_update_us = now_us;
     }
 }
 

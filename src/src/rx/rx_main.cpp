@@ -25,7 +25,8 @@ static void SetRFLinkRate(uint8_t rate);
 void FAST_CODE_1 LostConnection();
 
 //// CONSTANTS ////
-#define SEND_LINK_STATS_TO_FC_INTERVAL 100
+#define LINK_STATS_SEND_INTERVAL_MS 100U
+#define LINK_STATS_SEND_INTERVAL_US (LINK_STATS_SEND_INTERVAL_MS * 1000)
 
 /* Debug variables */
 #define PRINT_FREQ_ERROR    0
@@ -57,9 +58,7 @@ static uint16_t DRAM_ATTR CRCCaesarCipher;
 static uint32_t DRAM_ATTR SyncCipher;
 
 #if SERVO_OUTPUTS_ENABLED
-#if !SERVO_WRITE_FROM_ISR
 static uint8_t DRAM_ATTR update_servos;
-#endif
 #endif
 static rc_channels_rx_t DRAM_ATTR CrsfChannels;
 static LinkStats_t DRAM_ATTR LinkStatistics;
@@ -75,7 +74,7 @@ static LPF DRAM_FORCE_ATTR LPF_UplinkSNR(5);
 
 static uint32_t DRAM_ATTR LastValidPacket_ms; //Time the last valid packet was recv
 #if !SERVO_OUTPUTS_ENABLED
-static uint32_t DRAM_ATTR LinkStatsSentToFc_ms;
+static uint32_t DRAM_ATTR LinkStatsSentToFc_us;
 #endif
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_rx;
 static uint32_t DRAM_ATTR msp_packet_rx_sent;
@@ -321,6 +320,24 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 hw_tmr_isr_exit:
     NonceRXlocal = nonce;
 
+    /* Send stats to FC from here to avoid RC data blocking.
+     * MSP messages are sent from main loop (blocked when armed)
+     */
+#if SERVO_OUTPUTS_ENABLED
+    if (update_servos && STATE_lost < connectionState) {
+        servo_out_write(&CrsfChannels, us);
+    }
+    update_servos = 0;
+#else
+    if (STATE_connected == connectionState) {
+        if (LINK_STATS_SEND_INTERVAL_US <= (uint32_t)(us - LinkStatsSentToFc_us)) {
+            LinkStatistics.link.uplink_Link_quality = uplink_Link_quality;
+            crsf.LinkStatisticsSend(LinkStatistics.link);
+            LinkStatsSentToFc_us = us;
+        }
+    }
+#endif
+
 #if PRINT_TIMING && NO_DATA_TO_FC
     uint32_t now = micros();
     DEBUG_PRINTF("RX:%u (t:%u) HW:%u diff:%d (t:%u) [f %u]\n",
@@ -493,11 +510,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
 #else // !CRC16_POLY_TESTING
                 RcChannels_channels_extract(rx_buffer, CrsfChannels);
 #if SERVO_OUTPUTS_ENABLED
-#if SERVO_WRITE_FROM_ISR
-                servo_out_write(&CrsfChannels);
-#else
                 update_servos = 1;
-#endif
 #else // !SERVO_OUTPUTS_ENABLED
 #if (DBG_PIN_RX_ISR != UNDEF_PIN)
                 gpio_out_write(dbg_pin_rx, 0);
@@ -761,19 +774,6 @@ void loop()
         if (ExpressLRS_currAirRate->connectionLostTimeout <= (int32_t)(now - read_u32(&LastValidPacket_ms))
             /*|| read_u8(&uplink_Link_quality) <= 10*/) {
             LostConnection();
-        } else if (_conn_state == STATE_connected) {
-#if SERVO_OUTPUTS_ENABLED
-#if !SERVO_WRITE_FROM_ISR
-            if (read_u8(&update_servos))
-                servo_out_write(&CrsfChannels);
-#endif
-#else
-            if (SEND_LINK_STATS_TO_FC_INTERVAL <= (uint32_t)(now - LinkStatsSentToFc_ms)) {
-                LinkStatistics.link.uplink_Link_quality = read_u8(&uplink_Link_quality);
-                crsf.LinkStatisticsSend(LinkStatistics.link);
-                LinkStatsSentToFc_ms = now;
-            }
-#endif
         }
     } else if (_conn_state == STATE_disconnected) {
         uint8_t current_radio_type = get_elrs_current_radio_type();

@@ -18,8 +18,6 @@
 #define NO_INLINE __attribute__((noinline))
 #endif
 
-#define SERVO_WRITE_FROM_ISR 0
-
 #define barrier() __asm__ __volatile__("": : :"memory")
 
 static inline void write_u32(void *addr, uint32_t val) {
