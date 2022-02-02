@@ -144,7 +144,7 @@ public:
     void handleUartIn(void);
 
     void sendRCFrameToFC(rc_channels_rx_t * channels);
-    void LinkStatisticsSend(LinkStatsLink_t & stats);
+    void LinkStatisticsSend(LinkStatsLink_t & stats, uint32_t now_us);
     void sendMSPFrameToFC(mspPacket_t & msp) const;
 
     MspCallback_t MspCallback;

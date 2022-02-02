@@ -73,9 +73,6 @@ static LPF DRAM_FORCE_ATTR LPF_UplinkSNR(5);
 ////// Variables for Telemetry and Link Quality //////////////
 
 static uint32_t DRAM_ATTR LastValidPacket_ms; //Time the last valid packet was recv
-#if !SERVO_OUTPUTS_ENABLED
-static uint32_t DRAM_ATTR LinkStatsSentToFc_us;
-#endif
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_rx;
 static uint32_t DRAM_ATTR msp_packet_rx_sent;
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_tx;
@@ -330,11 +327,8 @@ hw_tmr_isr_exit:
     update_servos = 0;
 #else
     if (STATE_connected == connectionState) {
-        if (LINK_STATS_SEND_INTERVAL_US <= (uint32_t)(us - LinkStatsSentToFc_us)) {
-            LinkStatistics.link.uplink_Link_quality = uplink_Link_quality;
-            crsf.LinkStatisticsSend(LinkStatistics.link);
-            LinkStatsSentToFc_us = us;
-        }
+        LinkStatistics.link.uplink_Link_quality = uplink_Link_quality;
+        crsf.LinkStatisticsSend(LinkStatistics.link, us);
     }
 #endif
 

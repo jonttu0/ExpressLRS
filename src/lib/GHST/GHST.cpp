@@ -10,6 +10,10 @@
 GenericLutCRC<uint8_t, GHST_POLY, 8> DMA_ATTR crc_ghst;
 
 static ghstRcFrame_t rc_data;
+static uint32_t DMA_ATTR link_stat_sent_us;
+
+#define LINK_STATS_SEND_INTERVAL_MS 100U
+#define LINK_STATS_SEND_INTERVAL_US (LINK_STATS_SEND_INTERVAL_MS * 1000)
 
 
 void GHST::Begin(void)
@@ -69,11 +73,15 @@ void GHST::sendRCFrameToFC(rc_channels_rx_t * channels)
     sendFrameToFC((uint8_t*)&rc_data, sizeof(rc_data));
 }
 
-void GHST::LinkStatisticsSend(LinkStatsLink_t & stats)
+void GHST::LinkStatisticsSend(LinkStatsLink_t & stats, uint32_t now_us)
 {
-    stats_updated = 1;
-    uplink_Link_quality = stats.uplink_Link_quality;
-    uplink_RSSI = stats.uplink_RSSI_1;
+    if (LINK_STATS_SEND_INTERVAL_US <= (uint32_t)(now_us - link_stat_sent_us)) {
+        stats_updated = 1;
+        uplink_Link_quality = stats.uplink_Link_quality;
+        uplink_RSSI = stats.uplink_RSSI_1;
+
+        link_stat_sent_us = now_us;
+    }
 }
 
 void GHST::sendMSPFrameToFC(mspPacket_t & msp) const

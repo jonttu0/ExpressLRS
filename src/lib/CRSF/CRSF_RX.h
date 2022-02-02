@@ -18,7 +18,7 @@ public:
     void handleUartIn(void);
 
     void sendRCFrameToFC(rc_channels_rx_t * channels) const;
-    void LinkStatisticsSend(LinkStatsLink_t & stats) const;
+    void LinkStatisticsSend(LinkStatsLink_t & stats, uint32_t now_us) const;
     void sendMSPFrameToFC(mspPacket_t & msp) const;
 
     uint32_t current_baudrate(void) const {
