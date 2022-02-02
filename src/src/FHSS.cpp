@@ -23,8 +23,8 @@ static int32_t  DRAM_FORCE_ATTR FreqCorrectionMin;
 static int32_t  DRAM_FORCE_ATTR FreqCorrectionMax;
 
 // Runtime variables
-static volatile uint32_t DRAM_ATTR FHSS_sequence_index;
-static volatile int32_t  DRAM_ATTR FreqCorrection;
+static uint32_t DRAM_ATTR FHSS_sequence_index;
+static int32_t  DRAM_ATTR FreqCorrection;
 static uint32_t DRAM_ATTR FHSS_frequencies[FHSS_SEQ_TABLE_SIZE];
 
 static uint32_t FHSSupdateFrequencies(uint8_t mode, uint32_t &rng_seed);

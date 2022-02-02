@@ -49,9 +49,9 @@ RX_CLASS DRAM_FORCE_ATTR crsf(CrsfSerial); //pass a serial port object to the cl
 connectionState_e DRAM_ATTR connectionState;
 static volatile uint8_t DRAM_ATTR NonceRXlocal; // nonce that we THINK we are up to.
 static uint8_t DRAM_ATTR TLMinterval;
-static volatile uint32_t DRAM_ATTR tlm_check_ratio;
-static volatile uint32_t DRAM_ATTR rx_last_valid_us; //Time the last valid packet was recv
-static volatile int32_t DRAM_ATTR rx_freqerror;
+static uint32_t DRAM_ATTR tlm_check_ratio;
+static uint32_t DRAM_ATTR rx_last_valid_us; //Time the last valid packet was recv
+static int32_t DRAM_ATTR rx_freqerror;
 static volatile int32_t DRAM_ATTR rx_hw_isr_running;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
@@ -465,15 +465,10 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                     else if (2 < (tentative_cnt++))
                     {
                         LostConnection();
-                        current_us = 0;
-                        freq_err = 0;
                         goto exit_rx_isr;
                     }
                 } else if (no_sync_armed && ARM_CH_CHECK()) {
                     /* Sync should not be received, ignore it */
-                    DEBUG_PRINTF(".");
-                    current_us = 0;
-                    freq_err = 0;
                     goto exit_rx_isr;
                 }
 
@@ -483,10 +478,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                 FHSSsetCurrIndex(sync->fhssIndex);
                 NonceRXlocal = sync->rxtx_counter;
             } else {
-                DEBUG_PRINTF("_");
                 /* Not a valid packet, ignore it */
-                current_us = 0;
-                freq_err = 0;
                 goto exit_rx_isr;
             }
             break;
@@ -521,9 +513,6 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
         case UL_PACKET_MSP: {
             if (no_sync_armed && ARM_CH_CHECK()) {
                 /* Not a valid packet, ignore it */
-                DEBUG_PRINTF(":");
-                current_us = 0;
-                freq_err = 0;
                 goto exit_rx_isr;
             }
 #if !SERVO_OUTPUTS_ENABLED
@@ -539,12 +528,12 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
         default:
             DEBUG_PRINTF("?");
             /* Not a valid packet, ignore it */
-            current_us = 0;
-            freq_err = 0;
             goto exit_rx_isr;
     }
 
     LastValidPacket_ms = millis();
+    rx_last_valid_us = current_us;
+    rx_freqerror = freq_err;
 
     LQ_packetAck();
     FillLinkStats();
@@ -557,10 +546,16 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
 #endif
 
     TxTimer.triggerSoon(); // Trigger FHSS ISR
+    return;
 
 exit_rx_isr:
-    rx_last_valid_us = current_us;
-    rx_freqerror = freq_err;
+    rx_last_valid_us = 0;
+    rx_freqerror = 0;
+#if (DBG_PIN_RX_ISR != UNDEF_PIN)
+    gpio_out_write(dbg_pin_rx, 0);
+#endif
+    DEBUG_PRINTF(".");
+    return;
 }
 
 void forced_stop(void)

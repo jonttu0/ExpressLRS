@@ -28,7 +28,7 @@ POWERMGNT DRAM_FORCE_ATTR PowerMgmt(GPIO_PIN_FAN_CTRL);
 
 static uint32_t DRAM_ATTR _rf_rxtx_counter;
 static uint8_t DMA_ATTR rx_buffer[OTA_PAYLOAD_MAX];
-static volatile uint8_t DRAM_ATTR rx_buffer_size;
+static uint8_t DRAM_ATTR rx_buffer_size;
 static uint8_t red_led_state;
 
 static uint16_t DRAM_ATTR CRCCaesarCipher;
@@ -182,12 +182,9 @@ uint8_t tx_tlm_change_interval(uint8_t value, uint8_t init = 0)
     return 0;
 }
 
-void tx_tlm_disable_enable(uint8_t enable)
+void tx_tlm_disable_enable(uint8_t const enable)
 {
-    if (enable)
-        tx_tlm_change_interval(TLM_RATIO_DEFAULT);
-    else
-        tx_tlm_change_interval(TLM_RATIO_NO_TLM);
+    tx_tlm_change_interval((enable) ? TLM_RATIO_DEFAULT : TLM_RATIO_NO_TLM);
 }
 
 int8_t tx_tlm_toggle(void)
@@ -388,6 +385,7 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
 
     // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
+        ((rxtx_counter % ExpressLRS_currAirRate->FHSShopInterval) == 0) &&
         (sync_interval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
     {
         GenerateSyncPacketData(tx_buffer, rxtx_counter);
@@ -435,6 +433,7 @@ ota_packet_generate_vanilla(uint8_t * const tx_buffer,
 
     // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
+        ((rxtx_counter % ExpressLRS_currAirRate->FHSShopInterval) == 0) &&
         (sync_interval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
     {
         OTA_vanilla_SyncPacketData(tx_buffer, rxtx_counter, TLMinterval);

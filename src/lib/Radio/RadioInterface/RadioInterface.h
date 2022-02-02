@@ -111,7 +111,7 @@ protected:
     uint8_t ota_pkt_size;
 
 private:
-    volatile enum isr_states p_state_isr;
+    enum isr_states p_state_isr;
 };
 
 #endif /* RADIO_INTERFACE_H_ */
