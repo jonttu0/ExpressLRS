@@ -299,6 +299,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 
     if ((0 < tlm_ratio) && ((nonce & tlm_ratio) == 0)
             && (connectionState == STATE_connected)) {
+        /* Send telemetry response */
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_tmr, 0);
 #endif
@@ -306,15 +307,12 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_tmr, 1);
 #endif
-        goto hw_tmr_isr_exit;
-    }
 
-    /* Configure next reception if needed */
-    if (fhss_config_rx) {
+    } else if (fhss_config_rx) {
+        /* Configure next reception if needed */
         Radio->RXnb(FHSSgetCurrFreq());
     }
 
-hw_tmr_isr_exit:
     NonceRXlocal = nonce;
 
     /* Send stats to FC from here to avoid RC data blocking.
@@ -765,7 +763,9 @@ void loop()
             LostConnection();
         }
     } else if (_conn_state == STATE_disconnected) {
+#if RADIO_SX128x_FLRC
         uint8_t current_radio_type = get_elrs_current_radio_type();
+#endif
         /* Force mode if correct values are received from sync message */
         if (0 <= rcvd_pkt_type && 0 <= rcvd_rate_index) {
 #if RADIO_SX128x_FLRC

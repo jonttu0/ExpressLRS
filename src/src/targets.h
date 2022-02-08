@@ -146,6 +146,18 @@ extern const uint8_t target_name_len;
 #ifndef SERVO_PIN_CH4
 #define SERVO_PIN_CH4 UNDEF_PIN
 #endif
+#ifndef SERVO_PIN_CH5
+#define SERVO_PIN_CH5 UNDEF_PIN
+#endif
+#ifndef SERVO_PIN_CH6
+#define SERVO_PIN_CH6 UNDEF_PIN
+#endif
+#ifndef SERVO_PIN_CH7
+#define SERVO_PIN_CH7 UNDEF_PIN
+#endif
+#ifndef SERVO_PIN_CH8
+#define SERVO_PIN_CH8 UNDEF_PIN
+#endif
 
 
 #ifndef GPIO_PIN_NSS_127x

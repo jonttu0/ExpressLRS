@@ -168,7 +168,7 @@ static void TIMx_Channel_Init(uint32_t channel, uint16_t val=1500)
 }
 
 
-void Servo::attach(int pin, uint16_t min, uint16_t max)
+void Servo::attach(int pin, uint16_t min, uint16_t max, uint32_t us)
 {
     uint8_t ch;
     for (ch = 0; ch < ARRAY_SIZE(TIM1_pin_to_ch); ch++) {
@@ -185,8 +185,9 @@ void Servo::attach(int pin, uint16_t min, uint16_t max)
 
     gpio_peripheral(pin, GPIO_FUNCTION(2), 0);
 
-    min = (min + max) / 2; // resuse mid for mid point
-    TIMx_Channel_Init(_channel, min);
+    if (us == UINT32_MAX)
+        us = (min + max) / 2;
+    TIMx_Channel_Init(_channel, us);
 }
 
 void Servo::writeMicroseconds(uint32_t us)
