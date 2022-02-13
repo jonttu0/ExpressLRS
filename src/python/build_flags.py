@@ -79,7 +79,7 @@ def parse_flags(path):
             for line in _f:
                 define = line.strip()
                 if define.startswith("-D"):
-                    is_uid = "MY_PHRASE" in define or "MY_UID" in define
+                    is_uid = "MY_PHRASE" in define or "MY_BINDING_PHRASE" in define or "MY_UID" in define
 
                     define_key = define.split("=")[0]
                     build_flags_copy = list(build_flags)
@@ -90,7 +90,12 @@ def parse_flags(path):
                             build_flags.remove(flag)
                             break
 
-                    if "MY_PHRASE" in define:
+                    if "MY_BINDING_PHRASE" in define:
+                        bindingPhraseHash = hashlib.md5(define.encode()).digest()
+                        UIDbytes = ",".join(list(map(str, bindingPhraseHash))[0:6])
+                        my_uid_final = [eval(x) for x in UIDbytes.split(",")]
+                        define = "-DMY_UID=" + UIDbytes
+                    elif "MY_PHRASE" in define:
                         define = define.split("=")[1]
                         define = define.replace('"', '').replace("'", "")
                         key = define.replace("-D", "")
