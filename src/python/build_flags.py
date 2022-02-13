@@ -13,6 +13,7 @@ except ImportError:
 
 #print(env.Dump())
 target_name = env.get('PIOENV', '')
+my_uid_final = [0] * 6
 
 
 def find_build_flag(search):
@@ -71,6 +72,7 @@ def parse_env_defines():
             build_flags.append(flag)
 
 def parse_flags(path):
+    global my_uid_final
     build_flags = env['BUILD_FLAGS']
     try:
         with open(path, "r") as _f:
@@ -95,13 +97,16 @@ def parse_flags(path):
                         if len(define) < 8:
                             raise Exception("MY_PHRASE must be at least 8 characters long")
                         md5 = hashlib.md5(key.encode()).hexdigest()
-                        print("Hash value: %s" % md5)
-                        #my_uid = ["0x%02X"%ord(r) for r in md5[:6]]
-                        my_uid = ["0x%02X"%int(md5[i:(i+2)],16) for i in range(0, 12, 2)]
-                        define = "-DMY_UID=" + ",".join(my_uid)
-                        print("Calculated UID[6] = {%s}" % ",".join(my_uid))
-                    elif "MY_UID" in define and len(define.split(",")) != 6:
-                        raise Exception("UID must be 6 bytes long")
+                        # print("Hash value: %s" % md5)
+                        #my_uid_final = my_uid = ["0x%02X"%ord(r) for r in md5[:6]]
+                        my_uid_final = my_uid = [int(md5[i:(i+2)],16) for i in range(0, 12, 2)]
+                        define = "-DMY_UID=" + ",".join(["0x%02X"%x for x in my_uid])
+                        # print("Calculated UID[6] = {%s}" % ",".join(my_uid))
+                    elif "MY_UID" in define:
+                        _define = define.replace("-DMY_UID=", "").split(",")
+                        if len(_define) != 6:
+                            raise Exception("UID must be 6 bytes long")
+                        my_uid_final = [eval(x) for x in _define]
                     build_flags.append(define)
     except IOError:
         return False
@@ -116,6 +121,12 @@ parse_flags("user_defines_private.txt")
 parse_env_defines()
 validate_domains()
 
+# print UID
+print("------------------------")
+print("MY UID:")
+print("  UID[6] = {%s}" % ",".join(["0x%02X"%x for x in my_uid_final]))
+print("  set expresslrs_uid = %s" % ",".join([str(x) for x in my_uid_final]))
+print("------------------------")
 
 sha_string = "unknown"
 sha = None
@@ -147,14 +158,20 @@ print("Current SHA: %s" % sha)
 env['BUILD_FLAGS'].append("-DLATEST_COMMIT="+sha)
 env['BUILD_FLAGS'].append('-DLATEST_COMMIT_STR="\\"%s\\""' % sha_string)
 env['BUILD_FLAGS'].append(f"-DTARGET_NAME={target_name}")
+print("------------------------")
 
 header = f"src/include/target_{target_name}.h"
 if os.path.exists(header) and \
         not find_build_flag("-include src/include/target_"):
     env['BUILD_FLAGS'].append(f"-include {header}")
     print("[NOTE] target include header file added automatically!")
+    print("------------------------")
 
-print("\n[INFO] build flags: %s\n" % env['BUILD_FLAGS'])
+#print("\n[INFO] build flags: %s\n" % env['BUILD_FLAGS'])
+print("[INFO] build flags:")
+for flag in env['BUILD_FLAGS']:
+    print("    %s" % flag)
+print("------------------------")
 
 #fhss_random.check_env_and_parse(env['BUILD_FLAGS'])
 
