@@ -8,7 +8,7 @@ crsf_msp_packet_fc_t DMA_ATTR msp_packet;
 
 #if PROTOCOL_ELRS_TO_FC
 crsfLinkStatisticsMsg_elrs_t DMA_ATTR link_stat_packet;
-#else
+#else // !PROTOCOL_ELRS_TO_FC
 #if PROTOCOL_CRSF_V3_TO_FC
 static uint32_t DMA_ATTR link_stat_full_sent_us;
 crsfLinkStatisticsTxMsg_t DMA_ATTR link_stat_packet_tx;
@@ -39,7 +39,7 @@ void CRSF_RX::Begin(void)
     link_stat_packet_tx.header.type = CRSF_FRAMETYPE_LINK_STATISTICS_TX;
     link_stat_packet_tx.stats.downlink_power = 0;
     link_stat_packet_tx.stats.uplink_FPS = 0;
-#endif //PROTOCOL_CRSF_V3_TO_FC
+#endif // PROTOCOL_CRSF_V3_TO_FC
 #endif // PROTOCOL_ELRS_TO_FC
 
     msp_packet.header.device_addr = CRSF_ADDRESS_BROADCAST;
@@ -50,13 +50,11 @@ void CRSF_RX::Begin(void)
 
     p_crsf_channels.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     p_crsf_channels.header.frame_size = sizeof(p_crsf_channels) - CRSF_FRAME_START_BYTES;
-#if PROTOCOL_ELRS_TO_FC
-    p_crsf_channels.header.type = CRSF_FRAMETYPE_RC_CHANNELS_PACKED_ELRS;
-#elif PROTOCOL_CRSF_V3_TO_FC
+#if PROTOCOL_CRSF_V3_TO_FC
     p_crsf_channels.header.type = CRSF_FRAMETYPE_SUBSET_RC_CHANNELS_PACKED;
-#else // !PROTOCOL_ELRS_TO_FC && !PROTOCOL_CRSF_V3_TO_FC
+#else // !PROTOCOL_CRSF_V3_TO_FC
     p_crsf_channels.header.type = CRSF_FRAMETYPE_RC_CHANNELS_PACKED;
-#endif // PROTOCOL_ELRS_TO_FC
+#endif // PROTOCOL_CRSF_V3_TO_FC
 
     CRSF::Begin();
 

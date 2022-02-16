@@ -154,7 +154,7 @@ typedef struct {
 
 #if PROTOCOL_ELRS_TO_FC
 typedef struct rc_channels_rx_s {
-    // 64 bits of data (4 x 12 bits + 8 x 3 bits channels) = 9 bytes.
+    // 72 bits of data (4 x 12 bits + 8 x 3 bits channels) = 9 bytes.
     unsigned int ch0 : 12;
     unsigned int ch1 : 12;
     unsigned int ch2 : 12;
