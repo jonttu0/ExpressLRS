@@ -488,7 +488,7 @@ void SX1280Driver::StopContRX(void)
     TxRxDisable();
 }
 
-int8_t FAST_CODE_2 SX1280Driver::GetLastPacketRSSI()
+int8_t FAST_CODE_2 SX1280Driver::GetInstantRSSI()
 {
     // Instantaneous RSSI is updated at every symbol received
     uint8_t buff[] = {SX1280_RADIO_GET_RSSIINST, 0, 0};

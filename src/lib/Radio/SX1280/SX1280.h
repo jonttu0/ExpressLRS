@@ -40,7 +40,7 @@ public:
     void RXnb(uint32_t freq = 0);
     void StopContRX(void);
 
-    int8_t GetLastPacketRSSI();
+    int8_t GetInstantRSSI();
 
     // Internal ISR callbacks, don't use these!
     void TXnbISR(uint16_t irqs);
