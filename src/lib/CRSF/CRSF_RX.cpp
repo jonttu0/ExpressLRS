@@ -169,10 +169,8 @@ void CRSF_RX::change_baudrate(uint32_t const baud)
 #endif // PROTOCOL_CRSF_V3_TO_FC
 }
 
-void CRSF_RX::processPacket(uint8_t const *data)
+void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
 {
-    crsf_buffer_t const * const msg = (crsf_buffer_t*)data;
-
     last_rx_from_fc = millis();
     successful_packets_from_fc++;
 
@@ -214,24 +212,7 @@ void CRSF_RX::processPacket(uint8_t const *data)
         case CRSF_FRAMETYPE_BATTERY_SENSOR: {
             if (BattInfoCallback) {
                 LinkStatsBatt_t batt;
-                memcpy(&batt, &data[1], sizeof(batt));
-                /*
-                batt.voltage = data[1];
-                batt.voltage <<= 8;
-                batt.voltage += data[2];
-                // current is in units of 0.1A
-                batt.current = data[3];
-                batt.current <<= 8;
-                batt.current += data[4];
-                // capacity is in units of mAh
-                batt.capacity = data[5];
-                batt.capacity <<= 8;
-                batt.capacity += data[6];
-                batt.capacity <<= 8;
-                batt.capacity += data[7];
-                // battery remaining percentage
-                batt.remaining = data[8];
-                */
+                memcpy(&batt, msg->normal.payload, sizeof(batt));
                 BattInfoCallback(&batt);
             }
             break;
@@ -240,38 +221,7 @@ void CRSF_RX::processPacket(uint8_t const *data)
         case CRSF_FRAMETYPE_GPS: {
             if (GpsCallback) {
                 GpsOta_t gps;
-                memcpy(&gps, &data[1], sizeof(gps) - 1);
-                /*
-                gps.latitude = data[1];
-                gps.latitude <<= 8;
-                gps.latitude += data[2];
-                gps.latitude <<= 8;
-                gps.latitude += data[3];
-                gps.latitude <<= 8;
-                gps.latitude += data[4];
-
-                gps.longitude = data[5];
-                gps.longitude <<= 8;
-                gps.longitude += data[6];
-                gps.longitude <<= 8;
-                gps.longitude += data[7];
-                gps.longitude <<= 8;
-                gps.longitude += data[8];
-
-                gps.speed = data[9];
-                gps.speed <<= 8;
-                gps.speed += data[10];
-
-                gps.heading = data[11];
-                gps.heading <<= 8;
-                gps.heading += data[12];
-
-                gps.altitude = data[13];
-                gps.altitude <<= 8;
-                gps.altitude += data[14];
-
-                gps.satellites = data[15];
-                */
+                memcpy(&gps, msg->normal.payload, sizeof(gps) - 1);
                 GpsCallback(&gps);
             }
             break;
@@ -314,6 +264,6 @@ void CRSF_RX::handleUartIn(void)
     while (available--) {
         ptr = ParseInByte(_dev->read());
         if (ptr)
-            processPacket(ptr);
+            processPacket((crsf_buffer_t*)ptr);
     }
 }
