@@ -2,7 +2,7 @@ Import("env", "projenv")
 import stlink
 import UARTupload
 import opentx
-import upload_via_esp8266_backpack
+import upload_via_wifi
 import esp_compress
 import upload_passthrough_edgetx
 
@@ -59,7 +59,7 @@ if platform in ['ststm32']:
         if find_build_flag("HAS_WIFI_BACKPACK") or \
                 "HAS_WIFI_BACKPACK" in features or \
                 "wifi" in upload_protocols:
-            wifi_targets.append(upload_via_esp8266_backpack.on_upload)
+            wifi_targets.append(upload_via_wifi.on_upload)
             # the target can use WIFI (backpack logger) upload
             env.AddCustomTarget(tgt_WIFI,
                 ["$BUILD_DIR/${PROGNAME}.bin"],
@@ -108,7 +108,7 @@ elif platform in ['espressif8266']:
         env.get("UPLOADCMD", ""),
         title="Upload via UART", description="")
     # Add WiFi upload custom target
-    wifi_targets = [esp_compress.compressFirmware, upload_via_esp8266_backpack.on_upload]
+    wifi_targets = [esp_compress.compressFirmware, upload_via_wifi.on_upload]
     env.AddCustomTarget(tgt_WIFI,
         ["$BUILD_DIR/${PROGNAME}.bin"],
         wifi_targets,
@@ -125,7 +125,7 @@ elif platform in ['espressif8266']:
 elif platform in ['espressif32']:
     env.AddCustomTarget(tgt_WIFI,
         ["$BUILD_DIR/${PROGNAME}.bin"],
-        [esp_compress.compressFirmware, upload_via_esp8266_backpack.on_upload],
+        [esp_compress.compressFirmware, upload_via_wifi.on_upload],
         title="Upload via WiFi", description="")
     if "_ETX" in target_name:
         env.AddPreAction("upload", upload_passthrough_edgetx.init_passthrough)

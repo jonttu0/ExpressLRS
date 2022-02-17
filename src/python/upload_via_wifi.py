@@ -1,4 +1,5 @@
 import subprocess, os
+from console_log import *
 
 
 def on_upload(source, target, env):
@@ -59,14 +60,52 @@ def on_upload(source, target, env):
 
     for addr in upload_addr:
         addr = "http://%s/%s" % (addr, ['update', 'upload'][isstm])
-        print(" ** UPLOADING TO: %s" % addr)
+        print_header("  == UPLOADING TO: %s ==" % addr)
         try:
             subprocess.check_call(cmd + [addr])
-            print()
-            print("** UPLOAD SUCCESS. Flashing in progress.")
-            print("** Please wait for LED to resume blinking before disconnecting power")
+            print_info("  UPLOAD SUCCESS. Flashing in progress.")
+            print_warning("    !! Please wait for LED to resume blinking before disconnecting power")
             return
         except subprocess.CalledProcessError:
-            print("FAILED!")
+            print_error("  !! UPLOAD FAILED !!")
 
     raise SystemExit("WIFI upload FAILED!")
+
+
+if __name__ == '__main__':
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Upload firmware using FC passthrough")
+    parser.add_argument('firmware', metavar='firmware.bin', type=str, nargs=1,
+        help='The target firmware that is going to be uploaded')
+    parser.add_argument("-p", "--port", type=str, default="",
+        help="Override serial port autodetection and use PORT")
+    parser.add_argument("-t", "--target", type=str, default="",
+        help="The target firmware that is going to be uploaded")
+    parser.add_argument("--platform", type=str, default="stm32",
+        help="Defines flash target type. Default: stm32.")
+    parser.add_argument("--offset", type=str, default="0x4000",
+        help="Defines flash offset for STM32")
+    args = parser.parse_args()
+
+    if not args.target:
+        raise SystemExit("Target is mandatory")
+    if not args.port:
+        raise SystemExit("Port is mandatory")
+
+    platforms = {
+        "stm32": "ststm32",
+        "esp82": "espressif8266",
+        "esp32": "espressif32",
+    }
+
+    _env = {
+        "UPLOAD_PORT": args.port,
+        "PIOPLATFORM": platforms[args.platform],
+        "PIOENV": args.target,
+        "UPLOAD_FLAGS": [
+            "VECT_OFFSET=%s" % args.offset,
+        ]
+    }
+
+    on_upload(args.firmware, None, _env)

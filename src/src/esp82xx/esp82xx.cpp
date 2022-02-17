@@ -153,6 +153,8 @@ void platform_reboot_into_bootloader(const uint8_t * info)
 {
     if (validate_bl_indentifier(info) < 0)
         return;
+    forced_stop();
+    delay(100);
     ESP.rebootIntoUartDownloadMode();
 }
 

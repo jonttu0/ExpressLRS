@@ -119,3 +119,8 @@
 ################################
 ### Use CRSF v3 prtocol if FC supports it
 #-DPROTOCOL_CRSF_V3_TO_FC=1
+
+################################
+### Use ELRS prtocol if FC supports it (!!experimental!!)
+#-DPROTOCOL_ELRS_TO_FC=1
+#-DPROTOCOL_ELRS_RX_BAUDRATE=1000000

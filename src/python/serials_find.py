@@ -1,5 +1,6 @@
 import serial
 import sys, glob
+from console_log import *
 
 
 def serial_ports():
@@ -16,18 +17,18 @@ def serial_ports():
     try:
         from serial.tools.list_ports import comports
         if comports:
-            print("  ** Searching flight controllers **")
+            print_log("  ** Searching flight controllers **")
             __ports = list(comports())
             for port in __ports:
                 if (port.manufacturer and port.manufacturer in ['FTDI', 'Betaflight', ]) or \
                         (port.product and "STM32" in port.product) or (port.vid and port.vid == 0x0483):
-                    print("      > FC found from '%s'" % port.device)
+                    print_log("      > FC found from '%s'" % port.device)
                     ports.append(port.device)
     except ImportError:
         pass
 
     if not ports:
-        print("  ** No FC found, find all ports **")
+        print_warning("  ** No FC found, find all ports **")
 
         platform = sys.platform.lower()
         if platform.startswith('win'):
@@ -58,18 +59,15 @@ def serial_ports():
 
 def get_serial_port(debug=True):
     result = serial_ports()
-    if debug:
-        print()
-        print("Detected the following serial ports on this system:")
-        for port in result:
-            print("  %s" % port)
-        print()
-
-    if len(result) == 0:
+    if not result:
         raise SystemExit('No valid serial port detected or port already open')
-
+    if debug:
+        print_log("  [DEBUG] Detected the following serial ports on this system:")
+        for port in result:
+            print_log("    %s" % port)
+        print_log("")
     return result[0]
 
 if __name__ == '__main__':
     results = get_serial_port(True)
-    print("Found: %s" % (results, ))
+    print_log("Found: %s" % (results, ))

@@ -4,6 +4,8 @@ import serials_find
 import SerialHelper
 import bootloader
 from query_yes_no import query_yes_no
+from console_log import *
+
 
 SCRIPT_DEBUG = 0
 
@@ -13,13 +15,6 @@ class PassthroughEnabled(Exception):
 
 class PassthroughFailed(Exception):
     pass
-
-class WrongTargetSelected(Exception):
-    pass
-
-def dbg_print(line=''):
-    sys.stdout.write(line + '\n')
-    sys.stdout.flush()
 
 
 def _validate_serialrx(rl, config, expected):
@@ -39,30 +34,29 @@ def _validate_serialrx(rl, config, expected):
 
 
 def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
-    debug = SCRIPT_DEBUG
+    set_debug(SCRIPT_DEBUG)
 
     sys.stdout.flush()
-    dbg_print("======== PASSTHROUGH INIT ========")
-    dbg_print("  Trying to initialize %s @ %s" % (port, requestedBaudrate))
+    print_header("======== PASSTHROUGH INIT ========")
+    print_log("  Trying to initialize %s @ %s" % (port, requestedBaudrate,))
 
     s = serial.Serial(port=port, baudrate=115200,
         bytesize=8, parity='N', stopbits=1,
         timeout=1, xonxoff=0, rtscts=0)
 
-    rl = SerialHelper.SerialHelper(s, 3., ['CCC', "# "])
+    rl = SerialHelper.SerialHelper(s, 3., ["# "])
     rl.clear()
     # Send start command '#'
     rl.write_str("#", half_duplex)
     start = rl.read_line(2.).strip()
-    #dbg_print("BF INIT: '%s'" % start.replace("\r", ""))
-    if "CCC" in start:
-        raise PassthroughEnabled("Passthrough already enabled and bootloader active")
-    elif not start or not start.endswith("#"):
+    #print_debug("BF INIT: '%s'" % start.replace("\r", ""))
+    if not start or not start.endswith("#"):
         raise PassthroughEnabled("No CLI available. Already in passthrough mode?, If this fails reboot FC and try again!")
 
     serial_check = []
-    if not _validate_serialrx(rl, "provider", [["CRSF", "ELRS"], "GHST"][half_duplex]):
-        serial_check.append("serialrx_provider != CRSF")
+    expected_provider = [["CRSF", "ELRS"], "GHST"][half_duplex]
+    if not _validate_serialrx(rl, "provider", expected_provider):
+        serial_check.append("serialrx_provider != %s" % expected_provider)
     if not _validate_serialrx(rl, "inverted", "OFF"):
         serial_check.append("serialrx_inverted != OFF")
     if not _validate_serialrx(rl, "halfduplex", ["OFF", "AUTO"]):
@@ -73,12 +67,11 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
         for err in serial_check:
             error += "    !!! %s !!!\n" % err
         error += "\n    Please change the configuration and try again!\n"
-        dbg_print(error)
         raise PassthroughFailed(error)
 
     SerialRXindex = ""
 
-    dbg_print("\nAttempting to detect FC UART configuration...")
+    print_log("\nAttempting to detect FC UART configuration...")
 
     rl.set_delimiters(["\n"])
     rl.clear()
@@ -91,23 +84,24 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
             break
 
         if line.startswith("serial"):
-            if debug:
-                dbg_print("  '%s'" % line)
+            print_debug("  '%s'" % line)
             config = re.search('serial ([0-9]+) ([0-9]+) ', line)
             if config and config.group(2) == "64":
-                dbg_print("    ** Serial RX config detected: '%s'" % line)
+                print_log("    ** Serial RX config detected: '%s'" % line)
                 SerialRXindex = config.group(1)
-                if not debug:
+                if not SCRIPT_DEBUG:
                     break
+    rl.clear()
 
     if not SerialRXindex:
         raise PassthroughFailed("!!! RX Serial not found !!!!\n  Check configuration and try again...")
 
-    #cmd = "serialpassthrough %s %s" % (SerialRXindex, requestedBaudrate, )
-    cmd = "serialpassthrough %s 0" % (SerialRXindex, )
+    if requestedBaudrate is None:
+        requestedBaudrate = 0
+    cmd = "serialpassthrough %s %s" % (SerialRXindex, requestedBaudrate, )
 
-    dbg_print("Enabling serial passthrough...")
-    dbg_print("  CMD: '%s'" % cmd)
+    print_log("Enabling serial passthrough...")
+    print_log("  CMD: '%s'" % cmd)
     rl.write_str(cmd)
     #time.sleep(.2)
 
@@ -116,59 +110,25 @@ def bf_passthrough_init(port, requestedBaudrate, half_duplex=False):
     dbg = rl.read_line(.5)
     while dbg:
         dbg = dbg.strip()
-        dbg_print("%s" % dbg)
+        print_log("%s" % dbg)
         if "baud =" in dbg:
             baud = dbg.split("baud =")[1].strip()
         dbg = rl.read_line(.5)
 
     s.close()
-    dbg_print("======== PASSTHROUGH DONE ========")
+    print_log("======== PASSTHROUGH DONE ========")
+    # Let the CRSFv3 to fallback to 420k baud
+    time.sleep(1.5)
     try:
         return int(eval(baud))
     except:
         return None
 
 
-# this handling is moved into 'upload_passthrough_esptool.py'
-def reset_to_bootloader(args):
-    dbg_print("======== RESET TO BOOTLOADER ========")
-    s = serial.Serial(port=args.port, baudrate=args.baud,
-        bytesize=8, parity='N', stopbits=1,
-        timeout=1, xonxoff=0, rtscts=0)
-    rl = SerialHelper.SerialHelper(s, 3.)
-    rl.clear()
-    if args.half_duplex:
-        BootloaderInitSeq = bootloader.get_init_seq('GHST', args.type)
-        dbg_print("  * Using half duplex (GHST)")
-    else:
-        BootloaderInitSeq = bootloader.get_init_seq('CRSF', args.type)
-        dbg_print("  * Using full duplex (CRSF)")
-    # Let the CRSFv3 to fallback to 420k baud
-    time.sleep(1.5)
-    rl.write(BootloaderInitSeq)
-    s.flush()
-    rx_target = rl.read_line().strip()
-    dbg_print("Receiver reported '%s' target" % rx_target)
-    '''
-    flash_target = re.sub("_VIA_.*", "", args.target.upper())
-    if rx_target == "":
-        dbg_print("Cannot detect RX target, blindly flashing!")
-    elif rx_target != flash_target:
-        if query_yes_no("\n\n\nWrong target selected! your RX is '%s', trying to flash '%s', continue? Y/N\n" % (rx_target, flash_target)):
-            dbg_print("Ok, flashing anyway!")
-        else:
-            raise WrongTargetSelected("Wrong target selected your RX is '%s', trying to flash '%s'" % (rx_target, flash_target))
-    elif flash_target != "":
-        dbg_print("Verified RX target '%s'" % (flash_target))
-    '''
-    time.sleep(.5)
-    s.close()
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description="Initialize BetaFlight passthrough and optionally send a reboot comamnd sequence")
-    parser.add_argument("-b", "--baud", type=int, default=420000,
+    parser.add_argument("-b", "--baud", type=int, default=0,
         help="Baud rate for passthrough communication")
     parser.add_argument("-p", "--port", type=str,
         help="Override serial port autodetection and use PORT")
@@ -188,11 +148,12 @@ if __name__ == '__main__':
     try:
         bf_passthrough_init(args.port, args.baud)
     except PassthroughEnabled as err:
-        dbg_print(str(err))
+        print_warning(str(err))
 
     if args.reset_to_bl:
+        boot_cmd = bootloader.get_init_seq(['CRSF', 'GHST'][args.half_duplex], args.type)
         try:
-            reset_to_bootloader(args)
-        except WrongTargetSelected as err:
-            dbg_print(str(err))
+            bootloader.reset_to_bootloader(args.port, args.baud, boot_cmd, args.target)
+        except bootloader.WrongTargetSelected as err:
+            print_error(str(err))
             exit(-1)

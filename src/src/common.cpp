@@ -350,7 +350,9 @@ int8_t validate_bl_indentifier(const uint8_t * info)
 #endif // TARGET_INDENTIFIER
 #if RX_MODULE
     uint32_t irq = _SAVE_IRQ();
-    CrsfSerial.write((uint8_t*)target_name, target_name_len);
+    char end[] = "_RX\r\n";
+    CrsfSerial.write((uint8_t*)target_name, target_name_len-1);
+    CrsfSerial.write((uint8_t*)end, sizeof(end)-1);
     _RESTORE_IRQ(irq);
 #endif
     //DEBUG_PRINTF("Jumping to Bootloader...\n");

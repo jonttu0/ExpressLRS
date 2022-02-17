@@ -1,4 +1,5 @@
 Import("env")
+from audioop import reverse
 import os, re
 #import fhss_random
 import hashlib
@@ -10,6 +11,8 @@ except ImportError:
         import git
     except ImportError:
         git = None
+from console_log import *
+
 
 #print(env.Dump())
 target_name = env.get('PIOENV', '')
@@ -127,11 +130,12 @@ parse_env_defines()
 validate_domains()
 
 # print UID
-print("------------------------")
-print("MY UID:")
-print("  UID[6] = {%s}" % ",".join(["0x%02X"%x for x in my_uid_final]))
-print("  set expresslrs_uid = %s" % ",".join([str(x) for x in my_uid_final]))
-print("------------------------")
+print_info("------------------------")
+print_log("[INFO]", nl=False)
+print_log(" My UID:")
+print_log("  UID[6] = {%s}" % ",".join(["0x%02X"%x for x in my_uid_final]))
+print_log("  set expresslrs_uid = %s" % ",".join([str(x) for x in my_uid_final]))
+print_info("------------------------")
 
 sha_string = "unknown"
 sha = None
@@ -158,25 +162,25 @@ if sha is None:
         sha = ",".join(["0x%s" % x for x in sha_string[:6]])
     else:
         sha = "0,0,0,0,0,0"
-print("sha_string: '%s'" % sha_string)
-print("Current SHA: %s" % sha)
+print_log("[INFO] Current version: '%s'" % sha_string)
+# print_log("Current SHA: %s" % sha)
 env['BUILD_FLAGS'].append("-DLATEST_COMMIT="+sha)
 env['BUILD_FLAGS'].append('-DLATEST_COMMIT_STR="\\"%s\\""' % sha_string)
 env['BUILD_FLAGS'].append(f"-DTARGET_NAME={target_name}")
-print("------------------------")
+print_info("------------------------")
 
 header = f"src/include/target_{target_name}.h"
 if os.path.exists(header) and \
         not find_build_flag("-include src/include/target_"):
     env['BUILD_FLAGS'].append(f"-include {header}")
-    print("[NOTE] target include header file added automatically!")
-    print("------------------------")
+    print_warning("[NOTE] target include header file added automatically!")
+    print_info("------------------------")
 
-#print("\n[INFO] build flags: %s\n" % env['BUILD_FLAGS'])
-print("[INFO] build flags:")
+#print_log("\n[INFO] build flags: %s\n" % env['BUILD_FLAGS'])
+print_log("[INFO] build flags:")
 for flag in env['BUILD_FLAGS']:
-    print("    %s" % flag)
-print("------------------------")
+    print_log("    %s" % flag)
+print_info("------------------------")
 
 #fhss_random.check_env_and_parse(env['BUILD_FLAGS'])
 
