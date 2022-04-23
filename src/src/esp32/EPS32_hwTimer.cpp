@@ -35,6 +35,9 @@ void IRAM_ATTR HwTimer::start()
     if (!timer)
         init();
     running = true;
+#if TIMER_TOCK_EN
+    tock = 1; // start with tick (= main)
+#endif
     reset(0);
     timerStart(timer);
 }

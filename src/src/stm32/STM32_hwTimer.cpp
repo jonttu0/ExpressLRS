@@ -38,6 +38,9 @@ void HwTimer::start()
     if (running)
         return;
     running = true;
+#if TIMER_TOCK_EN
+    tock = 1; // start with tick (= main)
+#endif
     //setTime(HWtimerInterval);
     reset(0);
     timer_tx.resume();

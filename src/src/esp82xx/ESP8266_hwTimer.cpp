@@ -24,6 +24,9 @@ void IRAM_ATTR HwTimer::start()
     if (running)
         return;
     running = true;
+#if TIMER_TOCK_EN
+    tock = 1; // start with tick (= main)
+#endif
     reset(0);
     timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP); //5MHz ticks
 }

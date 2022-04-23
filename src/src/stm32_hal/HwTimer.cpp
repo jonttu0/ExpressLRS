@@ -94,6 +94,9 @@ void HwTimer::init()
 void HwTimer::start()
 {
     running = 1;
+#if TIMER_TOCK_EN
+    tock = 1; // start with tick (= main)
+#endif
     reset(0);
     timer_enable();
 }
