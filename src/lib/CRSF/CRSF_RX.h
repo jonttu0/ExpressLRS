@@ -5,6 +5,7 @@
 
 #define CRSF_v3_PORT_ID 0x5 // 3bits = 0 ... 7
 
+#define CRSF_v3_USE_SUCCESSFUL_PACKETS 0
 
 class CRSF_RX : public CRSF
 {
@@ -31,8 +32,10 @@ private:
     void negotiate_baud(void) const;
     void change_baudrate(uint32_t baud = CRSF_RX_BAUDRATE);
 
-    uint32_t last_rx_from_fc;
+    uint32_t last_packet_from_fc_ms;
+#if CRSF_v3_USE_SUCCESSFUL_PACKETS
     uint32_t successful_packets_from_fc;
+#endif
     uint32_t configured_baudrate;
 };
 

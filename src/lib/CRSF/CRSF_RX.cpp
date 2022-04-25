@@ -24,7 +24,9 @@ static uint32_t DMA_ATTR link_stat_sent_us;
 
 void CRSF_RX::Begin(void)
 {
+#if CRSF_v3_USE_SUCCESSFUL_PACKETS
     successful_packets_from_fc = 0;
+#endif
 
     link_stat_packet.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     link_stat_packet.header.frame_size = sizeof(link_stat_packet) - CRSF_FRAME_START_BYTES;
@@ -171,8 +173,10 @@ void CRSF_RX::change_baudrate(uint32_t const baud)
 
 void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
 {
-    last_rx_from_fc = millis();
+    last_packet_from_fc_ms = millis();
+#if CRSF_v3_USE_SUCCESSFUL_PACKETS
     successful_packets_from_fc++;
+#endif
 
     switch (msg->type) {
         case CRSF_FRAMETYPE_COMMAND: {
@@ -195,6 +199,13 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
                        (msg->command.orig_addr == ELRS_BOOT_CMD_ORIG)) {
                 platform_reboot_into_bootloader(&msg->command.command);
             }
+            break;
+        }
+
+        case CRSF_FRAMETYPE_HEARTBEAT: {
+            // Heartbeat is sent if the telemetry is disabled.
+            // Can be used to check the V3 link, try to negotiate new speed
+            negotiate_baud();
             break;
         }
 
@@ -240,11 +251,13 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
             break;
     }
 
+#if CRSF_v3_USE_SUCCESSFUL_PACKETS
     if (10 < successful_packets_from_fc) {
         /* Try to increase speed */
         negotiate_baud();
         successful_packets_from_fc = 0;
     }
+#endif
 }
 
 void CRSF_RX::handleUartIn(void)
@@ -253,8 +266,9 @@ void CRSF_RX::handleUartIn(void)
     uint8_t *ptr;
 
 #if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
-    if (1000 <= (millis() - last_rx_from_fc)) {
-        change_baudrate(CRSF_RX_BAUDRATE); // reset back to default
+    // telemetry/heartbeat frames are sent at minimum 50Hz
+    if (500 <= (millis() - last_packet_from_fc_ms)) {
+        change_baudrate(CRSF_RX_BAUDRATE); // reset back to default after period of silence
     }
 #endif // PROTOCOL_CRSF_V3_TO_FC
 

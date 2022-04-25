@@ -13,6 +13,7 @@
     #if PROTOCOL_ELRS_RX_BAUDRATE
         #define CRSF_RX_BAUDRATE    PROTOCOL_ELRS_RX_BAUDRATE
     #else
+        // Default to 1MHz which is producing less error on all RX MCUs
         #define CRSF_RX_BAUDRATE    1000000     // 691200
     #endif
 #else // !PROTOCOL_ELRS_TO_FC
@@ -20,7 +21,8 @@
     #if PROTOCOL_CRSF_V3_BAUDRATE
         #define CRSF_RX_BAUDRATE_V3 PROTOCOL_CRSF_V3_BAUDRATE
     #else
-        #define CRSF_RX_BAUDRATE_V3 1000000     //921600
+        // Default to 1MHz which is producing less error on all RX MCUs
+        #define CRSF_RX_BAUDRATE_V3 1000000     // 921600
     #endif
 #endif // PROTOCOL_ELRS_TO_FC
 #define CRSF_TX_BAUDRATE_FAST 400000
@@ -49,6 +51,7 @@ enum crsf_frame_type_e
 {
     CRSF_FRAMETYPE_GPS = 0x02,
     CRSF_FRAMETYPE_BATTERY_SENSOR = 0x08,
+    CRSF_FRAMETYPE_HEARTBEAT = 0x0B,
     CRSF_FRAMETYPE_LINK_STATISTICS = 0x14,
     CRSF_FRAMETYPE_LINK_STATISTICS_ELRS = 0x15,
     CRSF_FRAMETYPE_OPENTX_SYNC = 0x10,
@@ -384,6 +387,14 @@ struct crsf_speed_req {
     uint8_t crc_cmd; // crc of type + payload
     uint8_t crc;
 };
+
+// Heartbeat, used with V3 to keep the link up without telemetry
+typedef struct crsf_heartbeat_msg_s
+{
+    crsf_header_t header;
+    uint16_t origin_address;
+    uint8_t crc;
+} PACKED crsf_heartbeat_msg_t;
 
 /////inline and utility functions//////
 
