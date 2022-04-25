@@ -324,6 +324,7 @@ class ESPLoader(object):
                              "autodetection will not work. Need to manually specify the chip.")
         finally:
             print('')  # end line
+        detect_port._port.close()
         raise FatalError("Unexpected CHIP magic value 0x%08x. Failed to autodetect chip type." % (chip_magic_value))
 
     """ Read a SLIP packet from the serial port """
