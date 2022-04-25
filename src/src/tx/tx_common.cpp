@@ -13,10 +13,6 @@
 #endif
 #include <stdlib.h>
 
-#if (GPIO_PIN_RCSIGNAL_RX != UNDEF_PIN) || (GPIO_PIN_RCSIGNAL_TX != UNDEF_PIN)
-#include "CRSF_TX.h"
-extern CRSF_TX crsf;
-#endif
 
 //// CONSTANTS ////
 #define RX_CONNECTION_LOST_TIMEOUT  1500U // After 1500ms of no TLM response consider that slave has lost connection
@@ -684,10 +680,8 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
                   config->PreambleLen, (OTA_PACKET_CRC == 0),
                   config->pkt_type);
 
-    //TODO: move...
-#if (GPIO_PIN_RCSIGNAL_RX != UNDEF_PIN) || (GPIO_PIN_RCSIGNAL_TX != UNDEF_PIN)
-    crsf.setRcPacketRate(config->interval);
-#endif
+    tx_handle_set_link_rate(config->interval * config->numOfTxPerRc);
+
     LinkStatistics.link.rf_Mode = config->rate_osd_num;
 
     tx_tlm_change_interval(TLMinterval, init);

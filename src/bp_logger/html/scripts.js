@@ -162,7 +162,7 @@ function setting_set(type, value) {
                 options = ['500Hz', '250Hz', '150Hz', '50Hz'];
                 rf_module.selectedIndex = 4;
             } else if (5 == value) {
-                options = ['1000Hz', '500Hz'];
+                options = ['1000Hz', '500Hz', '250Hz'];
                 rf_module.selectedIndex = 3;
             } else if (3 <= value && value <= 4) {
                 options = ['500Hz', '250Hz', '125Hz', '50Hz'];

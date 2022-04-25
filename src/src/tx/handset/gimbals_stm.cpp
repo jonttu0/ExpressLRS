@@ -432,22 +432,22 @@ void FAST_CODE_1
 gimbals_get(uint16_t * const out, uint16_t const channelMin, uint16_t const channelMax)
 {
     struct gimbal_limit * limit;
-    uint32_t curr;
+    uint16_t curr;
     uint16_t const midValue = channelMin + ((channelMax - channelMin) + 1) / 2;
     uint8_t iter;
     for (iter = 0; iter < ARRAY_SIZE(pl_config.gimbals); iter++) {
         limit = &pl_config.gimbals[iter];
-        curr = filters[iter].getCurrent();
+        curr = (uint16_t)filters[iter].getCurrent();
         if (curr <= limit->mid)
-            out[iter] = MAP_U16((uint16_t)curr, limit->low, limit->mid,
+            out[iter] = MAP_U16(curr, limit->low, limit->mid,
                                 channelMin, midValue);
         else
-            out[iter] = MAP_U16((uint16_t)curr, limit->mid+1, limit->high,
+            out[iter] = MAP_U16(curr, limit->mid+1, limit->high,
                                 midValue, channelMax);
     }
 }
 
-uint8_t gimbals_calibrate_mid_point(uint8_t idx)
+uint8_t gimbals_calibrate_mid_point(uint8_t const idx)
 {
     uint32_t value = 0, current;
     uint32_t start;
@@ -465,7 +465,7 @@ uint8_t gimbals_calibrate_mid_point(uint8_t idx)
     return 1;
 }
 
-uint8_t gimbals_calibrate_min_point(uint8_t idx)
+uint8_t gimbals_calibrate_min_point(uint8_t const idx)
 {
     uint32_t value = 0, current;
     uint32_t start = 0;
@@ -481,7 +481,7 @@ uint8_t gimbals_calibrate_min_point(uint8_t idx)
     return 1;
 }
 
-uint8_t gimbals_calibrate_max_point(uint8_t idx)
+uint8_t gimbals_calibrate_max_point(uint8_t const idx)
 {
     uint32_t value = 0, current;
     uint32_t start = 0;
@@ -497,7 +497,7 @@ uint8_t gimbals_calibrate_max_point(uint8_t idx)
     return 1;
 }
 
-uint8_t gimbals_calibrate(uint8_t * data)
+uint8_t gimbals_calibrate(uint8_t * const data)
 {
     uint8_t type = data[0], res = 0;
     if (data[1] == 0) {
@@ -514,19 +514,19 @@ uint8_t gimbals_calibrate(uint8_t * data)
     return 1;
 }
 
-uint8_t gimbals_adjust_min(uint16_t val, uint8_t idx)
+uint8_t gimbals_adjust_min(uint16_t const val, uint8_t const idx)
 {
     if (idx < GIMBAL_IDX_MAX)
         pl_config.gimbals[idx].low = val;
     return 0;
 }
-uint8_t gimbals_adjust_mid(uint16_t val, uint8_t idx)
+uint8_t gimbals_adjust_mid(uint16_t const val, uint8_t const idx)
 {
     if (idx < GIMBAL_IDX_MAX)
         pl_config.gimbals[idx].mid = val;
     return 0;
 }
-uint8_t gimbals_adjust_max(uint16_t val, uint8_t idx)
+uint8_t gimbals_adjust_max(uint16_t const val, uint8_t const idx)
 {
     if (idx < GIMBAL_IDX_MAX)
         pl_config.gimbals[idx].high = val;

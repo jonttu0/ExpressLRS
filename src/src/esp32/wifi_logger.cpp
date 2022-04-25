@@ -345,17 +345,24 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
           var elem = document.getElementById(type);
           if (elem) {
             if (type == "region_domain") {
-              var domain_info = "Regulatory domain UNKNOWN";
-              if (value == "0")
-                domain_info = "Regulatory domain 915MHz";
-              else if (value == "1")
-                domain_info = "Regulatory domain 868MHz";
-              else if (value == "2")
-                domain_info = "Regulatory domain 433MHz";
-              else if (value == "3")
-                domain_info = "Regulatory domain ISM 2400 (BW 0.8MHz)";
-              else if (value == "4")
-                domain_info = "Regulatory domain ISM 2400 (BW 1.6MHz)";
+              value = parseInt(value);
+              // TODO: check dual mode
+              value = value & 0x3F;
+              var domain_info = "Domain ";
+              if (value == 0)
+                domain_info += "915MHz (LoRa)";
+              else if (value == 1)
+                domain_info += "868MHz (LoRa)";
+              else if (value == 2)
+                domain_info += "433MHz (LoRa)";
+              else if (value == 3 || value == 4)
+                domain_info += "2400MHz (LoRa)";
+              else if (value == 5)
+                domain_info += "2400MHz (FLRC)";
+              else if (value == 6)
+                domain_info += "2400MHz (LoRa, VANILLA)";
+              else
+                domain_info += "UNKNOWN";
               elem.innerHTML = domain_info;
 
               // update rate options
@@ -364,11 +371,20 @@ static const char PROGMEM INDEX_HTML[] = R"rawliteral(
                 rates.remove(rates.length-1);
               }
               var options = [];
-              if (value == "4") {
+              if (value == 6) {
+                // 2400 Vanilla
+                // TODO: add vanilla modes???
+              } else if (value == 5) {
+                // 2400 FLRC
+                options = ['500Hz', '250Hz'];
+              } else if (value == 4) {
+                // 2400 LORA (up to 500Hz)
                 options = ['500Hz', '250Hz', '125Hz', '50Hz'];
-              } else if (value == "3") {
+              } else if (value == 3) {
+                // 2400 LORA (up to 250Hz)
                 options = ['250Hz', '125Hz', '50Hz'];
               } else {
+                // 900 LORA
                 options = ['200Hz', '100Hz', '50Hz'];
               }
               for (i = 0; i < options.length; i++) {

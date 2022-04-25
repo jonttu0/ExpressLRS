@@ -364,6 +364,13 @@ int8_t tx_handle_msp_input(mspPacket_t &packet)
     return ret;
 }
 
+
+void tx_handle_set_link_rate(uint32_t const interval)
+{
+    (void)interval;
+    // TODO: should the gimbal read timing be updated as well? Runs @ 1kHz atm
+}
+
 /***********************/
 
 void LinkStatisticsSend(void)

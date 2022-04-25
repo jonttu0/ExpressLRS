@@ -723,7 +723,7 @@ exit_tlm_rcv:
 #define FRAMETYPE_LINK_STATISTICS 0x14
 void FAST_CODE_1
 RcChannels_link_stas_pack(uint8_t *const output,
-                          LinkStats_t &input, uint_fast8_t ul_lq)
+                          LinkStats_t &input, uint_fast8_t const ul_lq)
 {
     // NOTE: output is only 5 bytes + 6bits (MSB)!!
 

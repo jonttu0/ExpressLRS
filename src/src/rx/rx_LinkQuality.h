@@ -3,54 +3,44 @@
 
 #include <string.h>
 
-#define NEW_LQ_CALC 0
+#define LQ_LEN  100
 
-uint8_t linkQualityArray[100];
-uint_fast8_t linkQualityArrayIndex;
-#if NEW_LQ_CALC
-uint_fast8_t linkQuality;
-#endif
+typedef struct {
+    uint_fast8_t index;
+    uint_fast8_t lq;
+    uint8_t data[LQ_LEN];
+} lq_data_t;
 
-void FAST_CODE_1 LQ_nextPacket(void)
+
+void FAST_CODE_1 LQ_nextPacket(lq_data_t * const lq)
 {
-    uint_fast8_t index = linkQualityArrayIndex;
-#if NEW_LQ_CALC
-    linkQuality -= linkQualityArray[index];
-#endif
-    index = (index + 1) % sizeof(linkQualityArray);
-    linkQualityArray[index] = 0;
-    linkQualityArrayIndex = index;
+    uint_fast8_t index = lq->index;
+    // Next index
+    index = (index + 1) % sizeof(lq->data);
+    // Remove oldest value
+    lq->lq -= lq->data[index];
+    // Clear oldest value
+    lq->data[index] = 0;
+    lq->index = index;
 }
 
-void FAST_CODE_1 LQ_packetAck(void)
+void FORCED_INLINE LQ_packetAck(lq_data_t * const lq)
 {
-    linkQualityArray[linkQualityArrayIndex] = 1;
-#if NEW_LQ_CALC
-    linkQuality++;
-#endif
+    lq->data[lq->index] = 1;
+    lq->lq++;
 }
 
-uint_fast8_t FAST_CODE_1 LQ_getlinkQuality()
+uint_fast8_t FORCED_INLINE LQ_getlinkQuality(lq_data_t const * const lq)
 {
-#if !NEW_LQ_CALC
-    uint_fast8_t LQ = 0;
-    int_fast8_t size = sizeof(linkQualityArray);
-    while (0 <= (--size)) {
-        LQ += linkQualityArray[size];
-    }
-    return LQ;
-#else
-    return linkQuality;
-#endif
+    return lq->lq;
 }
 
-void FAST_CODE_1 LQ_reset()
+void FAST_CODE_1 LQ_reset(lq_data_t * const lq)
 {
-    memset(linkQualityArray, 1, sizeof(linkQualityArray));
-    linkQualityArrayIndex = 0;
-#if NEW_LQ_CALC
-    linkQuality = sizeof(linkQualityArray);
-#endif
+    // default to all set
+    memset(lq->data, 1, sizeof(lq->data));
+    lq->index = 0;
+    lq->lq = sizeof(lq->data);
 }
 
 #endif // _RX_LINK_QUALITY_H__

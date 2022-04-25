@@ -92,6 +92,7 @@ enum
     OSD_MODE_200Hz,
     OSD_MODE_250Hz,
     OSD_MODE_500Hz,
+    OSD_MODE_250Hz_FLRC,
     OSD_MODE_500Hz_FLRC,
     OSD_MODE_1kHz_FLRC,
 };
@@ -119,6 +120,7 @@ typedef struct expresslrs_mod_settings_s
     uint8_t  FHSShopInterval; // every X packets we hope to a new frequnecy.
     uint8_t  rate_osd_num;
     uint8_t  payloadSize;
+    uint8_t  numOfTxPerRc;
 } expresslrs_mod_settings_t;
 
 extern const expresslrs_mod_settings_t *ExpressLRS_currAirRate;

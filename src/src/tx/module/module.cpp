@@ -159,3 +159,8 @@ int8_t tx_handle_msp_input(mspPacket_t &packet)
     (void)packet;
     return -1;
 }
+
+void tx_handle_set_link_rate(uint32_t const interval)
+{
+    crsf.setRcPacketRate(interval);
+}

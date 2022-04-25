@@ -44,6 +44,8 @@ static uint32_t DRAM_ATTR print_rx_isr_end_time;
 
 ///////////////////
 
+static lq_data_t DRAM_ATTR rx_lq;
+
 RX_CLASS DRAM_FORCE_ATTR crsf(CrsfSerial); //pass a serial port object to the class for it to use
 
 connectionState_e DRAM_ATTR connectionState;
@@ -60,9 +62,11 @@ static uint32_t DRAM_ATTR SyncCipher;
 #if SERVO_OUTPUTS_ENABLED
 static uint8_t DRAM_ATTR update_servos;
 #endif
-static rc_channels_rx_t DRAM_ATTR CrsfChannels;
+static rc_channels_rx_t DRAM_ATTR rcChannelsData;
 static LinkStats_t DRAM_ATTR LinkStatistics;
 static GpsOta_t DRAM_ATTR GpsTlm;
+static uint8_t DRAM_ATTR rcDataRcvdCnt;
+static uint32_t DRAM_ATTR rcDataTxCountMask;
 
 ///////////////////////////////////////////////
 ////////////////  Filters  ////////////////////
@@ -97,29 +101,29 @@ struct gpio_out dbg_pin_rx;
 #endif
 
 #if AUX_CHANNEL_ARM == 0
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch4))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch4))
 #elif AUX_CHANNEL_ARM == 1
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch5))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch5))
 #elif AUX_CHANNEL_ARM == 2
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch6))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch6))
 #elif AUX_CHANNEL_ARM == 3
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch7))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch7))
 #elif AUX_CHANNEL_ARM == 4
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch8))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch8))
 #elif AUX_CHANNEL_ARM == 5
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch9))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch9))
 #elif AUX_CHANNEL_ARM == 6
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch10))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch10))
 #elif AUX_CHANNEL_ARM == 7
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch11))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch11))
 #elif AUX_CHANNEL_ARM == 8
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch12))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch12))
 #elif AUX_CHANNEL_ARM == 9
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch13))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch13))
 #elif AUX_CHANNEL_ARM == 10
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch14))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch14))
 #elif AUX_CHANNEL_ARM == 11
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(CrsfChannels.ch15))
+    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch15))
 #else
     #define ARM_CH_CHECK() 1
 #endif
@@ -201,7 +205,7 @@ uint8_t FAST_CODE_1 HandleFHSS(uint_fast8_t & nonce)
     return fhss;
 }
 
-void FAST_CODE_1 HandleSendTelemetryResponse(uint_fast8_t lq) // total ~79us
+void FAST_CODE_1 HandleSendTelemetryResponse(void) // total ~79us
 {
     DEBUG_PRINTF(" X");
     // esp requires word aligned buffer
@@ -224,7 +228,7 @@ void FAST_CODE_1 HandleSendTelemetryResponse(uint_fast8_t lq) // total ~79us
     }
     else
     {
-        RcChannels_link_stas_pack(tx_buffer, LinkStatistics, lq);
+        RcChannels_link_stas_pack(tx_buffer, LinkStatistics, uplink_Link_quality);
         crc_or_type = DL_PACKET_TLM_LINK;
     }
 
@@ -234,9 +238,6 @@ void FAST_CODE_1 HandleSendTelemetryResponse(uint_fast8_t lq) // total ~79us
     tx_buffer[payloadSize++] = (crc_or_type >> 8);
     tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
     Radio->TXnb(tx_buffer, payloadSize, FHSSgetCurrFreq());
-
-    // Adds packet to LQ otherwise an artificial drop in LQ is seen due to sending TLM.
-    LQ_packetAck();
 }
 
 void tx_done_cb(void)
@@ -262,8 +263,21 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     uint_fast8_t nonce = NonceRXlocal;
     rx_last_valid_us = 0;
 
+#if RC_DATA_SEND_FROM_HWTIMR
+    //if ((nonce % rcDataTxCountMask) == 0) {
+    if ((nonce & rcDataTxCountMask) == 0) {
+        if (0 < rcDataRcvdCnt) {
+            crsf.sendRCFrameToFC(&rcChannelsData);
+            rcDataRcvdCnt = 0;
+            LQ_packetAck(&rx_lq);
+        }
+        uplink_Link_quality = LQ_getlinkQuality(&rx_lq);
+        LQ_nextPacket(&rx_lq);
+    }
+#endif
+
 #if PRINT_TIMING && NO_DATA_TO_FC
-    uint32_t freq_now = FHSSgetCurrFreq();
+    const uint32_t freq_now = FHSSgetCurrFreq();
 #endif
 
     /* do adjustment */
@@ -290,12 +304,13 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
         TxTimer.reset(0); // Reset timer interval
     }
 
+#if !RC_DATA_SEND_FROM_HWTIMR
+    uplink_Link_quality = LQ_getlinkQuality(&rx_lq);
+    LQ_nextPacket(&rx_lq);
+#endif
+
     /*fhss_config_rx |=*/ RadioFreqErrorCorr();
     fhss_config_rx |= HandleFHSS(nonce);
-
-    uint_fast8_t lq = LQ_getlinkQuality();
-    uplink_Link_quality = lq;
-    LQ_nextPacket();
 
     if ((0 < tlm_ratio) && ((nonce & tlm_ratio) == 0)
             && (connectionState == STATE_connected)) {
@@ -303,7 +318,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_tmr, 0);
 #endif
-        HandleSendTelemetryResponse(lq);
+        HandleSendTelemetryResponse();
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_tmr, 1);
 #endif
@@ -320,7 +335,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
      */
 #if SERVO_OUTPUTS_ENABLED
     if (update_servos && STATE_lost < connectionState) {
-        servo_out_write(&CrsfChannels, us);
+        servo_out_write(&rcChannelsData, us);
     }
     update_servos = 0;
 #else
@@ -492,18 +507,23 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                     return;
                 }
 #else // !CRC16_POLY_TESTING
-                RcChannels_channels_extract(rx_buffer, CrsfChannels);
-#if SERVO_OUTPUTS_ENABLED
+                RcChannels_channels_extract(rx_buffer, rcChannelsData);
+    #if SERVO_OUTPUTS_ENABLED
                 update_servos = 1;
-#else // !SERVO_OUTPUTS_ENABLED
-#if (DBG_PIN_RX_ISR != UNDEF_PIN)
+    #else // !SERVO_OUTPUTS_ENABLED
+        #if RC_DATA_SEND_FROM_HWTIMR
+                ++rcDataRcvdCnt;
+        #else
+            #if (DBG_PIN_RX_ISR != UNDEF_PIN)
                 gpio_out_write(dbg_pin_rx, 0);
-#endif
-                crsf.sendRCFrameToFC(&CrsfChannels);
-#if (DBG_PIN_RX_ISR != UNDEF_PIN)
+            #endif
+                crsf.sendRCFrameToFC(&rcChannelsData);
+            #if (DBG_PIN_RX_ISR != UNDEF_PIN)
                 gpio_out_write(dbg_pin_rx, 1);
-#endif
-#endif // SERVO_OUTPUTS_ENABLED
+            #endif
+                LQ_packetAck(&rx_lq);
+        #endif // RC_DATA_SEND_FROM_HWTIMR
+    #endif // SERVO_OUTPUTS_ENABLED
 #endif // CRC16_POLY_TESTING
             }
             break;
@@ -533,7 +553,6 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
     rx_last_valid_us = current_us;
     rx_freqerror = freq_err;
 
-    LQ_packetAck();
     FillLinkStats();
 
 #if PRINT_TIMING && NO_DATA_TO_FC
@@ -576,13 +595,14 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
     ExpressLRS_currAirRate = config;
     current_rate_config = rate;
 
-    // Init CRC aka LQ array
-    LQ_reset();
-    // Reset FHSS
+    LQ_reset(&rx_lq);
     FHSSfreqCorrectionReset();
     FHSSresetCurrIndex();
 
     handle_tlm_ratio(TLM_RATIO_NO_TLM);
+    // Repeated TX params
+    rcDataRcvdCnt = 0;
+    rcDataTxCountMask = (0 < config->numOfTxPerRc) ? config->numOfTxPerRc - 1 : 0;
 
     DEBUG_PRINTF("Set RF rate: %u (sync ch: %u)\n", config->rate, FHSScurrSequenceIndex());
 
@@ -607,7 +627,7 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
     LinkStatistics.link.uplink_RSSI_2 = 0;
     LinkStatistics.link.rf_Mode = config->rate_osd_num;
 #endif
-    //TxTimer.setTime();
+    // Start the sync packet reception
     Radio->RXnb();
 }
 
@@ -844,8 +864,8 @@ void loop()
             read_u8(&uplink_Link_quality),
             LPF_UplinkRSSI.value(),
             LPF_UplinkSNR.value(),
-            CrsfChannels.ch0, CrsfChannels.ch1, CrsfChannels.ch2, CrsfChannels.ch3,
-            CrsfChannels.ch4, CrsfChannels.ch5, CrsfChannels.ch6, CrsfChannels.ch7
+            rcChannelsData.ch0, rcChannelsData.ch1, rcChannelsData.ch2, rcChannelsData.ch3,
+            rcChannelsData.ch4, rcChannelsData.ch5, rcChannelsData.ch6, rcChannelsData.ch7
             );
 #else
         DEBUG_PRINTF("\n");

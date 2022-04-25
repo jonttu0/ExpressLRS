@@ -43,3 +43,4 @@ void hw_timer_init(void);
 void hw_timer_stop(void);
 
 int8_t tx_handle_msp_input(mspPacket_t &packet);
+void tx_handle_set_link_rate(uint32_t interval);
