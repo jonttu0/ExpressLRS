@@ -14,7 +14,7 @@ except ImportError:
 from console_log import *
 
 
-#print(env.Dump())
+# print(env.Dump())
 target_name = env.get('PIOENV', '')
 my_uid_final = [0] * 6
 
@@ -189,3 +189,28 @@ print_info("------------------------")
 stm = env.get('PIOPLATFORM', '') in ['ststm32']
 if stm:
     env['UPLOAD_PROTOCOL'] = 'custom'
+
+    def print_src(node):
+        print("Source: %s" % node)
+        return node
+    # env.AddBuildMiddleware(print_src, "*.c*")
+
+    # Filter out unnecessary STM32 HAL files
+    def filter_stm_hal_files(node):
+        name = str(node)
+        include = ["_flash", "_rcc", "_cortex", "_gpio", "_pwr", "_i2c", "_tim.c"]
+        if any(x in name for x in include):
+            return node
+        # print(f"Ignored, HAL: {name}")
+        return None
+    env.AddBuildMiddleware(filter_stm_hal_files, "*stm32*_hal_*.c*")
+
+    # Filter out unnecessary STM32 LL files
+    def filter_stm_ll_files(node):
+        name = str(node)
+        include = []
+        if any(x in name for x in include):
+            return node
+        # print(f"Ignored, LL: {name}")
+        return None
+    env.AddBuildMiddleware(filter_stm_ll_files, "*stm32*_ll_*.c*")
