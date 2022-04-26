@@ -6,6 +6,8 @@
 #ifndef __section
 #define __section(S) __attribute__((section(S)))
 #endif
+#define ATTR_NO_INIT __section(".noinit")
+
 
 #define likely(x)       __builtin_expect(!!(x), 1)
 #define unlikely(x)     __builtin_expect(!!(x), 0)
