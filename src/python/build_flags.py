@@ -198,7 +198,7 @@ if stm:
     # Filter out unnecessary STM32 HAL files
     def filter_stm_hal_files(node):
         name = str(node)
-        include = ["_flash", "_rcc", "_cortex", "_gpio", "_pwr", "_i2c", "_tim.c"]
+        include = ["_flash", "_rcc", "_cortex", "_gpio", "_pwr", "_i2c", "_tim.c", "_hal.c"]
         if any(x in name for x in include):
             return node
         # print(f"Ignored, HAL: {name}")
