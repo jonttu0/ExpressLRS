@@ -86,7 +86,7 @@ void CRSF_RX::LinkStatisticsSend(LinkStatsLink_t & stats, uint32_t now_us) const
 #else // !PROTOCOL_ELRS_TO_FC
 #if PROTOCOL_CRSF_V3_TO_FC
         if (MS_TO_US(LINK_STATS_FULL_INTERVAL_MS) <= (uint32_t)(now_us - link_stat_full_sent_us)) {
-            link_stat_full_sent_us = now;
+            link_stat_full_sent_us = now_us;
 #endif // PROTOCOL_CRSF_V3_TO_FC
             link_stat_packet.stats.uplink_RSSI_1 = stats.uplink_RSSI_1;
             link_stat_packet.stats.uplink_RSSI_2 = stats.uplink_RSSI_2;
@@ -151,7 +151,8 @@ void CRSF_RX::negotiate_baud(void) const
     req.proposal.sub_command = CRSF_COMMAND_SUBCMD_GENERAL_CRSF_SPEED_PROPOSAL;
     req.proposal.portID = CRSF_v3_PORT_ID;
     req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
-    req.crc_cmd = CalcCRC(&req.header.type, (sizeof(req) - 4));
+    // CMD has also its own CRC
+    req.crc_cmd = CalcCRC8len(&req.header.type, (sizeof(req) - CRSF_FRAME_START_BYTES - 2), 0, CRSF_CMD_POLY);
     sendFrameToFC((uint8_t*)&req, sizeof(req));
     delay(20); // Wait DMA to finish its job
 #endif // PROTOCOL_CRSF_V3_TO_FC
