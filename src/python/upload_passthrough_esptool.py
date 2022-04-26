@@ -22,7 +22,8 @@ def esp_read_chip_id(port, baud, retries=2):
         if esp.IS_STUB:
             esp.soft_reset(True) # Stay in ROM loader
         return chip_is, esp
-    except (esptool.FatalError, OSError):
+    except (esptool.FatalError, OSError) as error:
+        print_log(error)
         print_log("      Not detected")
         return "", None
 

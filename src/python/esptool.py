@@ -527,6 +527,7 @@ class ESPLoader(object):
             print('')  # end 'Connecting...' line
 
         if last_error is not None:
+            self._port.close()
             raise FatalError('Failed to connect to %s: %s' % (self.CHIP_NAME, last_error))
 
         if not detecting:
