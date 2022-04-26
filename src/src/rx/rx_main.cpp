@@ -28,6 +28,8 @@ void FAST_CODE_1 LostConnection();
 #define LINK_STATS_SEND_INTERVAL_MS 100U
 #define LINK_STATS_SEND_INTERVAL_US (LINK_STATS_SEND_INTERVAL_MS * 1000)
 
+#define RC_DATA_SEND_FROM_HWTIMR 1
+
 /* Debug variables */
 #define PRINT_FREQ_ERROR    0
 #define PRINT_RATE          1
