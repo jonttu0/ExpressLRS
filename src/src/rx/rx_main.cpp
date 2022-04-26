@@ -265,19 +265,6 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     uint_fast8_t nonce = NonceRXlocal;
     rx_last_valid_us = 0;
 
-#if RC_DATA_SEND_FROM_HWTIMR
-    //if ((nonce % rcDataTxCountMask) == 0) {
-    if ((nonce & rcDataTxCountMask) == 0) {
-        if (0 < rcDataRcvdCnt) {
-            crsf.sendRCFrameToFC(&rcChannelsData);
-            rcDataRcvdCnt = 0;
-            LQ_packetAck(&rx_lq);
-        }
-        uplink_Link_quality = LQ_getlinkQuality(&rx_lq);
-        LQ_nextPacket(&rx_lq);
-    }
-#endif
-
 #if PRINT_TIMING && NO_DATA_TO_FC
     const uint32_t freq_now = FHSSgetCurrFreq();
 #endif
@@ -305,6 +292,21 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
         DEBUG_PRINTF("-");
         TxTimer.reset(0); // Reset timer interval
     }
+
+#if RC_DATA_SEND_FROM_HWTIMR
+    // HACK HACK HACK
+    // TODO: find a proper solution on ESPs
+    if ((nonce & rcDataTxCountMask) == 0) {
+        if (0 < rcDataRcvdCnt) {
+            crsf.sendRCFrameToFC(&rcChannelsData);
+            rcDataRcvdCnt = 0;
+            LQ_packetAck(&rx_lq);
+        }
+        uplink_Link_quality = LQ_getlinkQuality(&rx_lq);
+        LQ_nextPacket(&rx_lq);
+    }
+    // HACK HACK HACK
+#endif
 
 #if !RC_DATA_SEND_FROM_HWTIMR
     uplink_Link_quality = LQ_getlinkQuality(&rx_lq);
@@ -863,7 +865,7 @@ void loop()
         DEBUG_PRINTF(" Rate: -%u +%u LQ:%u RSSI:%d SNR:%d - RC: %u|%u|%u|%u|*|%u|%u|%u|%u|\n",
             bad,
             good,
-            read_u8(&uplink_Link_quality),
+            uplink_Link_quality, //read_u8(&uplink_Link_quality),
             LPF_UplinkRSSI.value(),
             LPF_UplinkSNR.value(),
             rcChannelsData.ch0, rcChannelsData.ch1, rcChannelsData.ch2, rcChannelsData.ch3,
