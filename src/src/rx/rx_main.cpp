@@ -173,6 +173,12 @@ void FAST_CODE_1 FillLinkStats()
     LinkStatistics.link.uplink_SNR = LPF_UplinkSNR.update((int8_t)read_u8(&Radio->LastPacketSNR) * 10);
 }
 
+void FAST_CODE_1 SendLinkStats(uint32_t const us, uint8_t const lq)
+{
+    LinkStatistics.link.uplink_Link_quality = uplink_Link_quality;
+    crsf.LinkStatisticsSend(LinkStatistics.link, us);
+}
+
 uint8_t FAST_CODE_1 RadioFreqErrorCorr(void)
 {
     // Do freq correction before FHSS
@@ -375,8 +381,7 @@ void FAST_CODE_1 SendDataToFcCallback(uint32_t const us)
     update_servos = 0;
 #else
     if (STATE_connected == connectionState) {
-        LinkStatistics.link.uplink_Link_quality = uplink_Link_quality;
-        crsf.LinkStatisticsSend(LinkStatistics.link, us);
+        SendLinkStats(us, uplink_Link_quality);
     }
 #endif
 }
@@ -483,7 +488,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                     if (sync->radio_mode == ExpressLRS_currAirRate->pkt_type &&
                             sync->rate_index == current_rate_config) {
                         TentativeConnection(freq_err);
-                        current_us = 0;
+                        //current_us = 0;
                     } else {
                         rcvd_pkt_type = sync->radio_mode;
                         rcvd_rate_index = sync->rate_index;
