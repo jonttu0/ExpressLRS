@@ -28,8 +28,6 @@ void FAST_CODE_1 LostConnection();
 #define LINK_STATS_SEND_INTERVAL_MS 100U
 #define LINK_STATS_SEND_INTERVAL_US (LINK_STATS_SEND_INTERVAL_MS * 1000)
 
-#define RC_DATA_SEND_FROM_HWTIMR 1
-
 /* Debug variables */
 #define PRINT_FREQ_ERROR    0
 #define PRINT_RATE          1
@@ -249,6 +247,12 @@ void tx_done_cb(void)
     //    Radio->RXnb(FHSSgetCurrFreq());
 }
 
+
+void SendDataToFcCallback(uint32_t const us); // prototype
+static uint8_t DRAM_ATTR rcDataSend;
+#define SEND_CB_OFFSET_US   400
+
+
 void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 {
     //DEBUG_PRINTF("H");
@@ -261,6 +265,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     int32_t diff_us = 0;
     const uint32_t last_rx_us = rx_last_valid_us;
     const uint_fast8_t tlm_ratio = tlm_check_ratio;
+    const connectionState_e conn_state = connectionState;
     uint_fast8_t fhss_config_rx = 0;
     uint_fast8_t nonce = NonceRXlocal;
     rx_last_valid_us = 0;
@@ -269,7 +274,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     const uint32_t freq_now = FHSSgetCurrFreq();
 #endif
 
-    /* do adjustment */
+    /* do the timing adjustment based on last reception */
     if (last_rx_us != 0)
     {
         diff_us = (int32_t)((uint32_t)(us - last_rx_us));
@@ -277,8 +282,8 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
         if (diff_us < -TIMER_OFFSET) diff_us = -TIMER_OFFSET;
         else if (diff_us > TIMER_OFFSET) diff_us = TIMER_OFFSET;
 
-        /* Adjust the timer */
-        TxTimer.reset(diff_us - TIMER_OFFSET);
+        /* Adjust the timer offset */
+        diff_us -= TIMER_OFFSET;
 
 #if PRINT_RATE && NO_DATA_TO_FC
         print_rate_cnt++;
@@ -290,34 +295,27 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
         print_rate_cnt_fail++;
 #endif
         DEBUG_PRINTF("-");
-        TxTimer.reset(0); // Reset timer interval
     }
 
-#if RC_DATA_SEND_FROM_HWTIMR
-    // HACK HACK HACK
-    // TODO: find a proper solution on ESPs
+    // adjust the timer
+    TxTimer.callbackTick = &SendDataToFcCallback;
+    TxTimer.setTime(SEND_CB_OFFSET_US - diff_us);
+
     if ((nonce & rcDataTxCountMask) == 0) {
         if (0 < rcDataRcvdCnt) {
-            crsf.sendRCFrameToFC(&rcChannelsData);
+            rcDataSend = true;
             rcDataRcvdCnt = 0;
             LQ_packetAck(&rx_lq);
         }
         uplink_Link_quality = LQ_getlinkQuality(&rx_lq);
         LQ_nextPacket(&rx_lq);
     }
-    // HACK HACK HACK
-#endif
-
-#if !RC_DATA_SEND_FROM_HWTIMR
-    uplink_Link_quality = LQ_getlinkQuality(&rx_lq);
-    LQ_nextPacket(&rx_lq);
-#endif
 
     /*fhss_config_rx |=*/ RadioFreqErrorCorr();
     fhss_config_rx |= HandleFHSS(nonce);
 
     if ((0 < tlm_ratio) && ((nonce & tlm_ratio) == 0)
-            && (connectionState == STATE_connected)) {
+            && (conn_state == STATE_connected)) {
         /* Send telemetry response */
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_tmr, 0);
@@ -334,21 +332,6 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 
     NonceRXlocal = nonce;
 
-    /* Send stats to FC from here to avoid RC data blocking.
-     * MSP messages are sent from main loop (blocked when armed)
-     */
-#if SERVO_OUTPUTS_ENABLED
-    if (update_servos && STATE_lost < connectionState) {
-        servo_out_write(&rcChannelsData, us);
-    }
-    update_servos = 0;
-#else
-    if (STATE_connected == connectionState) {
-        LinkStatistics.link.uplink_Link_quality = uplink_Link_quality;
-        crsf.LinkStatisticsSend(LinkStatistics.link, us);
-    }
-#endif
-
 #if PRINT_TIMING && NO_DATA_TO_FC
     uint32_t now = micros();
     DEBUG_PRINTF("RX:%u (t:%u) HW:%u diff:%d (t:%u) [f %u]\n",
@@ -363,6 +346,41 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #endif
     return;
 }
+
+
+/* This is used send UART data to flight controller.
+ *  functionality is moved to here since it takes too much time on ESP based
+ *  receivers (no DMA).
+ */
+void FAST_CODE_1 SendDataToFcCallback(uint32_t const us)
+{
+    // Change callback function
+    TxTimer.callbackTick = &HWtimerCallback;
+    // Reset the timer
+    TxTimer.reset(SEND_CB_OFFSET_US);
+
+    // Send RC data
+    if (rcDataSend) {
+        crsf.sendRCFrameToFC(&rcChannelsData);
+        rcDataSend = false;
+    }
+
+    /* Send stats to FC from here to avoid RC data blocking.
+     * MSP messages are sent from main loop (blocked when armed)
+     */
+#if SERVO_OUTPUTS_ENABLED
+    if (update_servos && STATE_lost < connectionState) {
+        servo_out_write(&rcChannelsData, us);
+    }
+    update_servos = 0;
+#else
+    if (STATE_connected == connectionState) {
+        LinkStatistics.link.uplink_Link_quality = uplink_Link_quality;
+        crsf.LinkStatisticsSend(LinkStatistics.link, us);
+    }
+#endif
+}
+
 
 void FAST_CODE_1 LostConnection()
 {
@@ -390,7 +408,7 @@ void FAST_CODE_1 LostConnection()
     Radio->RXnb(FHSSgetCurrFreq());
     DEBUG_PRINTF("lost conn\n");
 
-    platform_connection_state(connectionState);
+    platform_connection_state(STATE_lost);
 }
 
 void FAST_CODE_1 TentativeConnection(int32_t freqerror)
@@ -402,6 +420,7 @@ void FAST_CODE_1 TentativeConnection(int32_t freqerror)
     connectionState = STATE_tentative;
     DEBUG_PRINTF("tentative\n");
     TxTimer.start();     // Start local sync timer
+    TxTimer.callbackTick = &HWtimerCallback;
     led_set_state(1); // turn on led
 }
 
@@ -412,7 +431,7 @@ void FAST_CODE_1 GotConnection()
     led_set_state(1); // turn on led
     DEBUG_PRINTF("connected in %d ms\n", (int32_t)(LastValidPacket_ms - RfModeCycled_ms));
 
-    platform_connection_state(connectionState);
+    platform_connection_state(STATE_connected);
 }
 
 void FAST_CODE_1
@@ -515,18 +534,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
     #if SERVO_OUTPUTS_ENABLED
                 update_servos = 1;
     #else // !SERVO_OUTPUTS_ENABLED
-        #if RC_DATA_SEND_FROM_HWTIMR
                 ++rcDataRcvdCnt;
-        #else
-            #if (DBG_PIN_RX_ISR != UNDEF_PIN)
-                gpio_out_write(dbg_pin_rx, 0);
-            #endif
-                crsf.sendRCFrameToFC(&rcChannelsData);
-            #if (DBG_PIN_RX_ISR != UNDEF_PIN)
-                gpio_out_write(dbg_pin_rx, 1);
-            #endif
-                LQ_packetAck(&rx_lq);
-        #endif // RC_DATA_SEND_FROM_HWTIMR
     #endif // SERVO_OUTPUTS_ENABLED
 #endif // CRC16_POLY_TESTING
             }

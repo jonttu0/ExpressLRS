@@ -42,7 +42,7 @@ void IRAM_ATTR HwTimer::pause()
     stop();
 }
 
-void IRAM_ATTR HwTimer::reset(int32_t offset)
+void IRAM_ATTR HwTimer::reset(int32_t const offset)
 {
     if (running)
     {

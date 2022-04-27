@@ -14,9 +14,8 @@ typedef struct {
 
 void FAST_CODE_1 LQ_nextPacket(lq_data_t * const lq)
 {
-    uint_fast8_t index = lq->index;
     // Next index
-    index = (index + 1) % sizeof(lq->data);
+    uint_fast8_t index = (lq->index + 1) % sizeof(lq->data);
     // Remove oldest value
     lq->lq -= lq->data[index];
     // Clear oldest value
@@ -27,7 +26,7 @@ void FAST_CODE_1 LQ_nextPacket(lq_data_t * const lq)
 void FORCED_INLINE LQ_packetAck(lq_data_t * const lq)
 {
     lq->data[lq->index] = 1;
-    lq->lq++;
+    ++lq->lq;
 }
 
 uint_fast8_t FORCED_INLINE LQ_getlinkQuality(lq_data_t const * const lq)

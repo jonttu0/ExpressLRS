@@ -21,6 +21,7 @@ public:
     int8_t Begin(int sck, int miso, int mosi);
     void End(void);
     int16_t MeasureNoiseFloor(uint32_t num_meas, uint32_t freq);
+    void SetTxIdleMode() {SetMode(SX1280_MODE_FS);}
     void SetMode(SX1280_RadioOperatingModes_t OPmode);
     void Config(uint32_t bw, uint32_t sf, uint32_t cr,
                 uint32_t freq, uint16_t PreambleLength,

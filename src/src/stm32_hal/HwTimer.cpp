@@ -25,12 +25,12 @@ static FORCED_INLINE uint32_t timer_counter_get(void)
     return TIMx->CNT;
 }
 
-static FORCED_INLINE void timer_counter_set(uint32_t cnt)
+static FORCED_INLINE void timer_counter_set(uint32_t const cnt)
 {
     TIMx->CNT = cnt >> TIMER_IS_2US;
 }
 
-static FORCED_INLINE void timer_set(uint32_t next)
+static FORCED_INLINE void timer_set(uint32_t const next)
 {
     TIMx->ARR = next >> TIMER_IS_2US;
 }
@@ -112,7 +112,7 @@ void HwTimer::pause()
     stop();
 }
 
-void FAST_CODE_1 HwTimer::reset(int32_t offset)
+void FAST_CODE_1 HwTimer::reset(int32_t const offset)
 {
     if (running) {
         /* Reset counter and set next alarm time */
@@ -125,6 +125,7 @@ void FAST_CODE_1 HwTimer::setTime(uint32_t time)
 {
     if (!time)
         time = HWtimerInterval;
+    timer_counter_set(time);
     timer_set(time);
 }
 
