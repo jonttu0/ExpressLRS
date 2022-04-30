@@ -327,7 +327,7 @@ void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
     buf[3] = SX1280_FLRC_RX_MATCH_SYNC_WORD_1;  // SyncWordMatch
     buf[4] = HeaderType;                        // PacketType
     buf[5] = PayloadLength;                     // PayloadLength
-    buf[6] = (crc << 4);                        // CrcLength
+    buf[6] = crc;                               // CrcLength
     buf[7] = 0x08;                              // Must be whitening disabled
     TransferBuffer(buf, sizeof(buf), 0);
 
