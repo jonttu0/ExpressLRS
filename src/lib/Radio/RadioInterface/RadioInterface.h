@@ -55,7 +55,22 @@ public:
         _syncWord = syncWord;
     };
     void SetSyncWordLong(uint32_t const syncWord) {
-        _syncWordLong = syncWord;
+        /* SX1280 Errata (see chapter 16.4.2 in datasheet v3.2):
+         *   FLRC packets with synch word enabled will suffer from an increase
+         *   in packet error rate if the synch word too-closely resembles
+         *   the 21 bit Barker preamble pattern of the FLRC modem
+         *
+         * Note! this works only for CR1/2 and CR3/4!
+         */
+        if (syncWord & 0x8C380000)
+            // Ignore also a LSB from 0x0000 to 0x3EFF
+            _syncWordLong = (syncWord & 0x8C380000) + 0x01ABBA;
+        else if (syncWord & 0x630E0000)
+            // Ignore also a LSB from 0x0000 to 0x3EFF
+            _syncWordLong = (syncWord & 0x630E0000) + 0x10ACDC;
+        else
+            // Syncword is ok
+            _syncWordLong = syncWord;
     };
     void SetCaesarCipher(uint16_t const cipher) {
         _cipher = cipher;
