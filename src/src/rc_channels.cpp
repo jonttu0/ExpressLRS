@@ -18,6 +18,13 @@
 #error "CRSF Channels Config is not OK"
 #endif
 
+#if OTA_PAYLOAD_SX127x < OTA_PAYLOAD_MIN
+#error "SX127x payload size is invalid!"
+#endif
+#if OTA_PAYLOAD_SX128x < OTA_PAYLOAD_MIN
+#error "SX128x payload size is invalid!"
+#endif
+
 // ------------------------------------------------------------------
 
 // 7 state aka 3b switches use 0...6 as values to represent 7 different values
@@ -66,7 +73,9 @@ typedef void
 static channels_pack_t DRAM_ATTR channels_pack_ptr;
 
 
-static_assert(6 == sizeof(ElrsSyncPacket_s), "Incorrect sync packet size!");
+static_assert(sizeof(ElrsSyncPacket_s) == OTA_PAYLOAD_MIN,
+              "Incorrect sync packet size!");
+
 
 /*************************************************************************************
  * RC OTA PACKET
@@ -103,7 +112,7 @@ typedef struct
     RcDataSwitches_t switches;
 } PACKED RcDataPacket_s;
 
-static_assert(sizeof(RcDataPacket_s) <= (OTA_PAYLOAD_SX127x - OTA_PACKET_CRC),
+static_assert(sizeof(RcDataPacket_s) <= OTA_PAYLOAD_SX127x,
               "OTA pkt size is not correct");
 
 
@@ -121,7 +130,7 @@ typedef struct
     RcDataSwitches_t switches;
 } PACKED RcDataPacketFull_s;
 
-static_assert(sizeof(RcDataPacketFull_s) <= (OTA_PAYLOAD_SX128x - OTA_PACKET_CRC),
+static_assert(sizeof(RcDataPacketFull_s) <= OTA_PAYLOAD_SX128x,
               "OTA pkt size is not correct");
 
 
@@ -445,7 +454,7 @@ void FAST_CODE_1 RcChannels_channels_extract(uint8_t const *const input,
 
 void RcChannels_initRcPacket(uint_fast8_t const payloadSize)
 {
-    if ((payloadSize - OTA_PACKET_CRC) <= sizeof(RcDataPacket_s)) {
+    if (payloadSize <= sizeof(RcDataPacket_s)) {
         packed_buffer_size = sizeof(RcDataPacket_s);
         channels_pack_ptr = channels_pack_legacy;
         return;
@@ -636,7 +645,7 @@ typedef struct {
     uint8_t flags;
 } PACKED TlmDataPacket_s;
 
-static_assert(sizeof(TlmDataPacket_s) <= (OTA_PAYLOAD_SX127x - OTA_PACKET_CRC),
+static_assert(sizeof(TlmDataPacket_s) <= OTA_PAYLOAD_MIN,
               "OTA pkt size is not correct");
 
 uint8_t FAST_CODE_1

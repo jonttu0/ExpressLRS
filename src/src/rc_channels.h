@@ -13,8 +13,9 @@
 #define AUX_CHANNEL_ARM     0
 
 
-#define OTA_PAYLOAD_SX127x  8   // include CRC
-#define OTA_PAYLOAD_SX128x  9   // include CRC
+#define OTA_PAYLOAD_SX127x  6
+#define OTA_PAYLOAD_SX128x  7
+#define OTA_PAYLOAD_MIN     6
 #define OTA_PAYLOAD_MAX     ((OTA_PAYLOAD_SX127x < OTA_PAYLOAD_SX128x) ? \
                                 OTA_PAYLOAD_SX128x : OTA_PAYLOAD_SX127x)
 #define OTA_PACKET_CRC      2

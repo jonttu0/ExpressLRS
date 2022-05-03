@@ -114,7 +114,7 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
     if (mode == SX1280_PACKET_TYPE_FLRC) {
         DEBUG_PRINTF("SX1280: config FLRC\n");
         ConfigModParamsFLRC(bw, cr, sf);
-        SetPacketParamsFLRC(SX1280_FLRC_PACKET_FIXED_LENGTH, /*crc=*/1,
+        SetPacketParamsFLRC(SX1280_FLRC_PACKET_FIXED_LENGTH, crc,
                             PreambleLength, ota_pkt_size);
         irqs |= SX1280_IRQ_CRC_ERROR;
     } else {

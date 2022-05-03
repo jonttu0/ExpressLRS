@@ -218,7 +218,7 @@ void FAST_CODE_1 HandleSendTelemetryResponse(void) // total ~79us
     uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
     uint8_t *tx_buffer = (uint8_t *)__tx_buffer;
     uint16_t crc_or_type;
-    uint_fast8_t payloadSize = ExpressLRS_currAirRate->payloadSize - OTA_PACKET_CRC;
+    uint_fast8_t payloadSize = RcChannels_payloadSizeGet();
 
     if ((tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
     {
@@ -240,9 +240,11 @@ void FAST_CODE_1 HandleSendTelemetryResponse(void) // total ~79us
 
     RcChannels_packetTypeSet(tx_buffer, payloadSize, crc_or_type);
 
-    crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
-    tx_buffer[payloadSize++] = (crc_or_type >> 8);
-    tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
+    if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
+        crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
+        tx_buffer[payloadSize++] = (crc_or_type >> 8);
+        tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
+    }
     Radio->TXnb(tx_buffer, payloadSize, FHSSgetCurrFreq());
 }
 
@@ -424,8 +426,8 @@ void FAST_CODE_1 TentativeConnection(int32_t freqerror)
     tentative_cnt = 0;
     connectionState = STATE_tentative;
     DEBUG_PRINTF("tentative\n");
-    TxTimer.start();     // Start local sync timer
     TxTimer.callbackTick = &HWtimerCallback;
+    TxTimer.start();     // Start local sync timer
     led_set_state(1); // turn on led
 }
 
@@ -454,26 +456,30 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
     gpio_out_write(dbg_pin_rx, 1);
 #endif
 
-    payloadSize -= OTA_PACKET_CRC;
-
     //DEBUG_PRINTF("I");
     const connectionState_e _conn_state = connectionState;
-    const uint16_t crc = CalcCRC16(rx_buffer, payloadSize, CRCCaesarCipher);
-    const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
-    const uint8_t type = RcChannels_packetTypeGet(rx_buffer, payloadSize);
 
-    if (crc_in != crc)
-    {
-#if (DBG_PIN_RX_ISR != UNDEF_PIN)
-        gpio_out_write(dbg_pin_rx, 0);
-#endif
-        DEBUG_PRINTF("!");
-        return;
+    if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
+        payloadSize -= OTA_PACKET_CRC;
+
+        const uint16_t crc = CalcCRC16(rx_buffer, payloadSize, CRCCaesarCipher);
+        const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
+
+        if (crc_in != crc)
+        {
+    #if (DBG_PIN_RX_ISR != UNDEF_PIN)
+            gpio_out_write(dbg_pin_rx, 0);
+    #endif
+            DEBUG_PRINTF("!");
+            return;
+        }
     }
+
+    // TODO, FIXME: Disable IRQs?
 
     //DEBUG_PRINTF("E%d ", freq_err);
 
-    switch (type)
+    switch (RcChannels_packetTypeGet(rx_buffer, payloadSize))
     {
         case UL_PACKET_SYNC:
         {
@@ -579,6 +585,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
     gpio_out_write(dbg_pin_rx, 0);
 #endif
 
+    TxTimer.callbackTick = &HWtimerCallback;
     TxTimer.triggerSoon(); // Trigger FHSS ISR
     return;
 
@@ -624,10 +631,10 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
     DEBUG_PRINTF("Set RF rate: %u (sync ch: %u)\n", config->rate, FHSScurrSequenceIndex());
 
     RcChannels_initRcPacket(config->payloadSize);
-    Radio->SetRxBufferSize(config->payloadSize);
+    Radio->SetRxBufferSize(config->payloadSize + (config->hwCrc == HWCRC_DIS ? OTA_PACKET_CRC : 0));
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
-                  config->PreambleLen, (OTA_PACKET_CRC == 0),
+                  config->PreambleLen, config->hwCrc,
                   config->pkt_type);
 
     // Measure RF noise

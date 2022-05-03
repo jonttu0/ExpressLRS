@@ -84,6 +84,12 @@ enum
 
 enum
 {
+    HWCRC_DIS = 0,
+    HWCRC_EN = 1,
+};
+
+enum
+{
     OSD_MODE_4Hz = 0,
     OSD_MODE_25Hz,
     OSD_MODE_50Hz,
@@ -121,6 +127,7 @@ typedef struct expresslrs_mod_settings_s
     uint8_t  rate_osd_num;
     uint8_t  payloadSize;
     uint8_t  numOfTxPerRc;
+    uint8_t  hwCrc;
 } expresslrs_mod_settings_t;
 
 extern const expresslrs_mod_settings_t *ExpressLRS_currAirRate;

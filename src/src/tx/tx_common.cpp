@@ -33,8 +33,8 @@ static uint32_t DRAM_ATTR SyncCipher;
 struct platform_config DRAM_ATTR pl_config;
 
 /////////// SYNC PACKET ////////
-static uint32_t DRAM_ATTR SyncPacketSent_ms;
-static uint32_t DRAM_ATTR SyncPacketInterval_ms; // Default is send always
+static uint32_t DRAM_ATTR SyncPacketSent_us;
+static uint32_t DRAM_ATTR SyncPacketInterval_us; // Default is send always
 
 /////////// CONNECTION /////////
 static uint32_t DRAM_ATTR LastPacketRecvMillis;
@@ -263,14 +263,17 @@ static uint8_t SetRadioType(uint8_t type)
 void process_rx_buffer(uint8_t payloadSize)
 {
     const uint32_t ms = millis();
-    const uint16_t crc = CalcCRC16((uint8_t*)rx_buffer, payloadSize, CRCCaesarCipher);
-    const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
-    const uint8_t  type = RcChannels_packetTypeGet((uint8_t*)rx_buffer, payloadSize);
+    if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
+        payloadSize -= OTA_PACKET_CRC;
 
-    if (crc_in != crc)
-    {
-        DEBUG_PRINTF("!C");
-        return;
+        const uint16_t crc = CalcCRC16((uint8_t*)rx_buffer, payloadSize, CRCCaesarCipher);
+        const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
+
+        if (crc_in != crc)
+        {
+            DEBUG_PRINTF("!C");
+            return;
+        }
     }
 
     //DEBUG_PRINTF(" PROC_RX ");
@@ -281,7 +284,7 @@ void process_rx_buffer(uint8_t payloadSize)
     LastPacketRecvMillis = ms;
     recv_tlm_counter++;
 
-    switch (type)
+    switch (RcChannels_packetTypeGet((uint8_t*)rx_buffer, payloadSize))
     {
         case DL_PACKET_TLM_MSP:
         {
@@ -328,8 +331,7 @@ static void FAST_CODE_1 PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, si
 
     if (buff) {
         memcpy(rx_buffer, buff, payloadSize);
-        rx_buffer_size = payloadSize - OTA_PACKET_CRC;
-
+        rx_buffer_size = payloadSize;
         //DEBUG_PRINTF(" R ");
     }
 }
@@ -351,7 +353,8 @@ static void FAST_CODE_1 TransmissionCompletedCallback()
 // Internal OTA implementation
 
 static void FAST_CODE_1
-GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
+GenerateSyncPacketData(uint8_t *const output, uint32_t const rxtx_counter,
+                       uint_fast8_t const numOfTxPerRc)
 {
     ElrsSyncPacket_s * sync = (ElrsSyncPacket_s*)output;
     sync->cipher = SyncCipher;
@@ -360,9 +363,7 @@ GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
     sync->tlm_interval = TLMinterval;
     sync->rate_index = current_rate_config;
     sync->radio_mode = ExpressLRS_currAirRate->pkt_type;
-
-    sync->no_sync_armed = TX_SKIP_SYNC;
-
+    sync->no_sync_armed = (1 < numOfTxPerRc) ? 0 : TX_SKIP_SYNC;
     sync->pkt_type = UL_PACKET_SYNC;
 }
 
@@ -372,20 +373,23 @@ GenerateSyncPacketData(uint8_t *const output, uint32_t rxtx_counter)
 uint_fast8_t FAST_CODE_1
 ota_packet_generate_internal(uint8_t * const tx_buffer,
                              uint32_t const rxtx_counter,
-                             uint32_t const current_us)
+                             uint32_t const current_us,
+                             uint_fast8_t const hopInterval)
 {
     uint16_t crc_or_type;
     uint_fast8_t payloadSize = RcChannels_payloadSizeGet();
+    const uint_fast8_t numOfTxPerRc = ExpressLRS_currAirRate->numOfTxPerRc;
     const uint_fast8_t arm_state = RcChannels_get_arm_channel_state();
-    const uint32_t sync_interval_ms = SyncPacketInterval_ms / (arm_state + 1);
+    const uint32_t sync_interval_us = SyncPacketInterval_us / (arm_state + 1);
 
     // only send sync when its time and only on sync channel;
-    if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
-        ((rxtx_counter % ExpressLRS_currAirRate->FHSShopInterval) == 0) &&
-        (sync_interval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
+    if ((!arm_state || 1 < numOfTxPerRc) && FHSScurrSequenceIndexIsSyncChannel() &&
+        ((rxtx_counter % hopInterval) == 0) &&
+        ((rxtx_counter % numOfTxPerRc) == 0) &&
+        (sync_interval_us <= (uint32_t)(current_us - SyncPacketSent_us)))
     {
-        GenerateSyncPacketData(tx_buffer, rxtx_counter);
-        SyncPacketSent_ms = current_us;
+        GenerateSyncPacketData(tx_buffer, rxtx_counter, numOfTxPerRc);
+        SyncPacketSent_us = current_us;
         crc_or_type = UL_PACKET_SYNC;
     }
     else if (!arm_state && (tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
@@ -408,11 +412,12 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
 
     RcChannels_packetTypeSet(tx_buffer, payloadSize, crc_or_type);
 
-    // Calculate the CRC
-    crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
-    tx_buffer[payloadSize++] = (crc_or_type >> 8);
-    tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
-
+    if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
+        // Calculate the CRC
+        crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
+        tx_buffer[payloadSize++] = (crc_or_type >> 8);
+        tx_buffer[payloadSize++] = (crc_or_type & 0xFF);
+    }
     return payloadSize;
 }
 
@@ -421,23 +426,24 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
 uint_fast8_t FAST_CODE_1
 ota_packet_generate_vanilla(uint8_t * const tx_buffer,
                             uint32_t const rxtx_counter,
-                            uint32_t const current_us)
+                            uint32_t const current_us,
+                            uint_fast8_t const hopInterval)
 {
     uint_fast8_t payloadSize = OTA_VANILLA_SIZE;
     const uint_fast8_t arm_state = OTA_vanilla_getArmChannelState();
-    const uint32_t sync_interval_ms = SyncPacketInterval_ms / (arm_state + 1);
+    const uint32_t sync_interval_us = SyncPacketInterval_us / (arm_state + 1);
 
     // only send sync when its time and only on sync channel;
     if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
-        ((rxtx_counter % ExpressLRS_currAirRate->FHSShopInterval) == 0) &&
-        (sync_interval_ms <= (uint32_t)(current_us - SyncPacketSent_ms)))
+        ((rxtx_counter % hopInterval) == 0) &&
+        (sync_interval_us <= (uint32_t)(current_us - SyncPacketSent_us)))
     {
         OTA_vanilla_SyncPacketData(tx_buffer, rxtx_counter, TLMinterval);
-        SyncPacketSent_ms = current_us;
+        SyncPacketSent_us = current_us;
     }
     else
     {
-        uint8_t NonceFHSSresult = rxtx_counter % ExpressLRS_currAirRate->FHSShopInterval;
+        uint8_t NonceFHSSresult = rxtx_counter % hopInterval;
         OTA_vanilla_PackChannelData(tx_buffer, rxtx_counter, NonceFHSSresult);
     }
 
@@ -461,6 +467,7 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
     // esp requires word aligned buffer
     uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
     uint8_t * const tx_buffer = (uint8_t *)__tx_buffer;
+    uint_fast8_t const hopInterval = ExpressLRS_currAirRate->FHSShopInterval;
     uint_fast8_t payloadSize;
 
     // Check if telemetry RX ongoing
@@ -475,10 +482,10 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
 
 #if TARGET_HANDSET && OTA_VANILLA_ENABLED
     if (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA)
-        payloadSize = ota_packet_generate_vanilla(tx_buffer, (rxtx_counter -1), current_us);
+        payloadSize = ota_packet_generate_vanilla(tx_buffer, (rxtx_counter -1), current_us, hopInterval);
     else
 #endif // TARGET_HANDSET
-        payloadSize = ota_packet_generate_internal(tx_buffer, rxtx_counter, current_us);
+        payloadSize = ota_packet_generate_internal(tx_buffer, rxtx_counter, current_us, hopInterval);
 
     // ------------------------------------------------------------------
 
@@ -492,7 +499,7 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
 
 send_to_rf_exit:
     // Check if hopping is needed
-    if ((rxtx_counter % ExpressLRS_currAirRate->FHSShopInterval) == 0) {
+    if ((rxtx_counter % hopInterval) == 0) {
         // it is time to hop
         FHSSincCurrIndex();
     }
@@ -673,11 +680,11 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
 
     FHSSresetCurrIndex();
     RcChannels_initRcPacket(config->payloadSize);
-    Radio->SetRxBufferSize(config->payloadSize);
+    Radio->SetRxBufferSize(config->payloadSize + (config->hwCrc == HWCRC_DIS ? OTA_PACKET_CRC : 0));
     Radio->SetPacketInterval(config->interval + 100); // 100us extra before timeout
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
-                  config->PreambleLen, (OTA_PACKET_CRC == 0),
+                  config->PreambleLen, config->hwCrc,
                   config->pkt_type);
 
     tx_handle_set_link_rate(config->interval * config->numOfTxPerRc);
@@ -686,7 +693,7 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
 
     tx_tlm_change_interval(TLMinterval, init);
 
-    write_u32(&SyncPacketInterval_ms, config->syncInterval);
+    write_u32(&SyncPacketInterval_us, config->syncInterval);
 
     platform_connection_state(connectionState);
 
