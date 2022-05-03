@@ -44,18 +44,18 @@ extern "C"
     // Hardware timer IRQ handler - dispatch software timers
     void FAST_CODE_1 TIMx_IRQx_FUNC(void)
     {
-        uint16_t SR = TIMx->SR;
+        uint16_t const SR = TIMx->SR;
         if (SR & TIM_SR_UIF) {
-            TIMx->SR = SR & ~(TIM_SR_UIF);
             TxTimer.callback();
+            TIMx->SR = SR & ~(TIM_SR_UIF);
         }
     }
 }
 
 void timer_enable(void)
 {
-    TIMx->CR1 = TIM_CR1_CEN | TIM_CR1_URS | TIM_CR1_DIR;
     TIMx->DIER = TIM_DIER_UIE;
+    TIMx->CR1 = TIM_CR1_CEN | TIM_CR1_URS | TIM_CR1_DIR;
     TIMx->SR &= ~(TIM_SR_UIF);
 }
 
@@ -63,7 +63,6 @@ void timer_disable(void)
 {
     TIMx->CR1 = 0;
     TIMx->DIER = 0;
-    TIMx->SR &= ~(TIM_SR_UIF);
 }
 
 static void timer_init(void)
@@ -93,7 +92,6 @@ void HwTimer::init()
 
 void HwTimer::start()
 {
-    running = 1;
 #if TIMER_TOCK_EN
     tock = 1; // start with tick (= main)
 #endif
@@ -103,7 +101,6 @@ void HwTimer::start()
 
 void HwTimer::stop()
 {
-    running = 0;
     timer_disable();
 }
 
@@ -114,25 +111,22 @@ void HwTimer::pause()
 
 void FAST_CODE_1 HwTimer::reset(int32_t const offset)
 {
-    if (running) {
-        /* Reset counter and set next alarm time */
-        timer_counter_set(HWtimerInterval - offset);
-        timer_set(HWtimerInterval - offset);
-    }
+    /* Reset counter and set next alarm time */
+    timer_set(HWtimerInterval - offset);
+    timer_counter_set(HWtimerInterval - offset);
 }
 
 void FAST_CODE_1 HwTimer::setTime(uint32_t time)
 {
     if (!time)
         time = HWtimerInterval;
-    timer_counter_set(time);
     timer_set(time);
+    timer_counter_set(time);
 }
 
 void FAST_CODE_1 HwTimer::triggerSoon(void)
 {
 #if 1
-    TIMx->SR  &= ~(TIM_SR_UIF); // Clear pending ISR
     timer_counter_set(TIMER_SOON);
 #else
     /* Generate soft trigger to run ISR asap */
