@@ -411,7 +411,6 @@ void FAST_CODE_1 LostConnection()
 
     connectionState = STATE_lost; //set lost connection
 
-    led_set_state(0); // turn off led
     Radio->RXnb(FHSSgetCurrFreq());
     DEBUG_PRINTF("lost conn\n");
 
@@ -428,14 +427,12 @@ void FAST_CODE_1 TentativeConnection(int32_t freqerror)
     DEBUG_PRINTF("tentative\n");
     TxTimer.callbackTick = &HWtimerCallback;
     TxTimer.start();     // Start local sync timer
-    led_set_state(1); // turn on led
 }
 
 void FAST_CODE_1 GotConnection()
 {
     connectionState = STATE_connected; //we got a packet, therefore no lost connection
 
-    led_set_state(1); // turn on led
     DEBUG_PRINTF("connected in %d ms\n", (int32_t)(LastValidPacket_ms - RfModeCycled_ms));
 
     platform_connection_state(STATE_connected);
@@ -854,6 +851,8 @@ void loop()
             led_toggle();
             led_toggle_ms = now;
         }
+    } else if (_conn_state == STATE_connected) {
+        led_set_state(1); // turn on led
     }
 
 #if !SERVO_OUTPUTS_ENABLED
