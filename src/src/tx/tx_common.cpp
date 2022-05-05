@@ -380,7 +380,7 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
     uint_fast8_t payloadSize = RcChannels_payloadSizeGet();
     const uint_fast8_t numOfTxPerRc = ExpressLRS_currAirRate->numOfTxPerRc;
     const uint_fast8_t arm_state = RcChannels_get_arm_channel_state();
-    const uint32_t sync_interval_us = SyncPacketInterval_us / (arm_state + 1);
+    const uint32_t sync_interval_us = SyncPacketInterval_us / (!arm_state + 1);
 
     // only send sync when its time and only on sync channel;
     if ((!arm_state || 1 < numOfTxPerRc) && FHSScurrSequenceIndexIsSyncChannel() &&

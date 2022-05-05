@@ -14,6 +14,8 @@
 class HwTimer
 {
 public:
+    typedef void (*timer_cb_t)(uint32_t us);
+
     HwTimer();
     void init();
     void start();
@@ -35,10 +37,10 @@ public:
 
     void callback();
 
-    void (*callbackTickPre)(uint32_t us);
-    void (*callbackTick)(uint32_t us);
+    volatile timer_cb_t callbackTickPre;
+    volatile timer_cb_t callbackTick;
 #if TIMER_TOCK_EN
-    void (*callbackTock)(uint32_t us);
+    volatile timer_cb_t callbackTock;
 #endif
 
     void setTime(uint32_t time = 0);

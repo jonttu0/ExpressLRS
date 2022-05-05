@@ -44,10 +44,7 @@ void IRAM_ATTR HwTimer::pause()
 
 void IRAM_ATTR HwTimer::reset(int32_t const offset)
 {
-    if (running)
-    {
-        setTime(HWtimerInterval - offset);
-    }
+    setTime(HWtimerInterval - offset);
 }
 
 void IRAM_ATTR HwTimer::setTime(uint32_t time)

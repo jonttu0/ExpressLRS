@@ -32,6 +32,7 @@ void FAST_CODE_1 LostConnection();
 #define PRINT_FREQ_ERROR    0
 #define PRINT_RATE          1
 #define PRINT_TIMING        0
+#define PRINT_TIMING_IN_CRSF_FRAME   0
 
 #if PRINT_RATE && NO_DATA_TO_FC
 uint32_t print_rate_cnt;
@@ -302,7 +303,6 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #if PRINT_RATE && NO_DATA_TO_FC
         print_rate_cnt_fail++;
 #endif
-        DEBUG_PRINTF("-");
     }
 
     // adjust the timer
@@ -346,6 +346,20 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
                  last_rx_us, (print_rx_isr_end_time - last_rx_us),
                  us, diff_us, (uint32_t)(now - us), freq_now);
 #endif
+#if PRINT_TIMING_IN_CRSF_FRAME
+    static uint32_t timer_last_call_us;
+    //if (!last_rx_us)
+    {
+        rcChannelsData.ch2 = us - timer_last_call_us;
+        //DEBUG_PRINTF("D%u ", (us - timer_last_call_us));
+        rcDataSend = true;
+    }
+    timer_last_call_us = us;
+#else
+    if (!last_rx_us) {
+        DEBUG_PRINTF("-");
+    }
+#endif
 
     rx_hw_isr_running = 0;
 
@@ -362,15 +376,31 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
  */
 void FAST_CODE_1 SendDataToFcCallback(uint32_t const us)
 {
+#if PLATFORM_ESP8266
+    #define TIMER_ADJUST_EXTRA  7
+#elif PLATFORM_STM32
+    #define TIMER_ADJUST_EXTRA  6
+#else
+    #define TIMER_ADJUST_EXTRA  0
+#endif
+
     // Change callback function
     TxTimer.callbackTick = &HWtimerCallback;
     // Reset the timer
-    TxTimer.reset(SEND_CB_OFFSET_US);
+    TxTimer.reset(SEND_CB_OFFSET_US + TIMER_ADJUST_EXTRA);
 
     // Send RC data
     if (rcDataSend) {
+#if PRINT_TIMING_IN_CRSF_FRAME
+        rcChannelsData.ch3 = connectionState;
+#endif
         crsf.sendRCFrameToFC(&rcChannelsData);
         rcDataSend = false;
+#if PRINT_TIMING_IN_CRSF_FRAME
+        rcChannelsData.ch0 = 0;
+        rcChannelsData.ch1 = 0;
+        rcChannelsData.ch2 = 0;
+#endif
     }
 
     /* Send stats to FC from here to avoid RC data blocking.
@@ -382,7 +412,7 @@ void FAST_CODE_1 SendDataToFcCallback(uint32_t const us)
     }
     update_servos = 0;
 #else
-    if (STATE_connected == connectionState) {
+    if (STATE_connected == connectionState && !PRINT_TIMING_IN_CRSF_FRAME) {
         SendLinkStats(us, uplink_Link_quality);
     }
 #endif
@@ -446,6 +476,9 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
      */
     if (rx_hw_isr_running || !rx_buffer) {
         DEBUG_PRINTF("_");
+#if PRINT_TIMING_IN_CRSF_FRAME
+        rcChannelsData.ch1 = 1;
+#endif
         return;
     }
 
@@ -515,7 +548,6 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                     /* Sync should not be received, ignore it */
                     goto exit_rx_isr;
                 }
-
                 //DEBUG_PRINTF("nonce: %u <= %u\n", NonceRXlocal, sync->rxtx_counter);
 
                 handle_tlm_ratio(sync->tlm_interval);
@@ -529,7 +561,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
         }
         case UL_PACKET_RC_DATA: //Standard RC Data Packet
             //DEBUG_PRINTF(" R");
-            if (STATE_lost < _conn_state)
+            if (STATE_tentative <= _conn_state)
             {
 #if CRC16_POLY_TESTING
                 if (memcmp(rx_buffer, CRC16_POLY_PKT, sizeof(CRC16_POLY_PKT))) {
@@ -580,6 +612,10 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
 #endif
 #if (DBG_PIN_RX_ISR != UNDEF_PIN)
     gpio_out_write(dbg_pin_rx, 0);
+#endif
+#if PRINT_TIMING_IN_CRSF_FRAME
+    rcChannelsData.ch0 = 1;
+    rcChannelsData.ch1 = 0;
 #endif
 
     TxTimer.callbackTick = &HWtimerCallback;
@@ -790,6 +826,23 @@ void setup()
 }
 
 
+int handle_received_ptk_type_and_rate_index(void)
+{
+    if (0 > rcvd_pkt_type || 0 > rcvd_rate_index)
+        return -1;
+#if RADIO_SX128x_FLRC
+    rcvd_pkt_type = (rcvd_pkt_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x;
+    if (get_elrs_current_radio_type() != rcvd_pkt_type)
+        radio_prepare(rcvd_pkt_type);
+    scanIndex = rcvd_rate_index;
+#endif
+    SetRFLinkRate((scanIndex % get_elrs_airRateMax()));
+    rcvd_pkt_type = rcvd_rate_index = -1;
+    write_u32(&connectionState, STATE_lost); // Mark lost to stay on config
+    return 0;
+}
+
+
 static uint32_t led_toggle_ms = 0;
 void loop()
 {
@@ -798,32 +851,23 @@ void loop()
     const connectionState_e _conn_state = (connectionState_e)read_u32(&connectionState);
 
     if (STATE_lost < _conn_state) {
+        led_set_state(_conn_state == STATE_connected);
         // check if connection is lost or in very bad shape
         if (ExpressLRS_currAirRate->connectionLostTimeout <= (int32_t)(now - read_u32(&LastValidPacket_ms))
             /*|| read_u8(&uplink_Link_quality) <= 10*/) {
             LostConnection();
+            RfModeCycled_ms = now;
         }
     } else if (_conn_state == STATE_disconnected) {
-#if RADIO_SX128x_FLRC
-        uint8_t current_radio_type = get_elrs_current_radio_type();
-#endif
         /* Force mode if correct values are received from sync message */
-        if (0 <= rcvd_pkt_type && 0 <= rcvd_rate_index) {
-#if RADIO_SX128x_FLRC
-            rcvd_pkt_type = (rcvd_pkt_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x;
-            if (current_radio_type != rcvd_pkt_type)
-                radio_prepare(rcvd_pkt_type);
-            scanIndex = rcvd_rate_index;
-#endif
-            SetRFLinkRate((scanIndex % get_elrs_airRateMax()));
-            rcvd_pkt_type = rcvd_rate_index = -1;
-            write_u32(&connectionState, STATE_lost); // Mark lost to stay on config
-
+        if (0 <= handle_received_ptk_type_and_rate_index()) {
+            RfModeCycled_ms = now;
         /* Cycle only if initial connection search */
         } else if ((!ExpressLRS_currAirRate) ||
             (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RfModeCycled_ms))) {
             uint8_t max_rate = get_elrs_airRateMax();
 #if RADIO_SX128x_FLRC
+            uint8_t current_radio_type = get_elrs_current_radio_type();
             if (max_rate <= scanIndex) {
                 current_radio_type = (current_radio_type == RADIO_TYPE_128x_FLRC) ?
                         RADIO_TYPE_128x : RADIO_TYPE_128x_FLRC;
@@ -846,13 +890,12 @@ void loop()
             led_toggle_ms = now;
         }
     } else if (_conn_state == STATE_lost) {
+        handle_received_ptk_type_and_rate_index();
         /* Just blink a led if connections is lost */
         if (300 <= (uint32_t)(now - led_toggle_ms)) {
             led_toggle();
             led_toggle_ms = now;
         }
-    } else if (_conn_state == STATE_connected) {
-        led_set_state(1); // turn on led
     }
 
 #if !SERVO_OUTPUTS_ENABLED
