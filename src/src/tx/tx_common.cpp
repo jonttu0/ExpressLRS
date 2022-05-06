@@ -504,7 +504,7 @@ send_to_rf_exit:
         FHSSincCurrIndex();
     }
     // Increase TX counter
-    _rf_rxtx_counter++;
+    _rf_rxtx_counter = rxtx_counter + 1;
 
     //DEBUG_PRINTF(" T");
     //gpio_out_write(debug_pin_tx, 0);
