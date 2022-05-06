@@ -447,7 +447,7 @@ void FAST_CODE_1 LostConnection()
     platform_connection_state(STATE_lost);
 }
 
-void FAST_CODE_1 TentativeConnection(int32_t freqerror)
+void FAST_CODE_1 TentativeConnection(int32_t const freqerror)
 {
     /* Do initial freq correction */
     Radio->setPPMoffsetReg(FHSSfreqCorrectionApply(freqerror));
@@ -459,13 +459,11 @@ void FAST_CODE_1 TentativeConnection(int32_t freqerror)
     TxTimer.start();     // Start local sync timer
 }
 
-void FAST_CODE_1 GotConnection()
+void FAST_CODE_1 GotConnection(uint32_t const current_us)
 {
-    connectionState = STATE_connected; //we got a packet, therefore no lost connection
-
-    DEBUG_PRINTF("connected in %d ms\n", (int32_t)(LastValidPacket_ms - RfModeCycled_ms));
-
+    connectionState = STATE_connected;
     platform_connection_state(STATE_connected);
+    DEBUG_PRINTF("connected in %d ms\n", (int32_t)(current_us - RfModeCycled_ms));
 }
 
 void FAST_CODE_1
@@ -537,7 +535,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                         FHSSgetCurrIndex() == sync->fhssIndex)
                     {
                         no_sync_armed = sync->no_sync_armed;
-                        GotConnection();
+                        GotConnection(current_us);
                     }
                     else if (2 < (tentative_cnt++))
                     {
@@ -747,8 +745,10 @@ void gps_info_cb(GpsOta_t * gps)
     GpsTlm.pkt_cnt = 3;
 }
 
-void radio_prepare(uint8_t type)
+void radio_prepare(uint8_t const type)
 {
+    if (get_elrs_current_radio_type() == type)
+        return;
     // Prepare radio
     Radio = common_config_radio(type);
     if (!Radio) {
@@ -828,17 +828,20 @@ void setup()
 
 int handle_received_ptk_type_and_rate_index(void)
 {
-    if (0 > rcvd_pkt_type || 0 > rcvd_rate_index)
+    int8_t ota_type = rcvd_pkt_type, rate_index = rcvd_rate_index;
+    write_u8(&rcvd_pkt_type, -1);
+    write_u8(&rcvd_rate_index, -1);
+    if (0 > ota_type || RADIO_FLRC < ota_type ||
+        0 > rate_index || get_elrs_airRateMax() <= rate_index) {
         return -1;
-#if RADIO_SX128x_FLRC
-    rcvd_pkt_type = (rcvd_pkt_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x;
-    if (get_elrs_current_radio_type() != rcvd_pkt_type)
-        radio_prepare(rcvd_pkt_type);
-    scanIndex = rcvd_rate_index;
-#endif
-    SetRFLinkRate((scanIndex % get_elrs_airRateMax()));
-    rcvd_pkt_type = rcvd_rate_index = -1;
+    }
     write_u32(&connectionState, STATE_lost); // Mark lost to stay on config
+#if RADIO_SX128x_FLRC
+    ota_type = (ota_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x;
+    radio_prepare(ota_type);
+    scanIndex = rate_index;
+#endif
+    SetRFLinkRate(rate_index);
     return 0;
 }
 
