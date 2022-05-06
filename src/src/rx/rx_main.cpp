@@ -421,8 +421,7 @@ void FAST_CODE_1 SendDataToFcCallback(uint32_t const us)
 
 void FAST_CODE_1 LostConnection()
 {
-    if (connectionState <= STATE_lost)
-    {
+    if (connectionState <= STATE_lost) {
         return; // Already disconnected
     }
 
@@ -493,8 +492,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
         const uint16_t crc = CalcCRC16(rx_buffer, payloadSize, CRCCaesarCipher);
         const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
 
-        if (crc_in != crc)
-        {
+        if (crc_in != crc) {
     #if (DBG_PIN_RX_ISR != UNDEF_PIN)
             gpio_out_write(dbg_pin_rx, 0);
     #endif
@@ -514,31 +512,26 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
             //DEBUG_PRINTF(" S");
             ElrsSyncPacket_s const * const sync = (ElrsSyncPacket_s*)rx_buffer;
 
-            if (sync->cipher == SyncCipher)
-            {
-                if ((_conn_state == STATE_disconnected) || (_conn_state == STATE_lost))
-                {
+            if (sync->cipher == SyncCipher) {
+                if ((_conn_state == STATE_disconnected) || (_conn_state == STATE_lost)) {
                     /* Jump to tentative if the pkt mode and rate are correct */
                     if (sync->radio_mode == ExpressLRS_currAirRate->pkt_type &&
                             sync->rate_index == current_rate_config) {
                         TentativeConnection(freq_err);
-                        //current_us = 0;
                     } else {
                         rcvd_pkt_type = sync->radio_mode;
                         rcvd_rate_index = sync->rate_index;
+                        /* Mark lost to stay on received config */
+                        connectionState = STATE_lost;
+                        goto exit_rx_isr;
                     }
                     freq_err = 0;
-                }
-                else if (_conn_state == STATE_tentative)
-                {
+                } else if (_conn_state == STATE_tentative) {
                     if (NonceRXlocal == sync->rxtx_counter &&
-                        FHSSgetCurrIndex() == sync->fhssIndex)
-                    {
+                            FHSSgetCurrIndex() == sync->fhssIndex) {
                         no_sync_armed = sync->no_sync_armed;
                         GotConnection(current_us);
-                    }
-                    else if (2 < (tentative_cnt++))
-                    {
+                    } else if (2 < (tentative_cnt++)) {
                         LostConnection();
                         goto exit_rx_isr;
                     }
@@ -559,8 +552,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
         }
         case UL_PACKET_RC_DATA: //Standard RC Data Packet
             //DEBUG_PRINTF(" R");
-            if (STATE_tentative <= _conn_state)
-            {
+            if (STATE_tentative <= _conn_state) {
 #if CRC16_POLY_TESTING
                 if (memcmp(rx_buffer, CRC16_POLY_PKT, sizeof(CRC16_POLY_PKT))) {
                     // Bad pkt content
@@ -634,7 +626,8 @@ void forced_stop(void)
 {
     uint32_t irq = _SAVE_IRQ();
     TxTimer.stop();
-    Radio->StopContRX();
+    if (Radio)
+        Radio->StopContRX();
     _RESTORE_IRQ(irq);
 }
 
@@ -749,6 +742,7 @@ void radio_prepare(uint8_t const type)
 {
     if (get_elrs_current_radio_type() == type)
         return;
+    forced_stop();
     // Prepare radio
     Radio = common_config_radio(type);
     if (!Radio) {
@@ -826,27 +820,29 @@ void setup()
 }
 
 
-int handle_received_ptk_type_and_rate_index(void)
+int handle_received_ptk_type_and_rate_index(uint32_t const now_ms)
 {
     int8_t ota_type = rcvd_pkt_type, rate_index = rcvd_rate_index;
-    write_u8(&rcvd_pkt_type, -1);
-    write_u8(&rcvd_rate_index, -1);
+    //write_u8((uint8_t*)&rcvd_pkt_type, (uint8_t)-1);
+    //write_u8((uint8_t*)&rcvd_rate_index, (uint8_t)-1);
+    /* Force mode if correct values are received from sync message */
     if (0 > ota_type || RADIO_FLRC < ota_type ||
         0 > rate_index || get_elrs_airRateMax() <= rate_index) {
         return -1;
     }
-    write_u32(&connectionState, STATE_lost); // Mark lost to stay on config
 #if RADIO_SX128x_FLRC
     ota_type = (ota_type == RADIO_FLRC) ? RADIO_TYPE_128x_FLRC : RADIO_TYPE_128x;
     radio_prepare(ota_type);
-    scanIndex = rate_index;
 #endif
     SetRFLinkRate(rate_index);
+    RfModeCycled_ms = now_ms;
+    rcvd_pkt_type = -1;
+    rcvd_rate_index = -1;
     return 0;
 }
 
 
-static uint32_t led_toggle_ms = 0;
+static uint32_t DRAM_ATTR led_toggle_ms = 0;
 void loop()
 {
     uint32_t const now = millis();
@@ -862,11 +858,8 @@ void loop()
             RfModeCycled_ms = now;
         }
     } else if (_conn_state == STATE_disconnected) {
-        /* Force mode if correct values are received from sync message */
-        if (0 <= handle_received_ptk_type_and_rate_index()) {
-            RfModeCycled_ms = now;
         /* Cycle only if initial connection search */
-        } else if ((!ExpressLRS_currAirRate) ||
+        if ((!ExpressLRS_currAirRate) ||
             (ExpressLRS_currAirRate->syncSearchTimeout < (uint32_t)(now - RfModeCycled_ms))) {
             uint8_t max_rate = get_elrs_airRateMax();
 #if RADIO_SX128x_FLRC
@@ -893,7 +886,7 @@ void loop()
             led_toggle_ms = now;
         }
     } else if (_conn_state == STATE_lost) {
-        handle_received_ptk_type_and_rate_index();
+        handle_received_ptk_type_and_rate_index(now);
         /* Just blink a led if connections is lost */
         if (300 <= (uint32_t)(now - led_toggle_ms)) {
             led_toggle();
