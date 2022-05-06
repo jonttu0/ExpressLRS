@@ -1,6 +1,10 @@
 #include "gpio.h"
+#include "platform.h"
 #include <Arduino.h>
 #include <user_interface.h>
+#include <interrupts.h>
+
+#define USE_ARDUINO_ISR 0
 
 static inline uint8_t IRAM_ATTR _gpio_read(uint8_t const pin)
 {
@@ -68,9 +72,108 @@ uint8_t IRAM_ATTR gpio_in_read(struct gpio_in const g)
     return _gpio_read(g.pin);
 }
 
-void IRAM_ATTR gpio_in_isr(struct gpio_in const g, isr_cb_t func, uint8_t const type)
+#if !USE_ARDUINO_ISR
+
+#define CLZ(x) __builtin_clz(x)
+#define CTZ(x) (31 - CLZ((x) & -(x)))
+
+typedef struct {
+    uint8_t mode;
+    isr_cb_t fn;
+} interrupt_handler_t;
+
+static interrupt_handler_t DRAM_ATTR exti_handlers[16];
+static uint32_t DRAM_ATTR interrupt_mask;
+
+static void set_interrupt_handlers(uint8_t const pin, isr_cb_t const userFunc, uint8_t const mode)
 {
-    attachInterrupt(digitalPinToInterrupt(g.pin), func, type);
+    interrupt_handler_t * const handler = &exti_handlers[pin];
+    handler->mode = mode;
+    handler->fn = userFunc;
+}
+
+static void IRAM_ATTR _exti_handler(void *arg, void *frame)
+{
+    (void) arg;
+    (void) frame;
+    uint32_t status = GPIE;
+    GPIEC = status;             // Clear interrupts
+    uint32_t const levels = GPI;
+    status &= interrupt_mask;    // Mask enabled EXTIs
+    if (status == 0)
+        return;
+    ETS_GPIO_INTR_DISABLE();
+#if 0
+    int iter = 0;
+    while (status) {
+        while (!(status & (1 << iter)))
+            iter++;
+        status &= ~(1 << iter);
+        interrupt_handler_t const * const handler = &exti_handlers[iter];
+        if (handler->fn &&
+            (handler->mode == CHANGE || (handler->mode & 1) == !!(levels & (1 << iter)))) {
+            // to make ISR compatible to Arduino AVR model where interrupts are disabled
+            // we disable them before we call the client ISR
+            esp8266::InterruptLock irqLock; // stop other interrupts
+            handler->fn();
+        }
+    }
+#else
+    while (status) {
+        uint32_t lsb = CTZ(status);
+        interrupt_handler_t const * const handler = &exti_handlers[lsb];
+        lsb = 0x1 << lsb;
+        status &= ~lsb;
+        if (handler->fn &&
+            (handler->mode == CHANGE || (handler->mode & RISING) == !!(levels & lsb))) {
+            // to make ISR compatible to Arduino AVR model where interrupts are disabled
+            // we disable them before we call the client ISR
+            esp8266::InterruptLock irqLock; // stop other interrupts
+            handler->fn();
+        }
+    }
+#endif
+    ETS_GPIO_INTR_ENABLE();
+}
+
+void attachInterrupt(uint8_t const pin, isr_cb_t const func, int const mode)
+{
+    // https://github.com/esp8266/esp8266-wiki/wiki/Memory-Map
+    if ((uint32_t)func >= 0x40200000) {
+        // ISR not in IRAM
+        ::printf((PGM_P)F("ISR not in IRAM!\r\n"));
+        abort();
+    }
+    if (pin < 16) {
+        ETS_GPIO_INTR_DISABLE();
+        set_interrupt_handlers(pin, func, mode);
+        interrupt_mask |= (1 << pin);
+        GPC(pin) &= ~(0xF << GPCI);         // INT mode disabled
+        GPIEC = (1 << pin);                 // Clear Interrupt for this pin
+        GPC(pin) |= ((mode & 0xF) << GPCI); // INT mode "mode"
+        ETS_GPIO_INTR_ATTACH(_exti_handler, &interrupt_mask);
+        ETS_GPIO_INTR_ENABLE();
+    }
+}
+
+void detachInterrupt(uint8_t pin)
+{
+    if (pin < 16) {
+        ETS_GPIO_INTR_DISABLE();
+        GPC(pin) &= ~(0xF << GPCI);//INT mode disabled
+        GPIEC = (1 << pin); //Clear Interrupt for this pin
+        interrupt_mask &= ~(1 << pin);
+		set_interrupt_handlers(pin, NULL, 0);
+        if (interrupt_mask) {
+            ETS_GPIO_INTR_ENABLE();
+        }
+    }
+}
+#endif
+
+void IRAM_ATTR gpio_in_isr(struct gpio_in const g, isr_cb_t func, uint8_t const mode)
+{
+    attachInterrupt(digitalPinToInterrupt(g.pin), func, mode);
 }
 
 void IRAM_ATTR gpio_in_isr_remove(struct gpio_in const g)
