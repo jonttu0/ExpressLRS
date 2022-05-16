@@ -48,6 +48,6 @@
 #elif NAMIMNORC_TX_OLED
     #define TARGET_PWR_MAX_SX128x   PWR_1000mW
     #define TARGET_PWR_LUT_SX128x   -18,-18,-13,-10,-5,2,3,3
-#elif !defined(TARGET_MODULE_LORA1280F27)
+#elif !TARGET_MODULE_E28_VER
     #define TARGET_MODULE_E28_VER   27 // 500mW
 #endif

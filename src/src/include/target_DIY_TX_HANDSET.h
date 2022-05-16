@@ -72,4 +72,6 @@
 
 /* Radio modules */
 //#define TARGET_MODULE_LORA1276F30
+#if !TARGET_MODULE_E28_VER
 #define TARGET_MODULE_E28_VER   27 // 500mW
+#endif
