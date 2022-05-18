@@ -1164,6 +1164,26 @@ void onSoftAPModeStationDisconnected(const WiFiEventSoftAPModeStationDisconnecte
 #endif
 }
 
+void wifi_config_ap(void)
+{
+  IPAddress local_IP(192, 168, 4, 1);
+  IPAddress gateway(192, 168, 4, 1);
+  IPAddress subnet(255, 255, 255, 0);
+
+  // WiFi not connected, Start access point
+  WiFi.setAutoReconnect(true);
+  WiFi.disconnect(true);
+  WiFi.forceSleepWake();
+  WiFi.mode(WIFI_AP);
+  WiFi.softAPConfig(local_IP, gateway, subnet);
+  WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL,
+              WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN);
+  wifi_sta_connected = WIFI_STATE_AP;
+#if WIFI_DBG
+  wifi_log += "WifiAP started\n";
+#endif
+}
+
 void wifi_config(void)
 {
   wifi_station_set_hostname(hostname);
@@ -1203,6 +1223,8 @@ void wifi_config(void)
   if (wifiManager.autoConnect(WIFI_AP_SSID WIFI_AP_SUFFIX)) {
     // AP found, connected
   }
+#else
+  wifi_config_ap();
 #endif /* WIFI_MANAGER */
 
   ESP.wdtFeed();
@@ -1216,22 +1238,7 @@ void wifi_check(void)
 {
   uint32_t const now = millis();
   if (WIFI_LOOP_TIMEOUT < (now - wifi_connect_started)) {
-    IPAddress local_IP(192, 168, 4, 1);
-    IPAddress gateway(192, 168, 4, 1);
-    IPAddress subnet(255, 255, 255, 0);
-
-    // WiFi not connected, Start access point
-    WiFi.setAutoReconnect(true);
-    WiFi.disconnect(true);
-    WiFi.forceSleepWake();
-    WiFi.mode(WIFI_AP);
-    WiFi.softAPConfig(local_IP, gateway, subnet);
-    WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL,
-                WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN);
-    wifi_sta_connected = WIFI_STATE_AP;
-#if WIFI_DBG
-    wifi_log += "WifiAP started\n";
-#endif
+    wifi_config_ap();
     led_set(LED_WIFI_AP);
     beep(400, 20);
   } else if (500 <= (now - wifi_last_check)) {
