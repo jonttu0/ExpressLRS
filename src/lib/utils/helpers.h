@@ -14,6 +14,7 @@
 #define BYTE_SWAP_U32(x) ((uint32_t)__builtin_bswap32(x))
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
+#define MEMBER_SIZEOF(type, field) sizeof(((type *)0)->field)
 
 /* Function copied from Arduino code */
 static inline long MAP(long x, long in_min, long in_max,
