@@ -32,7 +32,7 @@ def find_build_flag(search):
 # don't overwrite if custom command defined
 #if stm and "$UPLOADER $UPLOADERFLAGS" in env.get('UPLOADCMD', '$UPLOADER $UPLOADERFLAGS'):
 if platform in ['ststm32']:
-    features = env.GetProjectOption("features", "")
+    features = env.GetProjectOption("custom_features", "")
 
     board = env.BoardConfig()
     hwids_list = board.get("build.hwids", [])
