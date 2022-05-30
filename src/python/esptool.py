@@ -320,6 +320,7 @@ class ESPLoader(object):
                     print(' %s' % inst.CHIP_NAME, end='')
                     return inst
         except UnsupportedCommandError:
+            detect_port._port.close()
             raise FatalError("Unsupported Command Error received. Probably this means Secure Download Mode is enabled, "
                              "autodetection will not work. Need to manually specify the chip.")
         finally:
@@ -544,6 +545,7 @@ class ESPLoader(object):
                         print(("WARNING: This chip doesn't appear to be a %s (chip magic value 0x%08x). "
                                "Probably it is unsupported by this version of esptool.") % (self.CHIP_NAME, chip_magic_value))
                     else:
+                        self._port.close()
                         raise FatalError("This chip is %s not %s. Wrong --chip argument?" % (actually.CHIP_NAME, self.CHIP_NAME))
             except UnsupportedCommandError:
                 self.secure_download_mode = True

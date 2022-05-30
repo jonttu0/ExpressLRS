@@ -1,27 +1,12 @@
 import serial
 import time
-import sys
-import subprocess
-try:
-    import streamexpect
-except ImportError:
-    subprocess.check_call([sys.executable, "-m", "pip", "install", "six"])
-    try:
-        import streamexpect
-    except ImportError:
-        raise SystemExit("Run 'pip install six' manually")
-
-
-def dbg_print(line=''):
-    sys.stdout.write(line)
-    sys.stdout.flush()
-    return
+import streamexpect
+from console_log import *
 
 
 def EdgeTxPassthroughEnable(port, requestedBaudrate):
-    sys.stdout.flush()
-    dbg_print("======== PASSTHROUGH INIT ========")
-    dbg_print("  Trying to initialize %s @ %s" % (port, requestedBaudrate))
+    print_header("======== PASSTHROUGH INIT ========")
+    print_log("  Trying to initialize %s @ %s" % (port, requestedBaudrate))
 
     s = serial.Serial(port=port, baudrate=requestedBaudrate,
         bytesize=8, parity='N', stopbits=1,
@@ -51,8 +36,8 @@ def EdgeTxPassthroughEnable(port, requestedBaudrate):
 
             cmd = "serialpassthrough rfmod 0 %s" % requestedBaudrate
 
-            dbg_print("Enabling serial passthrough...")
-            dbg_print("  CMD: '%s'" % cmd)
+            print_log("  Enabling serial passthrough...")
+            print_log("    CMD: '%s'" % cmd)
             rl.write(cmd.encode("utf-8"))
             rl.write(b'\n')
             time.sleep(.2)
@@ -60,7 +45,7 @@ def EdgeTxPassthroughEnable(port, requestedBaudrate):
         raise SystemExit("[ERROR] PASSTHROUGH init failed!")
 
     s.close()
-    dbg_print("======== PASSTHROUGH DONE ========")
+    print_info("======== PASSTHROUGH DONE ========")
 
 
 def init_passthrough(source, target, env):

@@ -1,9 +1,6 @@
-from ast import arg
 import serial
 import time
-import sys
 import os
-import click
 import BFinitPassthrough
 import bootloader
 from console_log import *
@@ -22,7 +19,7 @@ def esp_read_chip_id(port, baud, retries=2):
         if esp.IS_STUB:
             esp.soft_reset(True) # Stay in ROM loader
         return chip_is, esp
-    except (esptool.FatalError, OSError) as error:
+    except (esptool.FatalError, esptool.UnsupportedCommandError, OSError) as error:
         print_log(error)
         print_log("      Not detected")
         return "", None

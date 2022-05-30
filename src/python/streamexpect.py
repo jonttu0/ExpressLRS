@@ -5,6 +5,8 @@
 #
 # Copyright (c) 2015 Digi International Inc. All Rights Reserved.
 
+# Downloaded from https://github.com/digidotcom/python-streamexpect
+
 import collections
 import re
 import six
