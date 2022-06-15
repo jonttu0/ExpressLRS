@@ -17,8 +17,8 @@
     #define TARGET_INDENTIFIER  "2400IFLIGHTRX"
     #define SX1280_REGULATOR_MODE_DCDC 1
 #elif TARGET_BETAFPV_RX_2400
-    #define GPIO_PIN_DIO0       5
-    #define GPIO_PIN_BUSY       4
+    #define GPIO_PIN_DIO0       4
+    #define GPIO_PIN_BUSY       5
     #define GPIO_PIN_RX_ENABLE  9
     #define GPIO_PIN_TX_ENABLE  10
     #define TARGET_INDENTIFIER  "2400BETAFPVRX"
