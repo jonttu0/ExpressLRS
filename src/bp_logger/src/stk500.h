@@ -1,4 +1,4 @@
-#ifndef Stk500_h
+#if !defined(Stk500_h) && CONFIG_STM_UPDATER
 #define Stk500_h
 
 #include <stdint.h>

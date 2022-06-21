@@ -14,8 +14,12 @@
 #define SERIAL_BAUD 460800
 #endif
 
+
 void websocket_send(String & data, int num = -1);
 void websocket_send(char const * data, int num = -1);
+void websocket_send(uint8_t const * data, uint8_t len, int num = -1);
 
-void MspVtxWrite(const char * input, int num = -1);
-void MspVtxWriteToElrs(uint16_t freq);
+typedef struct {
+    uint16_t msg_id;
+    uint8_t  payload[];
+} websoc_bin_hdr_t;

@@ -1,3 +1,4 @@
+#if CONFIG_STM_UPDATER
 #include "stk500.h"
 #include "stm32Updater.h"
 #include "main.h"
@@ -207,3 +208,4 @@ int verify_sync(uint32_t timeout)
     DEBUG_PRINT("[ERROR] sync fail...");
     return -1;
 }
+#endif // CONFIG_STM_UPDATER

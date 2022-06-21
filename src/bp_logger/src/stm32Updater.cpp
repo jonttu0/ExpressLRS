@@ -1,3 +1,4 @@
+#if CONFIG_STM_UPDATER
 #include "stm32Updater.h"
 #include "main.h"
 #include <WebSocketsServer.h>
@@ -493,3 +494,4 @@ uint8_t esp8266_spifs_write_file(const char *filename, uint32_t begin_addr)
 	cmd_go(FLASH_START);
 	return 1;
 }
+#endif // CONFIG_STM_UPDATER

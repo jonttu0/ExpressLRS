@@ -2,14 +2,8 @@
 
 #include <stdint.h>
 
+#if CONFIG_STM_UPDATER
 // taken and adapted from https://github.com/mengguang/esp8266_stm32_isp
-
-#ifndef BOOT0_PIN
-#define BOOT0_PIN 4
-#endif
-#ifndef RESET_PIN
-#define RESET_PIN 5
-#endif
 
 #define FLASH_START 0x08000000
 #ifndef FLASH_SIZE
@@ -33,3 +27,5 @@ void stm32flasher_hardware_init();
 void debug_log();
 
 uint8_t esp8266_spifs_write_file(const char *filename, uint32_t const begin_addr);
+
+#endif // CONFIG_STM_UPDATER

@@ -1,3 +1,4 @@
+#if CONFIG_STM_UPDATER
 #include "stm32_ota.h"
 #include "main.h"
 #include "stm32Updater.h"
@@ -136,3 +137,4 @@ void stm32_ota_handleFileUpload()
     }
   }
 }
+#endif // CONFIG_STM_UPDATER

@@ -56,5 +56,8 @@ void storage::initDefaults()
 
     vtx_freq = 0;
 
+    espnow_initialized = 0;
+    espnow_clients_count = 0;
+
     this->save();
 }
