@@ -47,7 +47,8 @@ def validate_domains():
                 if not DUAL_MODE and ISM2400:
                     continue
                 domains_found.append(flag)
-
+    if not len(domains_found_ism) and not len(domains_found):
+        raise Exception("[ERROR] 'Regulatory_Domain' is not defined")
     if len(domains_found_ism) > 2:
         if "-DDRegulatory_Domain_ISM_2400_800kHz" in domains_found_ism and \
             "-DRegulatory_Domain_ISM_2400" in domains_found_ism:
