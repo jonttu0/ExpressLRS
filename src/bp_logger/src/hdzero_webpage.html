@@ -82,13 +82,14 @@ function start() {
   if (!window.location.hostname) { console.log("No hostname!"); return; }
   websock = new WebSocket('ws://' + window.location.hostname + ':81/');
   websock.binaryType = "arraybuffer";
-  websock.onopen = function (evt) { console.log('websock open'); };
+  websock.onopen = function (evt) {console.log('websock open');};
   websock.onclose = function (e) {
-    console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
-    setTimeout(function () { start(); }, 1000);
+    console.log('websock closed. Reconnect in 1 second.', e.reason);
+    setTimeout(function () {start();}, 1000);
   };
-  websock.onerror = function (evt) { console.log("WS error: ", evt); };
+  websock.onerror = function (evt) { console.log("websock error: ", evt); };
   websock.onmessage = function (evt) {
+    console.log(evt);
     if (evt.data instanceof ArrayBuffer) { // handle binary message
       const message = new DataView(evt.data);
       const msgid = message.getUint16();
@@ -114,11 +115,6 @@ function start() {
       if (autoscroll) logger.scrollTop = logger.scrollHeight;
     }
   };
-}
-
-function destroyClickedElement(event) {
-  // remove the link from the DOM
-  document.body.removeChild(event.target);
 }
 
 function setting_set(type, value) {
@@ -233,7 +229,10 @@ function espnowclients_parse(value) {
       target.value += mac + "\n";
     }
   } else target.value = "data error! " + typeof (value);
-  espnowclients_autosize();
+  target.rows = target.value.split('\n').length;
+}
+function espnowclients_autosize(el){
+  el.rows = el.value.split('\n').length;
 }
   </script>
 </head>
@@ -280,7 +279,7 @@ function espnowclients_parse(value) {
   </fieldset>
   <fieldset><legend>ESP-NOW Clients</legend><div>
     <label for="espnowclients" class="valigntop">Add one per line</label>
-    <textarea id="espnowclients" class="valigntop"></textarea>
+    <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
     <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
   </div></fieldset>
   <script>
@@ -296,13 +295,5 @@ function espnowclients_parse(value) {
         message.classList.remove('hide');
       }
     };
-    $id("espnowclients").addEventListener('keydown', espnowclients_autosize);
-    function espnowclients_autosize(){
-      var el = $id("espnowclients");
-      setTimeout(function(){
-        el.style.cssText = 'height:auto; padding:0';
-        el.style.cssText = 'height:' + el.scrollHeight + 'px';
-      },0);
-    }
   </script>
 </div></body></html>

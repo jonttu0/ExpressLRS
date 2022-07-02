@@ -7,6 +7,8 @@
 static Adafruit_NeoPixel led_rgb;
 static uint32_t led_rgb_state;
 #endif
+#include <Arduino.h>
+
 
 void led_init(void)
 {
@@ -18,6 +20,8 @@ void led_init(void)
   led_rgb.setBrightness(255);
   led_rgb.fill();
   led_rgb.show();
+#elif defined(LED_PIN)
+  pinMode(LED_PIN, OUTPUT);
 #endif
 }
 
@@ -31,6 +35,8 @@ void led_set(uint32_t state)
   led_rgb.fill(led_rgb_color);
   led_rgb.show();
   led_rgb_state = state;
+#elif defined(LED_PIN)
+  digitalWrite(LED_PIN, (state != LED_OFF));
 #endif
 }
 

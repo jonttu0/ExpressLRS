@@ -64,7 +64,10 @@ ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
 
-static const char hostname[] = "elrs_logger";
+#ifndef LOGGER_HOST_NAME
+#define LOGGER_HOST_NAME "elrs_logger"
+#endif
+static const char hostname[] = LOGGER_HOST_NAME;
 static const char target_name[] = STR(TARGET_NAME);
 
 #if WIFI_DBG
@@ -219,8 +222,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
             //webSocket.sendBIN(num, payload, length);
             websoc_bin_hdr_t const * const header = (websoc_bin_hdr_t*)payload;
             switch (header->msg_id) {
-                case 0x0011: // little endian
-                    // ESP-Now client list, 0x1100
+                case 0x1100:
+                    // ESP-Now client list
                     espnow_update_clients(header->payload, length - sizeof(header->msg_id));
                     websocket_send(espnow_get_info(), num);
                     break;

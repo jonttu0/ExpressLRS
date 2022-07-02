@@ -20,7 +20,7 @@ function safelyParseJson(json) {
     return parsed // Could be undefined!
 }
 
-var websock;
+var websock = null;
 function start() {
     var test = "";
     //test = "0:1:1,1:0:1,2:3:0,3:2:0,4:0:0,5:2:0";
@@ -38,18 +38,43 @@ function start() {
     //test = "lon:1239248,lat:39879284,spe:23543,hea:234,alt:234,sat:10";
     telmetry_set("tlm_gps", test);
 
+    var testmac = [
+        //"00:00:00:00:00:00", "11:22:33:44:55:66", "00:00:00:00:00:00", "11:22:33:44:55:66",
+        //"00:00:00:00:00:00", "11:22:33:44:55:66", "00:00:00:00:00:00", "11:22:33:44:55:66",
+    ];
+    espnowclients_parse(testmac.join(","));
+
+    var _bands = $id("vtx_band")
+    while (_bands.length > 1) {
+        _bands.remove(_bands.length - 1);
+    }
+    for (const band in channelFreqTable) {
+      var option = document.createElement("option");
+      option.text = option.value = band;
+      _bands.add(option);
+    }
+
     $id("logField").scrollTop = $id("logField").scrollHeight;
+    if (!window.location.hostname)
+      return;
     websock = new WebSocket('ws://' + window.location.hostname + ':81/');
-    websock.onopen = function (evt) { console.log('websock open'); };
+    websock.binaryType = "arraybuffer";
+    websock.onopen = function (evt) {console.log('websock open');};
     websock.onclose = function(e) {
-        console.log('Socket is closed. Reconnect will be attempted in 1 second.', e.reason);
-        setTimeout(function() {
-        start();
-        }, 1000);
+        console.log('websock closed. Reconnect in 1 second.', e.reason);
+        setTimeout(function() {start();}, 1000);
     };
-    websock.onerror = function (evt) { console.log(evt); };
+    websock.onerror = function (evt) {console.log("websock error: ", evt);};
     websock.onmessage = function (evt) {
         //console.log(evt);
+        if (evt.data instanceof ArrayBuffer) { // handle binary message
+            const message = new DataView(evt.data);
+            const msgid = message.getUint16();
+            const payload = new DataView(evt.data, 2);
+            if (msgid == 0x1100)
+                espnowclients_parse(payload);
+            return;
+        }
         var text = evt.data;
         if (text.startsWith("ELRS_setting_")) {
             var res = text.replace("ELRS_setting_", "");
@@ -112,6 +137,8 @@ function setting_set(type, value) {
     if (elem) {
         if (type == "vtx_freq") {
             vtx_parse_freq(value);
+        } else if (type == "espnowclients") {
+            espnowclients_parse(value);
         } else if (type == "region_domain") {
             var rf_module = $id("rf_module");
             value = parseInt(value);
@@ -126,8 +153,8 @@ function setting_set(type, value) {
             if (!(value & 0x40)) {
                 /* Disable tabs if not handset */
                 var tabs = $name('handset');
-                for (tab in tabs) {
-                    tabs[tab].className += " disabled";
+                for (var tab of tabs) {
+                    tab.className += " disabled";
                 }
             }
             value = value & 0x3F;
@@ -179,6 +206,7 @@ function setting_set(type, value) {
                 option.value = i;
                 rates.add(option);
             }
+            rates.disabled = false;
         } else {
             value = value.split(",");
             if (1 < value.length) {
@@ -196,6 +224,7 @@ function setting_set(type, value) {
                 }
             }
             elem.selectedIndex = [...elem.options].findIndex (option => option.value === value[0]);
+            elem.disabled = false;
         }
     }
 }
@@ -210,7 +239,7 @@ function setting_send(type, elem=null)
 }
 
 // Channels with their Mhz Values
-var channelFreqTable = {
+const channelFreqTable = {
     "A": [5865, 5845, 5825, 5805, 5785, 5765, 5745, 5725], // A
     "B": [5733, 5752, 5771, 5790, 5809, 5828, 5847, 5866], // B
     "E": [5705, 5685, 5665, 5645, 5885, 5905, 5925, 5945], // E
@@ -222,21 +251,44 @@ var channelFreqTable = {
     "H": [5653, 5693, 5733, 5773, 5813, 5853, 5893, 5933]  // H
 };
 
+var vtx_last_band = "-";
+function vtx_band_changed(band) {
+    if (band != vtx_last_band) {
+        var channels = $id("vtx_channel");
+        while (channels.length > 1) {
+            channels.remove(channels.length - 1);
+        }
+        for (const ch_idx in channelFreqTable[band]) {
+            var option = document.createElement("option");
+            option.text = parseInt(ch_idx, 10) + 1;
+            option.value = ch_idx;
+            channels.add(option);
+        }
+        $id("vtx_channel").value = "";
+    }
+    vtx_show_freq();
+}
+
 function vtx_show_freq()
 {
-    var band = $id("vtx_band").value;
-    var ch = $id("vtx_channel").value;
-    if (band == "" || ch == "")
+    const band = $id("vtx_band").value;
+    const ch = $id("vtx_channel").value;
+    if (band == "" || ch == "") {
+        $id("vtx_send_btn").disabled = true;
+        $id("vtx_freq").innerHTML = "";
         return;
-    var freq = "";
-    freq += channelFreqTable[band][parseInt(ch, 10)];
-    freq += " MHz";
-    $id("vtx_freq").innerHTML = freq;
+    }
+    const freq = channelFreqTable[band][parseInt(ch, 10)];
+    $id("vtx_freq").innerHTML = "" + freq + " MHz";
+    $id("vtx_send_btn").disabled = !(0 < freq);
 }
 
 function vtx_parse_freq(freq)
 {
     freq = parseInt(freq, 10);
+
+    $id("vtx_send_btn").disabled = true;
+    console.log("VTX cmd parse: ");
 
     if (freq == 0) {
         // Clear selections
@@ -246,11 +298,12 @@ function vtx_parse_freq(freq)
         return;
     }
 
-    for (var band in channelFreqTable) {
-        var channels = channelFreqTable[band];
-        for (var ch in channels) {
+    for (const band in channelFreqTable) {
+        const channels = channelFreqTable[band];
+        for (const ch in channels) {
             if (freq == channels[ch]) {
                 $id("vtx_band").value = band;
+                vtx_band_changed(band);
                 $id("vtx_channel").value = ch;
                 var _freq = "";
                 _freq += freq;
@@ -643,4 +696,51 @@ function handset_parse(type, value)
     } else if (type.includes("_battery")) {
         handset_battery_value(value);
     }
+}
+
+/********************* ESP-NOW *****************************/
+function espnowclients_send() {
+    const clients = $id("espnowclients").value.split("\n");
+    var bytes = [];
+    for (const client of clients) {
+        if (!client || client.length == 0) continue;
+        const mac = client.split(":").map(function (val) { return parseInt(val, 16) });
+        if (mac.length != 6) { console.error("Invalid MAC address: %s", client); return; }
+        mac.forEach(element => { bytes.push(element); });
+    }
+    var sendarray = new ArrayBuffer(bytes.length + 2);
+    var view = new Uint8Array(sendarray);
+    view[0] = 0x00; // Little endian 0x1100
+    view[1] = 0x11;
+    for (var i = 0; i < bytes.length; i++) view[2+i] = bytes[i];
+    if (websock) websock.send(sendarray, { binary: true });
+  }
+
+function espnowclients_parse(value) {
+    var target = $id("espnowclients");
+    target.value = "";
+    if (typeof (value) == "string") target.value = value.split(",").join("\n");
+    else if (value instanceof DataView) { // binary data
+        for (var mter = 0; mter < Math.floor(value.byteLength / 6); mter++) {
+            var mac = "";
+            for (var iter = 0; iter < 6; iter++) {
+                if (0 < iter) mac += ":";
+                mac += value.getUint8(mter * 6 + iter).toString(16).padStart(2, "0");
+            }
+            target.value += mac + "\n";
+        }
+    } else {
+        target.value = "data error! " + typeof (value) + "\n";
+    }
+    // Resize the text field
+    target.rows = target.value.split('\n').length;
+}
+
+function espnowclients_autosize(el){
+    //var el = $id("espnowclients");
+    //setTimeout(function(){
+    //    el.style.cssText = 'height:auto; padding:0';
+    //    el.style.cssText = 'height:' + el.scrollHeight + 'px';
+    //},0);
+    el.rows = el.value.split('\n').length;
 }

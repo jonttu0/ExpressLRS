@@ -132,11 +132,3 @@ elif platform in ['espressif32']:
 
 else:
     raise SystemExit(FAIL + "\nNot supported platfrom! '%s'\n" % platform)
-
-
-if False:
-    if "_TX_" in target_name:
-        env.SetDefault(UPLOAD_PORT="elrs_tx.local")
-    else:
-        env.SetDefault(UPLOAD_PORT="elrs_rx.local")
-

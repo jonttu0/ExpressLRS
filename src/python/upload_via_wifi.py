@@ -7,16 +7,17 @@ def on_upload(source, target, env):
     source_file = str(source[0])
     isstm = platform in ['ststm32']
     target_name = env['PIOENV'].upper()
-
-    if not isstm and platform in ['espressif32']:
-        # Update ESP transmitter
-        upload_addr = ['elrs_tx.local', 'elrs_tx']
-    elif not isstm and "LOGGER_" not in target_name and platform in ['espressif8266']:
-        # Update ESP receiver
-        upload_addr = ['elrs_rx.local', 'elrs_rx']
-    else:
-        # Update STM receiver or backpack logger
-        upload_addr = ['elrs_logger.local', 'elrs_logger']
+    upload_addr = env.GetProjectOption("custom_dns", "").split()
+    if not upload_addr:
+        if not isstm and platform in ['espressif32']:
+            # Update ESP transmitter
+            upload_addr = ['elrs_tx.local', 'elrs_tx']
+        elif not isstm and "LOGGER_" not in target_name and platform in ['espressif8266']:
+            # Update ESP receiver
+            upload_addr = ['elrs_rx.local', 'elrs_rx']
+        else:
+            # Update STM receiver or backpack logger
+            upload_addr = ['elrs_logger.local', 'elrs_logger']
 
     if "backpack.bin" in source_file:
         # Logger firmware update

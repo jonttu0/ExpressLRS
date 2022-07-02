@@ -142,6 +142,9 @@ void HDZeroMsp::handleUserText(const char * input, size_t const len)
     msp_out.payload[3] = 0; // attribute, 0x80 for DISPLAYPORT_ATTR_BLINK
     memcpy(&msp_out.payload[4], input, len);
     MSP::sendPacket(&msp_out, _serial);
+
+    websocket_send("OSD Text: ");
+    websocket_send(input);
 }
 
 
