@@ -147,9 +147,14 @@ typedef struct rc_channels_s {
     unsigned ch15 : CRSF_CHANNEL_IN_BITS;
 } PACKED rc_channels_module_t;
 
-typedef struct {
-    /* 16 channels */
+typedef union {
+    /* up to 16 channels */
     uint16_t ch[N_CHANNELS];
+    /* gimbals + auxes */
+    struct {
+        uint16_t gimbal[N_CONTROLS]; /* CH0...3 */
+        uint16_t aux[N_SWITCHES];    /* CH4...N */
+    };
 } rc_channels_handset_t;
 
 

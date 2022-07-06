@@ -73,14 +73,14 @@ static void FAST_CODE_2
 PackChannelDataHybridCommon(uint8_t* const Buffer, rc_channels_handset_t const *const ChannelDataIn)
 {
     Buffer[0] = RC_DATA_PACKET;
-    Buffer[1] = ((ChannelDataIn->ch[0]) >> 3);
-    Buffer[2] = ((ChannelDataIn->ch[1]) >> 3);
-    Buffer[3] = ((ChannelDataIn->ch[2]) >> 3);
-    Buffer[4] = ((ChannelDataIn->ch[3]) >> 3);
-    Buffer[5] = ((ChannelDataIn->ch[0] & 0b110) << 5) +
-                    ((ChannelDataIn->ch[1] & 0b110) << 3) +
-                    ((ChannelDataIn->ch[2] & 0b110) << 1) +
-                    ((ChannelDataIn->ch[3] & 0b110) >> 1);
+    Buffer[1] = ((ChannelDataIn->gimbal[0]) >> 3);
+    Buffer[2] = ((ChannelDataIn->gimbal[1]) >> 3);
+    Buffer[3] = ((ChannelDataIn->gimbal[2]) >> 3);
+    Buffer[4] = ((ChannelDataIn->gimbal[3]) >> 3);
+    Buffer[5] = ((ChannelDataIn->gimbal[0] & 0b110) << 5) +
+                    ((ChannelDataIn->gimbal[1] & 0b110) << 3) +
+                    ((ChannelDataIn->gimbal[2] & 0b110) << 1) +
+                    ((ChannelDataIn->gimbal[3] & 0b110) >> 1);
 }
 
 
@@ -113,8 +113,8 @@ GenerateChannelDataHybrid8(uint8_t* const Buffer, rc_channels_handset_t const *c
     uint8_t bitclearedSwitchIndex = Hybrid8NextSwitchIndex;
     uint8_t value;
     // AUX8 is High Resolution 16-pos (4-bit)
-    if (bitclearedSwitchIndex == 6)
-        value = CRSF_to_N(ChannelDataIn->ch[6 + 1 + 4], 16);
+    if (7 <= N_SWITCHES && bitclearedSwitchIndex == 6)
+        value = CRSF_to_N(ChannelDataIn->aux[6 + 1], 16);
     else
     {
         // AUX2-7 are Low Resolution, "7pos" 6+center (3-bit)
@@ -123,7 +123,7 @@ GenerateChannelDataHybrid8(uint8_t* const Buffer, rc_channels_handset_t const *c
         // with switches with a middle position as well as 6-position
         const uint16_t CHANNEL_BIN_COUNT = 6;
         const uint16_t CHANNEL_BIN_SIZE = (CRSF_CHANNEL_VALUE_MAX - CRSF_CHANNEL_VALUE_MIN) / CHANNEL_BIN_COUNT;
-        uint16_t ch = ChannelDataIn->ch[bitclearedSwitchIndex + 1 + 4];
+        uint16_t ch = ChannelDataIn->aux[bitclearedSwitchIndex + 1];
         // If channel is within 1/4 a BIN of being in the middle use special value 7
         if (ch < (CRSF_CHANNEL_VALUE_MID - CHANNEL_BIN_SIZE / 4)
             || ch > (CRSF_CHANNEL_VALUE_MID + CHANNEL_BIN_SIZE / 4))
@@ -135,14 +135,20 @@ GenerateChannelDataHybrid8(uint8_t* const Buffer, rc_channels_handset_t const *c
     Buffer[6] =
         //(TelemetryStatus << 7) |
         // switch 0 is one bit sent on every packet - intended for low latency arm/disarm
-        (CRSF_to_BIT(ChannelDataIn->ch[4]) << 6) |
+        (CRSF_to_BIT(ChannelDataIn->aux[0]) << 6) |
         // tell the receiver which switch index this is
         (bitclearedSwitchIndex << 3) |
         // include the switch value
         value;
 
+#if N_SWITCHES <= 7
+#define VANILLA_N_SWITCHES N_SWITCHES
+#else
+#define VANILLA_N_SWITCHES 7
+#endif
+
     // update the sent value
-    Hybrid8NextSwitchIndex = (bitclearedSwitchIndex + 1) % 7;
+    Hybrid8NextSwitchIndex = (bitclearedSwitchIndex + 1) % VANILLA_N_SWITCHES;
 }
 
 void FAST_CODE_2
@@ -161,7 +167,6 @@ void FAST_CODE_1
 OTA_vanilla_processChannels(rc_channels_handset_t const *const channels)
 {
     arm_channel_state = CRSF_to_BIT(channels->ch[4]);
-    // TODO: process input data
 #if OtaGetSwitchMode() != smHybridWide
     GenerateChannelDataHybrid8(TXdataBuffer, channels);
 #else
