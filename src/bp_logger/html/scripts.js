@@ -1,4 +1,59 @@
 
+const WSMSGID_ERROR_IND             = 0xCAFE;
+
+const WSMSGID_ESPNOW_ADDRS          = 0x1100;
+
+const WSMSGID_STM32_RESET           = 0x1200;
+
+const WSMSGID_ELRS_SETTINGS         = 0x2200;
+const WSMSGID_ELRS_DOMAIN           = 0x2201;
+const WSMSGID_ELRS_RATE             = 0x2202;
+const WSMSGID_ELRS_POWER            = 0x2203;
+const WSMSGID_ELRS_TLM              = 0x2204;
+const WSMSGID_ELRS_RF_POWER_TEST    = 0x2205;
+
+const WSMSGID_HANDSET_MIXER         = 0x2300;
+const WSMSGID_HANDSET_CALIBRATE     = 0x2301;
+const WSMSGID_HANDSET_ADJUST        = 0x2302;
+const WSMSGID_HANDSET_RELOAD        = 0x2303;
+const WSMSGID_HANDSET_SAVE          = 0x2304;
+const WSMSGID_HANDSET_BATT_INFO     = 0x2305;
+const WSMSGID_HANDSET_BATT_CONFIG   = 0x2306;
+
+const WSMSGID_HANDSET_TLM_LINK_STATS = 0x2380;
+const WSMSGID_HANDSET_TLM_BATTERY    = 0x2381;
+const WSMSGID_HANDSET_TLM_GPS        = 0x2382;
+
+const WSMSGID_VIDEO_FREQ         = 0x2400;
+
+
+const ws_msgid_lookup = {
+    // STM32 slave control
+    "stm32_reset":       WSMSGID_STM32_RESET,
+
+    "refresh":           WSMSGID_ELRS_SETTINGS,
+    "rf_module":         WSMSGID_ELRS_DOMAIN,
+    "rate":              WSMSGID_ELRS_RATE,
+    "power":             WSMSGID_ELRS_POWER,
+    "telemetry":         WSMSGID_ELRS_TLM,
+    "rf_pwr":            WSMSGID_ELRS_RF_POWER_TEST,
+
+    "handset_reload":    WSMSGID_HANDSET_RELOAD,
+    "handset_save":      WSMSGID_HANDSET_SAVE,
+
+    "vtx_freq":          WSMSGID_VIDEO_FREQ,
+};
+
+const elrs_settings_lookup = {
+    0: {"rfidx": 1, "rates": ['200Hz', '100Hz', '50Hz'], "info": "915MHz"},
+    1: {"rfidx": 1, "rates": ['200Hz', '100Hz', '50Hz'], "info": "868MHz"},
+    2: {"rfidx": 1, "rates": ['200Hz', '100Hz', '50Hz'], "info": "433MHz"},
+    3: {"rfidx": 2, "rates": ['500Hz', '250Hz', '125Hz', '50Hz'], "info": "2400MHz ISM (LoRa)"},
+    4: {"rfidx": 2, "rates": ['500Hz', '250Hz', '125Hz', '50Hz'], "info": "2400MHz ISM (LoRa)"},
+    5: {"rfidx": 3, "rates": ['1000Hz', '500Hz', '250Hz'], "info": "2400MHz ISM (FLRC)"},
+    6: {"rfidx": 4, "rates": ['500Hz', '250Hz', '150Hz', '50Hz'], "info": "2400MHz ISM (LoRa, VANILLA)"},
+};
+
 function $id(id) {
     return document.getElementById(id);
 }
@@ -8,42 +63,63 @@ function $class(id) {
 function $name(name) {
     return document.getElementsByName(name);
 }
-function safelyParseJson(json) {
-    // This function cannot be optimised, it's best to
-    // keep it small!
-    var parsed;
-    try {
-        parsed = JSON.parse(json);
-    } catch (e) {
-        parsed = JSON.parse(JSON.stringify(json));
-    }
-    return parsed // Could be undefined!
+function time_current() {
+    var date = new Date();
+    return new Date(date.getTime()).toLocaleTimeString([], {hour12: false});
 }
+DataView.prototype.nextUint8 = function () {
+    if (this.offset_next == undefined) this.offset_next = 0;
+    const idx = this.offset_next; this.offset_next += 1;
+    try {
+        return this.getUint8(idx);
+    } catch(e) {
+        console.error("error! nextUint8: idx: %o", idx);
+        return undefined;
+    }
+};
+DataView.prototype.nextInt8 = function () {
+    if (this.offset_next == undefined) this.offset_next = 0;
+    const idx = this.offset_next; this.offset_next += 1;
+    try {
+        return this.getInt8(idx);
+    } catch(e) {
+        console.error("error! getInt8: idx: %o", idx);
+        return undefined;
+    }
+};
+DataView.prototype.nextUint16 = function (little_endian=false) {
+    if (this.offset_next == undefined) this.offset_next = 0;
+    const idx = this.offset_next; this.offset_next += 2;
+    try {
+        return this.getUint16(idx, little_endian);
+    } catch(e) {
+        console.error("error! nextUint16: idx: %o", idx);
+        return undefined;
+    }
+};
+DataView.prototype.nextInt16 = function (little_endian=false) {
+    if (this.offset_next == undefined) this.offset_next = 0;
+    const idx = this.offset_next; this.offset_next += 2;
+    try {
+        return this.getInt16(idx, little_endian);
+    } catch(e) {
+        console.error("error! nextUint16: idx: %o", idx);
+        return undefined;
+    }
+};
+DataView.prototype.nextInt32 = function (little_endian=false) {
+    if (this.offset_next == undefined) this.offset_next = 0;
+    const idx = this.offset_next; this.offset_next += 4;
+    try {
+        return this.getInt32(idx, little_endian);
+    } catch(e) {
+        console.error("error! nextInt32: idx: %o", idx);
+        return undefined;
+    }
+};
 
 var websock = null;
 function start() {
-    var test = "";
-    //test = "0:1:1,1:0:1,2:3:0,3:2:0,4:0:0,5:2:0";
-    //test = "5;3;0:2:1:95,1:1:1,2:0:0,3:3:0,4:0:0,5:16:0,6:16:0,7:16:0,8:16:0,9:16:0,10:16:0,11:16:0,12:16:0,13:16:0,14:16:0,15:16:0";
-    //test= "4;2;0:2:1:1,1:1:2:0,2:3:3:0,3:0:0:5,4:0:6:2,5:7:3:0,6:16:0:9,7:0:0:0,8:11:16:0,9:16:0:13,10:0:0:0,11:15:16:0,12:5:85:0,13:0:0:0,14:0:0:0,15:0:0:0";
-    handset_mix_reset(test);
-    //test = "900:2196:3536;194:2023:3796;183:1860:3628;490:2094:3738;"
-    //handle_calibrate_adjust(test);
-    //test = "0,100,100";
-    //handset_battery_value(test);
-    //test = "ULQ:-1,UR1:-3,UR2:-2,USN:45,PWR:1,MO:7,DLQ:1,DR1:2,DSN:3";
-    telmetry_set("tlm_uldl", test);
-    //test = "V:168,A:105,C:1200,R:70";
-    telmetry_set("tlm_batt", test);
-    //test = "lon:1239248,lat:39879284,spe:23543,hea:234,alt:234,sat:10";
-    telmetry_set("tlm_gps", test);
-
-    var testmac = [
-        //"00:00:00:00:00:00", "11:22:33:44:55:66", "00:00:00:00:00:00", "11:22:33:44:55:66",
-        //"00:00:00:00:00:00", "11:22:33:44:55:66", "00:00:00:00:00:00", "11:22:33:44:55:66",
-    ];
-    espnowclients_parse(testmac.join(","));
-
     var _bands = $id("vtx_band")
     while (_bands.length > 1) {
         _bands.remove(_bands.length - 1);
@@ -71,45 +147,53 @@ function start() {
             const message = new DataView(evt.data);
             const msgid = message.getUint16();
             const payload = new DataView(evt.data, 2);
-            if (msgid == 0x1100)
+            if (msgid == WSMSGID_ESPNOW_ADDRS) {
                 espnowclients_parse(payload);
+            } else if (msgid == WSMSGID_ELRS_SETTINGS) {
+                settings_parse(payload);
+            } else if (msgid == WSMSGID_VIDEO_FREQ) {
+                msp_vtx_freq(payload.getUint16());
+            } else if (msgid == WSMSGID_HANDSET_CALIBRATE) {
+                if (calibrate_btn != null) {
+                    calibrate_btn.disabled = false;
+                    calibrate_btn = null;
+                    $id("handset_calibrate_stat").innerHTML = 'Calibration failed!';
+                }
+            } else if (msgid == WSMSGID_HANDSET_BATT_INFO) {
+                handset_battery_value(payload);
+            } else if (msgid == WSMSGID_HANDSET_ADJUST) {
+                handset_calibrate_adjust(payload);
+            } else if (msgid == WSMSGID_HANDSET_MIXER) {
+                handset_mixer(payload);
+            } else if (msgid == WSMSGID_HANDSET_TLM_LINK_STATS) {
+                handset_telemetry_link_stats(payload);
+            } else if (msgid == WSMSGID_HANDSET_TLM_BATTERY) {
+                handset_telemetry_battery(payload);
+            } else if (msgid == WSMSGID_HANDSET_TLM_GPS) {
+                handset_telemetry_gps(payload);
+            } else {
+                console.error("Invalid message received: " + msgid);
+            }
             return;
         }
-        var text = evt.data;
-        if (text.startsWith("ELRS_setting_")) {
-            var res = text.replace("ELRS_setting_", "");
-            res = res.split("=");
-            setting_set(res[0], res[1]);
-        } else if (text.startsWith("ELRS_tlm_")) {
-            var res = text.replace("ELRS_", "");
-            res = res.split("=");
-            telmetry_set(res[0], res[1]);
-        } else if (text.startsWith("ELRS_handset_")) {
-            var res = text.replace("ELRS_", "");
-            res = res.split("=");
-            handset_parse(res[0], res[1]);
-        } else {
-            var logger = $id("logField");
-            var autoscroll = $id("autoscroll").checked;
-            var scrollsize = parseInt($id("scrollsize").value, 10);
-            var log_history = logger.value.split("\n");
-            while (scrollsize < log_history.length) {
-                log_history.shift();
-            }
-            var date = new Date();
-            var n=new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString();
-            log_history.push(n + ' ' + text);
-            logger.value = log_history.join('\n');
-            if (autoscroll)
-                logger.scrollTop = logger.scrollHeight;
-        }
+        const text = evt.data;
+        if (!text) return; // ignore empty messages
+        const logger = $id("logField");
+        const scrollsize = parseInt($id("scrollsize").value, 10);
+        var log_history = logger.value.split("\n");
+        while (scrollsize < log_history.length) {log_history.shift();}
+        const date = new Date();
+        const n=new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString();
+        log_history.push(n + ' ' + text);
+        logger.value = log_history.join('\n');
+        if ($id("autoscroll").checked)
+            logger.scrollTop = logger.scrollHeight;
     };
 }
 
 function saveTextAsFile() {
     var textToWrite = $id('logField').value;
     var textFileAsBlob = new Blob([textToWrite], { type: 'text/plain' });
-
     var downloadLink = document.createElement("a");
     downloadLink.download = "tx_log.txt";
     downloadLink.innerHTML = "Download File";
@@ -119,126 +203,124 @@ function saveTextAsFile() {
     } else {
         // Firefox requires the link to be added to the DOM before it can be clicked.
         downloadLink.href = window.URL.createObjectURL(textFileAsBlob);
-        downloadLink.onclick = destroyClickedElement;
+        downloadLink.onclick = function(event) {document.body.removeChild(event.target);};
         downloadLink.style.display = "none";
         document.body.appendChild(downloadLink);
     }
-
     downloadLink.click();
 }
 
-function destroyClickedElement(event) {
-    // remove the link from the DOM
-    document.body.removeChild(event.target);
+function message_send(elem=null, bytesize=1)
+{
+    var sendarray = new ArrayBuffer(2 + ((elem == null) ? 0 : bytesize));  // MSGID + value
+    var view = new Uint8Array(sendarray);
+
+    if (elem) {
+        const msg_id = ws_msgid_lookup[elem.name];
+        view[0] = msg_id & 0xFF;
+        view[1] = (msg_id >> 8) & 0xFF;
+        for (var iter = 0; iter < bytesize; iter++)
+            view[2+iter] = (elem.value >> (8*iter)) & 0xFF;
+    } else {
+        view[0] = WSMSGID_ELRS_SETTINGS & 0xFF;
+        view[1] = (WSMSGID_ELRS_SETTINGS >> 8) & 0xFF;
+    }
+    if (websock) websock.send(sendarray, { binary: true });
 }
 
-function setting_set(type, value) {
-    var elem = $id(type);
-    if (elem) {
-        if (type == "vtx_freq") {
-            vtx_parse_freq(value);
-        } else if (type == "espnowclients") {
-            espnowclients_parse(value);
-        } else if (type == "region_domain") {
-            var rf_module = $id("rf_module");
-            value = parseInt(value);
+function rf_module_changed(elem)
+{
+    $id("rf_module").disabled = true;
+    $id("rates_input").disabled = true;
+    $id("power_input").disabled = true;
+    $id("tlm_input").disabled = true;
+    message_send(elem);
+}
 
-            if (!(value & 0x80)) {
-                /* Disable RF selection if not dual module */
-                rf_module.disabled = true;
-            } else {
-                rf_module.disabled = false;
-            }
+function handle_setting_region(domain)
+{
+    const FLAGS = {
+        dual: 0x80,
+        handset: 0x40,
+        mask: 0x3F,
+    };
 
-            if (!(value & 0x40)) {
-                /* Disable tabs if not handset */
-                var tabs = $name('handset');
-                for (var tab of tabs) {
-                    tab.className += " disabled";
-                }
-            }
-            value = value & 0x3F;
+    const rf_module = $id("rf_module");
+    if (!(domain & FLAGS.dual)) {
+        /* Disable RF selection if not dual module */
+        rf_module.disabled = true;
+    } else {
+        rf_module.disabled = false;
+    }
 
-            var domain_info = "Domain ";
-            if (value == 0)
-                domain_info += "915MHz";
-            else if (value == 1)
-                domain_info += "868MHz";
-            else if (value == 2)
-                domain_info += "433MHz";
-            else if (value == 3 || value == 4)
-                domain_info += "2400MHz ISM (LoRa)";
-            else if (value == 5)
-                domain_info += "2400MHz ISM (FLRC)";
-            else if (value == 6)
-                domain_info += "2400MHz ISM (LoRa, VANILLA)";
-            else
-                domain_info += "UNKNOWN";
-            elem.innerHTML = domain_info;
-
-            // disable telemetry options if vanilla mode
-            $id("tlm_input").disabled = (value == 6);
-
-            // update rate options
-            var rates = $id("rates_input");
-            while (rates.length > 0) {
-                rates.remove(rates.length-1);
-            }
-            var options = [];
-            if (6 == value) {
-                options = ['500Hz', '250Hz', '150Hz', '50Hz'];
-                rf_module.selectedIndex = 4;
-            } else if (5 == value) {
-                options = ['1000Hz', '500Hz', '250Hz'];
-                rf_module.selectedIndex = 3;
-            } else if (3 <= value && value <= 4) {
-                options = ['500Hz', '250Hz', '125Hz', '50Hz'];
-                rf_module.selectedIndex = 2;
-            } else if (value <= 2) {
-                options = ['200Hz', '100Hz', '50Hz'];
-                rf_module.selectedIndex = 1;
-            } else {
-                rf_module.selectedIndex = 0;
-            }
-            for (i = 0; i < options.length; i++) {
-                var option = document.createElement("option");
-                option.text = options[i];
-                option.value = i;
-                rates.add(option);
-            }
-            rates.disabled = false;
-        } else {
-            value = value.split(",");
-            if (1 < value.length) {
-                var max_value = parseInt(value[1], 10);
-                max_value = max_value + 2; // include reset and dummy
-                var i;
-                // enable all
-                for (i = 0; i < elem.length; i++) {
-                    elem.options[i].disabled = false;
-                }
-                // disable unavailable values
-                for (i = (elem.length-1); max_value < i; i--) {
-                    //elem.remove(i);
-                    elem.options[i].disabled = true;
-                }
-            }
-            elem.selectedIndex = [...elem.options].findIndex (option => option.value === value[0]);
-            elem.disabled = false;
+    if (!(domain & FLAGS.handset)) {
+        /* Disable tabs if not handset */
+        var tabs = $name('handset');
+        for (var tab of tabs) {
+            tab.className += " disabled";
         }
     }
-}
+    domain = domain & FLAGS.mask;
 
-function setting_send(type, elem=null)
-{
-    if (elem) {
-        websock.send(type + "=" + elem.value);
-    } else {
-        websock.send(type + "?");
+    const domain_params = elrs_settings_lookup[domain];
+    if (domain_params == undefined) {
+        rf_module.disabled = true;
+        $id("rates_input").disabled = true;
+        $id("power_input").disabled = true;
+        $id("tlm_input").disabled = true;
+        $id("region_domain").innerHTML = "Invalid domain: " + domain;
+        return;
+    }
+
+    // Store domain index for later use
+    rf_module.domain_in_use = domain;
+    rf_module.selectedIndex = domain_params.rfidx;
+    $id("region_domain").innerHTML = "Domain " + domain_params.info;
+
+    // update rate options
+    const rates = $id("rates_input");
+    while (rates.length > 0) {
+        rates.remove(rates.length-1);
+    }
+    const options = domain_params.rates;
+    for (i = 0; i < options.length; i++) {
+        var option = document.createElement("option");
+        option.text = options[i];
+        option.value = i;
+        rates.add(option);
     }
 }
 
-// Channels with their Mhz Values
+function handle_setting_generic(elem, value, max_value=null)
+{
+    if (max_value != null) {
+        max_value = max_value + 2; // include reset and dummy
+        // enable all
+        for (var i = 0; i < elem.length; i++)
+            elem.options[i].disabled = false;
+        // disable unavailable values
+        for (var i = (elem.length-1); max_value < i; i--)
+            elem.options[i].disabled = true;
+    }
+    value = value.toString();
+    elem.selectedIndex = [...elem.options].findIndex (option => option.value === value);
+    elem.disabled = false;
+}
+
+function settings_parse(payload)
+{
+    handle_setting_region(payload.nextUint8());
+    handle_setting_generic($id("rates_input"), payload.nextUint8());
+    handle_setting_generic($id("power_input"), payload.nextUint8(), payload.nextUint8());
+    handle_setting_generic($id("tlm_input"), payload.nextUint8());
+    // disable telemetry options if vanilla mode
+    $id("tlm_input").disabled = ($id("rf_module").domain_in_use == 6);
+    msp_vtx_freq(payload.nextUint8());
+}
+
+/********************* VTX *******************************/
+
+// Supported bands and channels
 const channelFreqTable = {
     "A": [5865, 5845, 5825, 5805, 5785, 5765, 5745, 5725], // A
     "B": [5733, 5752, 5771, 5790, 5809, 5828, 5847, 5866], // B
@@ -250,24 +332,6 @@ const channelFreqTable = {
     "O": [5474, 5492, 5510, 5528, 5546, 5564, 5582, 5600], // O
     "H": [5653, 5693, 5733, 5773, 5813, 5853, 5893, 5933]  // H
 };
-
-var vtx_last_band = "-";
-function vtx_band_changed(band) {
-    if (band != vtx_last_band) {
-        var channels = $id("vtx_channel");
-        while (channels.length > 1) {
-            channels.remove(channels.length - 1);
-        }
-        for (const ch_idx in channelFreqTable[band]) {
-            var option = document.createElement("option");
-            option.text = parseInt(ch_idx, 10) + 1;
-            option.value = ch_idx;
-            channels.add(option);
-        }
-        $id("vtx_channel").value = "";
-    }
-    vtx_show_freq();
-}
 
 function vtx_show_freq()
 {
@@ -283,13 +347,30 @@ function vtx_show_freq()
     $id("vtx_send_btn").disabled = !(0 < freq);
 }
 
-function vtx_parse_freq(freq)
+var vtx_last_band = "-";
+function vtx_band_changed(band)
 {
-    freq = parseInt(freq, 10);
+    if (band != vtx_last_band) {
+        vtx_last_band = band;
+        $id("vtx_band").value = band;
+        var channels = $id("vtx_channel");
+        while (channels.length > 1) {
+            channels.remove(channels.length - 1);
+        }
+        for (const ch_idx in channelFreqTable[band]) {
+            var option = document.createElement("option");
+            option.text = parseInt(ch_idx, 10) + 1;
+            option.value = ch_idx;
+            channels.add(option);
+        }
+        $id("vtx_channel").value = "";
+    }
+    vtx_show_freq();
+}
 
+function msp_vtx_freq(freq)
+{
     $id("vtx_send_btn").disabled = true;
-    console.log("VTX cmd parse: ");
-
     if (freq == 0) {
         // Clear selections
         $id("vtx_band").value = "";
@@ -297,107 +378,92 @@ function vtx_parse_freq(freq)
         $id("vtx_freq").innerHTML = "";
         return;
     }
-
     for (const band in channelFreqTable) {
         const channels = channelFreqTable[band];
         for (const ch in channels) {
             if (freq == channels[ch]) {
-                $id("vtx_band").value = band;
                 vtx_band_changed(band);
                 $id("vtx_channel").value = ch;
-                var _freq = "";
-                _freq += freq;
-                _freq += " MHz";
-                $id("vtx_freq").innerHTML = _freq;
+                $id("vtx_freq").innerHTML = "" + freq + " MHz";
                 return;
             }
         }
     }
 }
 
-function setting_send_vtx()
+function msp_vtx_freq_send()
 {
     var band = $id("vtx_band").value;
     var ch = $id("vtx_channel").value;
     if (band == "" || ch == "")
         return;
-    var freq = channelFreqTable[band][parseInt(ch, 10)];
-    if (websock)
-        websock.send("S_vtx_freq=" + freq);
+    var elem = Object();
+    elem.name = "vtx_freq";
+    elem.value = channelFreqTable[band][parseInt(ch, 10)];
+    message_send(elem, 2);
 }
+
+
+/********************* STM32 *******************************/
 
 function command_stm32(type)
 {
-    websock.send("stm32_cmd=" + type);
+    var elem = Object();
+    elem.name = "stm32_" + type;
+    message_send(elem, 0);
 }
 
 
-/********************* HANDSET *****************************/
+/********************* HANDSET MIXER *********************/
 
-function mixer_list_to_dict(value)
+function mixer_list_to_dict(payload)
 {
-    var dict = {};
-    var i;
-    var parts = value.split(";");
-    var num_switches = 12, num_aux = 12;
-    if (3 == parts.length) {
-        num_aux = parseInt(parts[0]);
-        num_switches = parseInt(parts[1]);
-        value = parts[2];
+    var mixer_config = {};
+    mixer_config['aux'] = payload.nextUint8();
+    mixer_config['total'] = mixer_config['aux'] + 4;
+    mixer_config['switch'] = payload.nextUint8();
+    for (var i = 0; i < 16; i++) {
+        mixer_config[i] = {'index': -1, 'inv': false, 'scale': 1.0};
     }
-    dict['aux'] = num_aux;
-    dict['total'] = num_aux + 4;
-    dict['switch'] = num_switches;
-    for (i = 0; i < 16; i++) {
-        dict[i] = {'index': '-', 'inv': false, 'scale': 1.0};
+    for (var i = 0; i < 16 && i < ((payload.byteLength - 2) / 4); i++) {
+        const idx = payload.nextUint8();
+        mixer_config[idx].index = payload.nextUint8();
+        mixer_config[idx].inv = payload.nextUint8() ? true : false;
+        var scale = payload.nextUint8();
+        mixer_config[idx].scale = (scale) ? (scale.toFixed(4) / 100.) : 1.0;
     }
-    value = value.split(",");
-    for (var item in value) {
-        if (!value[item].length)
-            continue
-        var mix = value[item].split(":");
-        if (3 <= mix.length) {
-            var idx = parseInt(mix[0]);
-            dict[idx].index = mix[1];
-            dict[idx].inv = mix[2] == '1' ? true : false;
-            if (4 <= mix.length) {
-                var scale = parseFloat(mix[3]);
-                dict[idx].scale = (scale) ? (scale / 100.) : 1.0;
-            }
-        }
-    }
-    return dict;
+    return mixer_config;
 }
 
-function mixer_add_selection_lst(cell, input="-", values={})
+function mixer_add_selection_lst(cell, input=-1, values={})
 {
     var option;
     var sel = document.createElement("select");
     sel.style.width = "100px";
 
+    option = document.createElement("option");
+    option.value = -1;
+    option.text = "";
+    sel.add(option, option.value);
+
     /* add options */
-    for (var opt in values) {
+    for (const opt in values) {
         option = document.createElement("option");
         option.value = values[opt];
         option.text = opt;
         sel.add(option, values[opt]);
     }
     /* set selected */
-    var input_num = parseInt(input);
-    if (input != '-' && input_num != undefined) {
-        sel.selectedIndex = input_num;
-    } else {
-        sel.selectedIndex = -1;
-    }
+    sel.selectedIndex = input;
     cell.appendChild(sel);
 }
 
-function handset_mix_reset(value="")
+function handset_mixer(payload)
 {
     var iter;
     var table = $id("handset_mixer");
     /* Parse input */
-    var mixes = mixer_list_to_dict(value);
+    var mixes = mixer_list_to_dict(payload);
 
     var gimbals = {
         'Gimbal L1': 0, 'Gimbal L2': 1,
@@ -463,89 +529,101 @@ function handset_mix_reset(value="")
     }
 }
 
-function mixer_send()
+function handset_mixer_send()
 {
     var table = $id("handset_mixer");
-    var output = "handset_mixer=";
-    var index, value;
-    for (index = 0; index < table.rows.length; index++) {
+    var output = [];
+    for (var index = 0; index < table.rows.length; index++) {
         var rows = table.rows[index];
         var selected = rows.cells[1].getElementsByTagName("select")[0];
-        if (selected.selectedIndex > -1) {
-            /* Channel index */
-            output += index.toString(16);
-            /* Output channel */
+        if (-1 < selected.selectedIndex) {
             selected = selected.options[selected.selectedIndex].value;
-            output += selected.toString(16);
+            if (selected < 0) continue;
+            /* Channel index */
+            output.push(index);
+            /* Output channel */
+            output.push(selected);
             /* Inverted */
             var _in = rows.cells[2].getElementsByTagName("input")[0];
-            output += _in.checked ? '1' : '0';
+            output.push(_in.checked ? 1 : 0);
 
             if (index < 4) {
                 /* add scale */
                 _in = rows.cells[3].getElementsByTagName("input")[0];
                 _in = parseFloat(_in.value) * 100;
-                if (_in >= 100)
-                    output += "00";
+                if (100 <= _in)
+                    _in = 0;
                 else if (_in <= 10)
-                    output += "10";
-                else
-                    output += _in;
+                    _in = 10;
+                output.push(_in);
             }
         }
     }
-    //console.log("output: %s", output);
-    websock.send(output);
+    var sendarray = new ArrayBuffer(2 + output.length);
+    var view = new Uint8Array(sendarray);
+    view[0] = WSMSGID_HANDSET_MIXER & 0xFF;
+    view[1] = (WSMSGID_HANDSET_MIXER >> 8) & 0xFF;
+    for (var i = 0; i < output.length; i++) view[2+i] = output[i];
+    if (websock) websock.send(sendarray, { binary: true });
+    console.log(view);
 }
 
 /********************* CALIBRATE *****************************/
+const mapping_calibrate = {
+    "L1_min": 0x01, "L1_mid": 0x02, "L1_max": 0x03,
+    "L2_min": 0x11, "L2_mid": 0x12, "L2_max": 0x13,
+    "R1_min": 0x21, "R1_mid": 0x22, "R1_max": 0x23,
+    "R2_min": 0x31, "R2_mid": 0x32, "R2_max": 0x33,
+};
 var calibrate_btn = null;
-function handset_calibrate(btn, type)
+function handset_calibrate_auto_send(btn, type)
 {
     if (calibrate_btn != null) {
         return;
     }
     btn.disabled = true;
     calibrate_btn = btn;
-    websock.send("handset_calibrate=" + type);
+
+    var sendarray = new ArrayBuffer(3);
+    var view = new Uint8Array(sendarray);
+    view[0] = WSMSGID_HANDSET_CALIBRATE & 0xFF;
+    view[1] = (WSMSGID_HANDSET_CALIBRATE >> 8) & 0xFF;
+    view[2] = mapping_calibrate[type];
+    if (websock) websock.send(sendarray, { binary: true });
 }
 
-function handset_calibrate_adjust(event)
+function handset_calibrate_adjust_send(event)
 {
-    var msg = "handset_adjust_" + event.target.id + "=";
     var value = parseInt(event.target.value, 10);
     if (value < 0) {
         event.target.value = value = 0;
     } else if (value > 4095) {
         event.target.value = value = 4095;
     }
-    if (value < 0x10)
-        msg += '00';
-    else if (value < 0x100)
-        msg += '0'
-    msg += value.toString(16);
-    websock.send(msg);
+
+    var sendarray = new ArrayBuffer(5);
+    var view = new Uint8Array(sendarray);
+    view[0] = WSMSGID_HANDSET_ADJUST & 0xFF;
+    view[1] = (WSMSGID_HANDSET_ADJUST >> 8) & 0xFF;
+    view[2] = mapping_calibrate[event.target.id];
+    view[3] = event.target.value & 0xFF;
+    view[4] = (event.target.value >> 8) & 0xFF;
+    if (websock) websock.send(sendarray, { binary: true });
 }
 
-function handle_calibrate_adjust(value)
+function handset_calibrate_adjust(payload)
 {
-    var iter, type, limits;
-    var map = {
+    const mapping = {
         0 : 'L1_', 1 : 'L2_',
         2 : 'R1_', 3 : 'R2_',
     };
-    value = value.split(";");
-    for (iter = 0; iter < value.length; iter++) {
-        if (value[iter] == "") {
-            continue;
-        }
-        limits = value[iter].split(":");
-        type = map[iter];
-        $id(type + 'min').value = limits[0];
-        $id(type + 'mid').value = limits[1];
-        $id(type + 'max').value = limits[2];
+    for (const iter in mapping) {
+        const type = mapping[iter];
+        const offset = iter * 6; // 3 * 2B
+        $id(type + 'min').value = payload.getUint16(offset+0, true);
+        $id(type + 'mid').value = payload.getUint16(offset+2, true);
+        $id(type + 'max').value = payload.getUint16(offset+4, true);
     }
-
     if (calibrate_btn != null) {
         calibrate_btn.disabled = false;
         calibrate_btn = null;
@@ -553,32 +631,24 @@ function handle_calibrate_adjust(value)
     }
 }
 
-/******************** MONITORING ****************************/
-function handset_battery_value(value)
+/******************** BATTERY MONITORING *********************/
+function handset_battery_value(payload)
 {
-    var batt = $id("battery_voltage");
-    value = value.split(",");
-    if (0 < value.length) {
-        batt.innerHTML = (parseInt(value[0], 10) / 1000.).toFixed(1) + "V";
-        if (1 < value.length) {
-            $id("battery_scale").value = parseInt(value[1], 10);
-            if (2 < value.length) {
-                $id("battery_warning").value = parseInt(value[2], 10);
-            }
-        }
-    }
+    $id("battery_voltage").innerHTML =
+        (payload.getUint32(0) / 1000.).toFixed(1) + "V";
+    $id("battery_scale").value = payload.getUint8(4);
+    $id("battery_warning").value = payload.getUint8(5);
 }
 
 function handset_battery_adjust()
 {
-    var msg = "handset_battery_config=";
-    var scale = parseInt($id("battery_scale").value, 10);
-    var warn = parseInt($id("battery_warning").value, 10);
-
-    msg += scale.toString(16);
-    msg += ",";
-    msg += warn.toString(16);
-    websock.send(msg);
+    var sendarray = new ArrayBuffer(4);
+    var view = new Uint8Array(sendarray);
+    view[0] = WSMSGID_HANDSET_BATT_CONFIG & 0xFF;
+    view[1] = (WSMSGID_HANDSET_BATT_CONFIG >> 8) & 0xFF;
+    view[2] = parseInt($id("battery_scale").value, 10);
+    view[3] = parseInt($id("battery_warning").value, 10);
+    if (websock) websock.send(sendarray, { binary: true });
 }
 
 /********************* TELEMETRY *****************************/
@@ -598,104 +668,49 @@ function convert_gps_speed(speed)
 
 function convert_gps_value(val)
 {
-    val = parseInt(val, 10);
-    var GPS_DEGREES_DIVIDER = 10000000;
-    var result = (val / GPS_DEGREES_DIVIDER).toString();
+    val = parseInt(val, 10).toFixed(2);
+    const GPS_DEGREES_DIVIDER = 10000000.;
+    const result = (val / GPS_DEGREES_DIVIDER).toString();
     return result;
 }
 
-function telmetry_set(type, value)
+function handset_telemetry_link_stats(payload)
 {
-    var name, updated_value, temp;
-    var date = new Date();
-    var now = new Date(date.getTime()).toLocaleTimeString([], {hour12: false});
-    if (type.includes("_uldl")) {
-        $id("tlm_ul_updated").innerHTML = now;
-        $id("tlm_dl_updated").innerHTML = now;
-    } else if (type.includes("_batt")) {
-        $id("tlm_batt_updated").innerHTML = now;
-    } else if (type.includes("_gps")) {
-        $id("tlm_gps_updated").innerHTML = now;
-    }
-
-    /* Find correct collection */
-    //var table = $id(type);
-    value = value.split(",");
-    for (var item in value) {
-        var data = value[item].split(":");
-        /* Search row */
-        //var row = table.rows.namedItem(data[0]);
-        name = data[0];
-        updated_value = data[1];
-        if (type.includes("_uldl")) {
-            if (name.includes("R")) {
-                updated_value += " dBm";
-            } else if (name.includes("SN")) {
-                temp = parseFloat(updated_value) / 10;
-                updated_value = temp.toString() + " dB";
-            }
-        } else if (type.includes("_batt")) {
-            if (name == "V") {
-                temp = parseFloat(updated_value) / 10;
-                updated_value = temp.toString() + " V";
-            } else if (name == "A") {
-                temp = parseFloat(updated_value) / 10;
-                updated_value = temp.toString() + " A";
-            } else if (name == "C") {
-                temp = parseInt(updated_value);
-                updated_value = temp.toString() + " mAh";
-            } else if (name == "R") {
-                updated_value += " %";
-            }
-        } else if (type.includes("_gps")) {
-            if (name == "spe")
-                updated_value = convert_gps_speed(updated_value);
-            else if (name == "lat")
-                updated_value = convert_gps_value(updated_value);
-            else if (name == "lon")
-                updated_value = convert_gps_value(updated_value);
-            else if (name == "hea")
-                updated_value += " deg";
-            else if (name == "alt")
-                updated_value += " m";
-        }
-
-        var row = $id(data[0]);
-        if (row) {
-            /* update value */
-            row.cells[1].innerHTML = updated_value;
-        }
-    }
+    $id("tlm_ul_RSSI1").innerHTML = payload.nextInt8().toString() + " dBm";
+    $id("tlm_ul_RSSI2").innerHTML = payload.nextInt8().toString() + " dBm";
+    $id("tlm_ul_LQ").innerHTML = payload.nextUint8();
+    $id("tlm_ul_SNR").innerHTML = (payload.nextInt8().toFixed(1) / 10.).toString() + " dB";
+    //payload.nextUint8(); // active_antenna
+    //payload.nextUint8(); // rf_Mode
+    //payload.nextUint8(); // uplink_TX_Power
+    payload.offset_next += 3; // skip unused values
+    $id("tlm_dl_RSSI1").innerHTML = payload.nextInt8().toString() + " dBm";
+    $id("tlm_dl_LQ").innerHTML = payload.nextUint8();
+    $id("tlm_dl_SNR").innerHTML = (payload.nextInt8().toFixed(1) / 10.).toString() + " dB";
+    const now = time_current();
+    $id("tlm_ul_updated").innerHTML = now;
+    $id("tlm_dl_updated").innerHTML = now;
 }
 
-/********************* HANDSET *****************************/
-function refresh_values()
+function handset_telemetry_battery(payload)
 {
-    websock.send("handset_refresh");
+    $id("tlm_batt_V").innerHTML = (payload.nextUint16().toFixed(1) / 10.).toString() + " V";
+    $id("tlm_batt_A").innerHTML = (payload.nextUint16().toFixed(1) / 10.).toString() + " A";
+    var capacity = (payload.nextUint8() << 16) + (payload.nextUint8() << 8) + payload.nextUint8();
+    $id("tlm_batt_C").innerHTML = capacity.toString() + " mAh";
+    $id("tlm_batt_R").innerHTML = payload.nextUint8().toString() + " %";
+    $id("tlm_batt_updated").innerHTML = time_current();
 }
 
-function save_values()
+function handset_telemetry_gps(payload)
 {
-    websock.send("handset_save");
-}
-
-function handset_parse(type, value)
-{
-    console.log("HANDSET: %o = (%o)", type, value);
-    /* Find correct element */
-    if (type.includes("_calibrate")) {
-        if (calibrate_btn != null) {
-            calibrate_btn.disabled = false;
-            calibrate_btn = null;
-            $id("handset_calibrate_stat").innerHTML = 'Calibration status: "' + value + '"';
-        }
-    } else if (type.includes("_adjust")) {
-        handle_calibrate_adjust(value);
-    } else if (type.includes("_mixer")) {
-        handset_mix_reset(value);
-    } else if (type.includes("_battery")) {
-        handset_battery_value(value);
-    }
+    $id("tlm_gps_lat").innerHTML = convert_gps_value(payload.nextInt32(true));
+    $id("tlm_gps_lon").innerHTML = convert_gps_value(payload.nextInt32(true));
+    $id("tlm_gps_speed").innerHTML = convert_gps_speed(payload.nextUint16(true));
+    $id("tlm_gps_head").innerHTML = (payload.nextUint16(true).toFixed(1) / 10.).toString() + " deg";
+    $id("tlm_gps_alt").innerHTML = (payload.nextInt16(true) - 1000).toString() + " m";
+    $id("tlm_gps_sat").innerHTML = payload.nextUint8();
+    $id("tlm_gps_updated").innerHTML = time_current();
 }
 
 /********************* ESP-NOW *****************************/
@@ -710,11 +725,11 @@ function espnowclients_send() {
     }
     var sendarray = new ArrayBuffer(bytes.length + 2);
     var view = new Uint8Array(sendarray);
-    view[0] = 0x00; // Little endian 0x1100
-    view[1] = 0x11;
+    view[0] = WSMSGID_ESPNOW_ADDRS & 0xFF; // Little endian 0x1100
+    view[1] = (WSMSGID_ESPNOW_ADDRS >> 8) & 0xFF;
     for (var i = 0; i < bytes.length; i++) view[2+i] = bytes[i];
     if (websock) websock.send(sendarray, { binary: true });
-  }
+}
 
 function espnowclients_parse(value) {
     var target = $id("espnowclients");
@@ -737,10 +752,5 @@ function espnowclients_parse(value) {
 }
 
 function espnowclients_autosize(el){
-    //var el = $id("espnowclients");
-    //setTimeout(function(){
-    //    el.style.cssText = 'height:auto; padding:0';
-    //    el.style.cssText = 'height:' + el.scrollHeight + 'px';
-    //},0);
     el.rows = el.value.split('\n').length;
 }

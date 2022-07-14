@@ -53,9 +53,12 @@ legend {
 }
   </style>
   <script>
-function $id(id) { return document.getElementById(id); }
-function $class(id) { return document.getElementsByClassName(id); }
-function $name(name) { return document.getElementsByName(name); }
+const WSMSGID_ESPNOW_ADDRS = 0x1100;
+const WSMSGID_VIDEO_FREQ = 0x2400;
+const WSMSGID_RECORDING_CTRL = 0x2401;
+function $id(id) {return document.getElementById(id);}
+function $class(id) {return document.getElementsByClassName(id);}
+function $name(name) {return document.getElementsByName(name);}
 var websock = null;
 function start() {
   var _bands = $id("vtx_band")
@@ -81,66 +84,60 @@ function start() {
       const message = new DataView(evt.data);
       const msgid = message.getUint16();
       const payload = new DataView(evt.data, 2);
-      if (msgid == 0x1100) espnowclients_parse(payload);
+      if (msgid == WSMSGID_ESPNOW_ADDRS) espnowclients_parse(payload);
+      else if (msgid == WSMSGID_VIDEO_FREQ) msp_vtx_freq(payload.getUint16());
+      else if (msgid == WSMSGID_RECORDING_CTRL) recording_control_received(payload);
+      else console.error("Invalid message received: " + msgid);
       return;
     }
-    var text = evt.data; // handle text message
-    if (text.startsWith("HDZ_CRTL_")) {
-      var res = text.replace("HDZ_CRTL_", "");
-      res = res.split("=");
-      setting_set(res[0], res[1]);
-    } else {
-      var logger = $id("logField");
-      const autoscroll = $id("autoscroll").checked;
-      const scrollsize = parseInt($id("scrollsize").value, 10);
-      var log_history = logger.value.split("\n");
-      while (scrollsize < log_history.length) { log_history.shift(); }
-      const date = new Date();
-      const logtime = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString();
-      log_history.push(logtime + ' ' + text);
-      logger.value = log_history.join('\n');
-      if (autoscroll) logger.scrollTop = logger.scrollHeight;
-    }
+    const text = evt.data; // handle text message
+    if (!text) return;
+    const logger = $id("logField");
+    const scrollsize = parseInt($id("scrollsize").value, 10);
+    var log_history = logger.value.split("\n");
+    while (scrollsize < log_history.length) { log_history.shift(); }
+    const date = new Date();
+    const logtime = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString();
+    log_history.push(logtime + ' ' + text);
+    logger.value = log_history.join('\n');
+    if ($id("autoscroll").checked) logger.scrollTop = logger.scrollHeight;
   };
 }
-
-function setting_set(type, value) {
-  if (type == "vtx_freq") {
-    vtx_parse_freq(value);
-  } else if (type == "espnowclients") {
-    espnowclients_parse(value);
-  } else { console.log("Unknown command: %s = %s", type, value); }
-}
-
-function setting_send(type, elem = null) {
+function message_send_str(type, value) {
   if (!websock) return;
-  if (elem) websock.send(type + "=" + elem.value);
-  else websock.send(type + "?");
+  websock.send(type + "=" + value);
 }
-
-// Channels with their MHz Values
+function message_send_binary(msg_id, bytes=[]) {
+  var sendarray = new ArrayBuffer(2 + bytes.length);
+  var view = new Uint8Array(sendarray);
+  view[0] = msg_id & 0xFF;
+  view[1] = (msg_id >> 8) & 0xFF;
+  for (var iter = 0; iter < bytes.length; iter++)
+    view[2+iter] = bytes[iter];
+  if (websock) websock.send(sendarray, { binary: true });
+}
+/********************* RECORDING *************************/
+function recording_control_send(btn) {
+  var start;
+  console.log(btn.innerHTML);
+  if (btn.innerHTML == "START") {
+    btn.innerHTML = "STOP";
+    start = true;
+  } else {
+    btn.innerHTML = "START";
+    start = false;
+  }
+  message_send_binary(WSMSGID_RECORDING_CTRL, [start]);
+}
+function recording_control_received(payload) {
+  $id("recording_state").innerHTML = payload.getUint8() ? "STOP" : "START";
+}
+/********************* VTX *******************************/
+// HDZero supported bands and channels
 const channelFreqTable = {
   "F": [  -1, 5760,   -1, 5800,   -1,   -1,   -1,   -1], // F / Airwave
   "R": [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917], // R / Immersion Raceband
 };
-var vtx_last_band = "-";
-function vtx_band_changed(band) {
-  if (band != vtx_last_band) {
-    var channels = $id("vtx_channel");
-    while (channels.length > 1) {channels.remove(channels.length - 1);}
-    var options = [];
-    if (band == "F") options = [2, 4];
-    else if (band == "R") options = [1, 2, 3, 4, 5, 6, 7, 8];
-    for (i = 0; i < options.length; i++) {
-      var option = document.createElement("option");
-      option.text = options[i];
-      option.value = options[i] - 1;
-      channels.add(option);
-    }
-    $id("vtx_channel").value = "";
-  }
-  vtx_show_freq();
-}
 function vtx_show_freq() {
   const band = $id("vtx_band").value;
   const ch = $id("vtx_channel").value;
@@ -153,39 +150,55 @@ function vtx_show_freq() {
   $id("vtx_freq").innerHTML = "" + freq + " MHz";
   $id("vtx_send_btn").disabled = !(0 < freq);
 }
-function vtx_parse_freq(freq) {
-  freq = parseInt(freq, 10);
-  if (0 < freq) {
-    for (const band in channelFreqTable) {
-      const channels = channelFreqTable[band];
-      for (const ch in channels) {
-        if (freq == channels[ch]) {
-          $id("vtx_band").value = band;
-          vtx_band_changed(band);
-          $id("vtx_channel").value = ch;
-          var _freq = "";
-          _freq += freq;
-          _freq += " MHz";
-          $id("vtx_freq").innerHTML = _freq;
-          $id("vtx_send_btn").disabled = false;
-          return;
-        }
+var vtx_last_band = "-";
+function vtx_band_changed(band) {
+  if (band != vtx_last_band) {
+    vtx_last_band = band;
+    $id("vtx_band").value = band;
+    var channels = $id("vtx_channel");
+    while (channels.length > 1) {channels.remove(channels.length - 1);}
+    var available = [];
+    channelFreqTable[band].filter(function(elem, index, array){if(0 <= elem) available.push(index);});
+    for (const chval of available) {
+      var option = document.createElement("option");
+      option.text = chval + 1;
+      option.value = chval;
+      channels.add(option);
+    }
+    $id("vtx_channel").value = "";
+  }
+  vtx_show_freq();
+}
+function msp_vtx_freq(freq) {
+  $id("vtx_send_btn").disabled = true;
+  if (freq == 0) {
+    // Clear selections
+    $id("vtx_band").value = "";
+    $id("vtx_channel").value = "";
+    $id("vtx_freq").innerHTML = "";
+    return;
+  }
+  for (const band in channelFreqTable) {
+    const channels = channelFreqTable[band];
+    for (const ch in channels) {
+      if (freq == channels[ch]) {
+        vtx_band_changed(band);
+        $id("vtx_channel").value = ch;
+        $id("vtx_freq").innerHTML = "" + freq + " MHz";
+        return;
       }
     }
   }
-  // Clear selections
-  $id("vtx_band").value = "";
-  $id("vtx_channel").value = "";
-  $id("vtx_freq").innerHTML = "";
-  $id("vtx_send_btn").disabled = true;
 }
-function setting_send_vtx() {
-  var band = $id("vtx_band").value;
-  var ch = $id("vtx_channel").value;
+function msp_vtx_freq_send() {
+  const band = $id("vtx_band").value;
+  const ch = $id("vtx_channel").value;
   if (band == "" || ch == "") return;
-  var freq = channelFreqTable[band][parseInt(ch, 10)];
-  if (websock && freq && 0 < freq) websock.send("SET_vtx_freq=" + freq);
+  const freq = channelFreqTable[band][parseInt(ch, 10)];
+  const payload = [freq & 0xff, (freq >> 8) & 0xff];
+  if (websock && freq && 0 < freq) message_send_binary(WSMSGID_VIDEO_FREQ, payload);
 }
+/********************* ESP-NOW ***************************/
 function espnowclients_send() {
   const clients = $id("espnowclients").value.split("\n");
   var bytes = [];
@@ -195,12 +208,7 @@ function espnowclients_send() {
     if (mac.length != 6) { console.error("Invalid MAC address: %s", client); return; }
     mac.forEach(element => { bytes.push(element); });
   }
-  var sendarray = new ArrayBuffer(bytes.length + 2);
-  var view = new Uint8Array(sendarray);
-  view[0] = 0x00; // Little endian 0x1100
-  view[1] = 0x11;
-  for (var i = 0; i < bytes.length; i++) view[2+i] = bytes[i];
-  if (websock) websock.send(sendarray, { binary: true });
+  message_send_binary(WSMSGID_ESPNOW_ADDRS, bytes);
 }
 function espnowclients_parse(value) {
   var target = $id("espnowclients");
@@ -242,19 +250,22 @@ function espnowclients_autosize(el){
         <td width="130">
           <label for="btx_ch">Channel:</label>
           <select id="vtx_channel" name="btx_ch" onchange="vtx_show_freq()">
-            <option value="" selected disabled hidden></option>
+            <option value="" selected disabled hidden>Select channel</option>
           </select>
         </td>
         <td width="120">
           <div id="vtx_freq" style="width: 100px;"></div>
         </td>
-        <td><button onclick="setting_send_vtx()" id="vtx_send_btn" disabled>SET</button></td>
+        <td><button onclick="msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button></td>
       </tr>
     </table>
   </fieldset>
+  <fieldset><legend>Recording</legend>
+    <button id="recording_state" onclick="recording_control_send(this)">START</button>
+  </fieldset>
   <fieldset><legend>Debug</legend>
     <label for="osdtext">OSD text[32]:</label>
-    <input type="text" id="osd_text" name="osdtext" onchange="setting_send('SET_text', this)" maxlength="32"
+    <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32"
       style="width: 320px;"><br>
   </fieldset>
   <fieldset><legend>Firmware Upgrade</legend>

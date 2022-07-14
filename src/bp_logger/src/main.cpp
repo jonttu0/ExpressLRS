@@ -74,6 +74,13 @@ static const char target_name[] = STR(TARGET_NAME);
 String wifi_log = "";
 #endif
 
+enum {
+    WSMSGID_ESPNOW_ADDRS = WSMSGID_BASE_ESPNOW,
+
+    // STM32 control messages
+    WSMSGID_STM32_RESET = WSMSGID_BASE_STM32,
+};
+
 
 /*************************************************************************/
 
@@ -188,8 +195,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
             if (eeprom_storage.espnow_initialized == LOGGER_ESPNOW_INIT_KEY) {
                 uint8_t const size = eeprom_storage.espnow_clients_count * 6;
                 uint8_t buffer[size + 2];
-                buffer[0] = 0x11;
-                buffer[1] = 0x00;
+                buffer[0] = (uint8_t)(WSMSGID_ESPNOW_ADDRS >> 8);
+                buffer[1] = (uint8_t)(WSMSGID_ESPNOW_ADDRS);
                 memcpy(&buffer[2], eeprom_storage.espnow_clients, size);
                 websocket_send(buffer, sizeof(buffer), num);
             }
@@ -199,19 +206,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
         }
 
         case WStype_TEXT: {
-#if CONFIG_STM_UPDATER
-            char * temp = strstr((char*)payload, "stm32_cmd=");
-            if (temp) {
-                // Command STM32
-                if (strstr((char*)&temp[10], "reset")) {
-                    // Reset STM32
-                    reset_stm32_to_app_mode();
-                }
-            } else
-#endif // CONFIG_STM_UPDATER
-            {
-                msp_handler.parse_command((char*)payload, length, num);
-            }
+            msp_handler.parse_command((char*)payload, length, num);
             break;
         }
 
@@ -221,17 +216,26 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
             // echo data back to browser
             //webSocket.sendBIN(num, payload, length);
             websoc_bin_hdr_t const * const header = (websoc_bin_hdr_t*)payload;
-            switch (header->msg_id) {
-                case 0x1100:
-                    // ESP-Now client list
-                    espnow_update_clients(header->payload, length - sizeof(header->msg_id));
-                    websocket_send(espnow_get_info(), num);
-                    break;
-                default:
-                    String error = "Unknown bin message: 0x";
-                    error += String(header->msg_id, HEX);
-                    websocket_send(error, num);
-                    break;
+            length -= sizeof(header->msg_id);
+
+            // ====================== ESP-NOW COMMANDS ==============
+            if (WSMSGID_ESPNOW_ADDRS == header->msg_id) {
+                // ESP-Now client list
+                espnow_update_clients(header->payload, length);
+                websocket_send(espnow_get_info(), num);
+
+            // ====================== STM COMMANDS ==================
+#if CONFIG_STM_UPDATER
+            } else if (WSMSGID_STM32_RESET == header->msg_id) {
+                // STM reset
+                reset_stm32_to_app_mode();
+#endif // CONFIG_STM_UPDATER
+
+            // ====================== DEFAULT =======================
+            } else if (msp_handler.parse_command(header, length, num) < 0) {
+                String error = "Invalid message: 0x";
+                error += String(header->msg_id, HEX);
+                websocket_send(error, num);
             }
             break;
         }

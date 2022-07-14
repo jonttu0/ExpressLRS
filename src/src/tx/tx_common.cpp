@@ -525,10 +525,10 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
 
     switch (cmd)
     {
-        case 0: // send all params
+        case ELRS_CMD_GET: // send all params
             break;
 
-        case 1:
+        case ELRS_CMD_RATE:
             if (inlen != 2)
                 return -1;
 
@@ -537,14 +537,14 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
                 modified |= (SetRFLinkRate(value) << 1);
             break;
 
-        case 2:
+        case ELRS_CMD_TLM:
             // set TLM interval
             if (inlen != 2)
                 return -1;
             modified = (tx_tlm_change_interval(value) << 2);
             break;
 
-        case 3:
+        case ELRS_CMD_POWER:
             // set TX power
             if (inlen != 2)
                 return -1;
@@ -554,7 +554,7 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
             modified = (modified != PowerMgmt.currPower()) ? (1 << 3) : 0;
             break;
 
-        case 4:
+        case ELRS_CMD_DOMAIN:
             // RFFreq
             if (inlen != 2)
                 return -1;
@@ -564,13 +564,13 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
             }
             break;
 
-        case 5:
+        case ELRS_CMD_WIFI_START:
             // Start WiFi
             platform_radio_force_stop();
             platform_wifi_start();
             break;
 
-        case 6:
+        case ELRS_CMD_RF_POWER_TEST:
             // RF power (TEST feature!)
             if (inlen != 2)
                 return -1;

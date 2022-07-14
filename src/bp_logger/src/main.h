@@ -23,3 +23,21 @@ typedef struct {
     uint16_t msg_id;
     uint8_t  payload[];
 } websoc_bin_hdr_t;
+
+enum {
+    WSMSGID_ERROR_IND        = 0xCAFE,
+    WSMSGID_BASE_ESPNOW      = 0x1100,
+    WSMSGID_BASE_STM32       = 0x1200,
+    WSMSGID_BASE_ELRS        = 0x2200,
+    WSMSGID_BASE_TELEMETRY   = 0x2280,
+    WSMSGID_BASE_HANDSET     = 0x2300,
+    WSMSGID_BASE_HANDSET_TLM = 0x2380,
+    WSMSGID_BASE_MSP         = 0x2400,
+};
+
+/* Generic message identifiers */
+enum {
+    // MSP messages
+    WSMSGID_VIDEO_FREQ = WSMSGID_BASE_MSP,
+    WSMSGID_RECORDING_CTRL,
+};

@@ -6,9 +6,6 @@
 #include "buzzer.h"
 
 
-#define MSP_SAVE_DELAY_MS   100
-#define MSP_DEBUG_RX        0
-
 /*
 *  Get band/channel index  0x0300
 *  Set band/channel index  0x0301
@@ -43,16 +40,15 @@ void HDZeroMsp::init(void)
 {
     _handler.markPacketFree();
     /* Reset values */
-
-    // delay until client is ready
-    //delay(7000);
+    init_called_ms = millis();
+    init_state = STATE_GET_FREQ;
 }
 
 
 void HDZeroMsp::syncSettings(int const num)
 {
     // Send settings
-
+    sendVtxFrequencyToWebsocket(eeprom_storage.vtx_freq);
 }
 
 
@@ -65,6 +61,30 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
                 msp_in.type != MSP_PACKET_V2_RESPONSE) {
             info = "MSP received: error func: ";
             info += msp_in.function;
+
+        } else if (msp_in.function == HDZ_MSP_FUNC_FREQUENCY_GET) {
+            uint16_t freq = msp_in.payload[0] + ((uint16_t)msp_in.payload[1] << 8);
+            info = "Frequency received: ";
+            info += freq;
+
+            // TODO, FIXME: Do something with the current frequency!
+            if (eeprom_storage.vtx_freq != freq) {
+                eeprom_storage.vtx_freq = freq;
+                eeprom_storage.markDirty();
+                sendVtxFrequencyToWebsocket(freq);
+            }
+
+            if (init_state != STATE_READY)
+                init_state = STATE_GET_RECORDING;
+
+        } else if (msp_in.function == HDZ_MSP_FUNC_RECORDING_STATE_GET) {
+            info = "Recording state received: ";
+            info += msp_in.payload[0] ? "ON" : "OFF";
+
+            sendVRecordingStateToWebsocket(msp_in.payload[0]);
+
+            if (init_state != STATE_READY)
+                init_state = STATE_READY;
         }
 
         if (info.length()) {
@@ -90,12 +110,31 @@ int HDZeroMsp::parse_command(char * cmd, size_t len, int const num)
         handleUserText(&temp[9], (len - 9));
         return 0;
     }
-    temp = strstr(cmd, "SET_vtx_freq");
-    if (temp) {
-        handleVtxFrequency(&temp[12], num);
-        return 0;
-    }
     return -1;
+}
+
+
+int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, int const num)
+{
+    if (!len) {
+        String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
+        websocket_send(settings_out, num);
+    }
+
+    switch (cmd->msg_id) {
+        case WSMSGID_VIDEO_FREQ: {
+            uint16_t const freq = ((uint16_t)cmd->payload[1] << 8) + cmd->payload[0];
+            handleVtxFrequency(freq, num);
+            break;
+        }
+        case WSMSGID_RECORDING_CTRL: {
+
+            break;
+        }
+        default:
+            return -1;
+    }
+    return 0;
 }
 
 
@@ -111,6 +150,20 @@ int HDZeroMsp::handle_received_msp(mspPacket_t &msp_in)
                 HDZ_MSP_FUNC_OSD_ELEMENT_SET == msp_in.function) {
             /* Return -1 to get packet written to HDZero VRX */
             return -1;
+        } else if (msp_in.function == MSP_VTX_SET_CONFIG) {
+            uint16_t freq = msp_in.payload[1];
+            freq <<= 8;
+            freq += msp_in.payload[0];
+            if (3 <= msp_in.payloadSize) {
+                // power
+            }
+            if (4 <= msp_in.payloadSize) {
+                // pitmode
+            }
+            /* Pass command to HDZero */
+            handleVtxFrequency(freq, -1, false);
+            /* Infrom web clients */
+            sendVtxFrequencyToWebsocket(freq);
         }
     }
     /* Return 0 to ignore packet */
@@ -120,8 +173,36 @@ int HDZeroMsp::handle_received_msp(mspPacket_t &msp_in)
 
 void HDZeroMsp::loop(void)
 {
+    uint32_t const now = millis();
+    if (init_state != STATE_READY && 500 <= (int32_t)(now - init_called_ms)) {
+        init_called_ms = now;
+        switch (init_state) {
+            case STATE_GET_FREQ:
+                getFrequency();
+                break;
+            case STATE_GET_RECORDING:
+                getRecordingState();
+                break;
+            case STATE_READY:
+            default:
+                break;
+        };
+    }
 }
 
+void HDZeroMsp::MspWrite(uint8_t const * const buff, uint16_t const len, uint16_t const function)
+{
+    // Fill MSP packet
+    msp_out.reset();
+    msp_out.type = MSP_PACKET_V2_COMMAND;
+    msp_out.flags = 0;
+    msp_out.function = function;
+    msp_out.payloadSize = (!buff) ? 0 : len;
+    if (buff && len)
+        memcpy((void*)msp_out.payload, buff, len);
+    // Send packet to HDZero
+    MSP::sendPacket(&msp_out, _serial);
+}
 
 void HDZeroMsp::handleUserText(const char * input, size_t const len)
 {
@@ -129,7 +210,6 @@ void HDZeroMsp::handleUserText(const char * input, size_t const len)
         return;
 
     // Write to HDZ VRX
-    mspPacket_t msp_out;
     msp_out.reset();
     msp_out.type = MSP_PACKET_V2_COMMAND;
     msp_out.flags = 0;
@@ -143,47 +223,80 @@ void HDZeroMsp::handleUserText(const char * input, size_t const len)
     memcpy(&msp_out.payload[4], input, len);
     MSP::sendPacket(&msp_out, _serial);
 
-    websocket_send("OSD Text: ");
-    websocket_send(input);
+    String dbg_info = "OSD Text: '";
+    dbg_info += input;
+    dbg_info += "'";
+    websocket_send(dbg_info);
 }
 
 
-void HDZeroMsp::handleVtxFrequency(const char * input, int num)
+void HDZeroMsp::handleVtxFrequency(uint16_t const freq, int const num, bool const espnow)
 {
-    String settings_out = "[ERROR] invalid command";
-    uint16_t freq;
+    String dbg_info = "Setting vtx freq to: ";
+    dbg_info += freq;
+    dbg_info += "MHz";
 
-    if (input == NULL || *input == '?') {
-        settings_out = "HDZ_CRTL_vtx_freq=";
-        settings_out += eeprom_storage.vtx_freq;
-    } else if (input[0] == '=') {
-        settings_out = "Setting vtx freq to: ";
+    if (freq == 0)
+        return;
 
-        freq = (input[1] - '0');
-        freq = freq*10 + (input[2] - '0');
-        freq = freq*10 + (input[3] - '0');
-        freq = freq*10 + (input[4] - '0');
+    eeprom_storage.vtx_freq = freq;
+    eeprom_storage.markDirty();
 
-        if (freq == 0)
-            return;
+    // Send to HDZero
+    uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
+    //payload[2] = power;
+    //payload[3] = (power == 0); // pit mode
+    MspWrite(payload, sizeof(payload), HDZ_MSP_FUNC_FREQUENCY_SET);
 
-        settings_out += freq;
-        settings_out += "MHz";
-
-        // Send to VRX
-        mspPacket_t msp_out;
-        msp_out.reset();
-        msp_out.type = MSP_PACKET_V2_COMMAND;
-        msp_out.flags = 0;
-        msp_out.function = HDZ_MSP_FUNC_FREQUENCY_SET;
-        msp_out.payloadSize = 2; // 4 => 2, power and pitmode can be ignored
-        msp_out.payload[0] = (freq & 0xff);
-        msp_out.payload[1] = (freq >> 8);
-        MSP::sendPacket(&msp_out, _serial);
-
-        // Send to other esp-now clients
+    // Send to other esp-now clients
+    if (espnow) {
         msp_out.function = MSP_VTX_SET_CONFIG;
         espnow_send_msp(msp_out);
     }
-    websocket_send(settings_out, num);
+
+    websocket_send(dbg_info, num);
+}
+
+
+void HDZeroMsp::handleRecordingState(uint8_t const start)
+{
+    uint16_t const delay_s = 1;
+    // Send to HDZero
+    uint8_t payload[] = {start, (uint8_t)(delay_s & 0xff), (uint8_t)(delay_s >> 8)};
+    MspWrite(payload, sizeof(payload), HDZ_MSP_FUNC_RECORDING_STATE_SET);
+}
+
+
+void HDZeroMsp::sendVtxFrequencyToWebsocket(uint16_t const freq)
+{
+    uint8_t response[] = {
+        (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
+        (uint8_t)WSMSGID_VIDEO_FREQ,
+        (uint8_t)(freq >> 8),
+        (uint8_t)freq,
+    };
+    websocket_send(response, sizeof(response));
+}
+
+
+void HDZeroMsp::sendVRecordingStateToWebsocket(uint8_t const state)
+{
+    uint8_t response[] = {
+        (uint8_t)(WSMSGID_RECORDING_CTRL >> 8),
+        (uint8_t)WSMSGID_RECORDING_CTRL,
+        state,
+    };
+    websocket_send(response, sizeof(response));
+}
+
+
+void HDZeroMsp::getFrequency(void)
+{
+    MspWrite(NULL, 0, HDZ_MSP_FUNC_FREQUENCY_GET);
+}
+
+
+void HDZeroMsp::getRecordingState(void)
+{
+    MspWrite(NULL, 0, HDZ_MSP_FUNC_RECORDING_STATE_GET);
 }

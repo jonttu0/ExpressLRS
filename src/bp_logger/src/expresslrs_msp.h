@@ -2,6 +2,7 @@
 
 #include "platform.h"
 #include "msp.h"
+#include "main.h"
 #include <stdint.h>
 
 
@@ -17,6 +18,7 @@ public:
 
     int parse_data(uint8_t const chr);
     int parse_command(char * cmd, size_t len, int num);
+    int parse_command(websoc_bin_hdr_t const * const cmd, size_t len, int num);
 
     int handle_received_msp(mspPacket_t &msp_in);
 
@@ -46,23 +48,21 @@ private:
     uint8_t handset_adjust_ok;
 #endif
 
+    int send_current_values(int const ws_num = -1);
+
     void SettingsWrite(uint8_t * buff, uint8_t len);
-    void handleSettingRate(const char * input, int num = -1);
-    void handleSettingPower(const char * input, int num = -1);
-    void handleSettingTlm(const char * input, int num = -1);
-    void handleSettingRfPwr(const char * input, int num = -1);
-    void handleSettingRfModule(const char * input, int num = -1);
-    void handleSettingDomain(const char * input, int num = -1);
-    void SettingsGet(uint8_t wsnum);
-    void handleVtxFrequency(const char * input, int num = -1);
+    void MspWrite(uint8_t * buff, uint8_t len, uint8_t function);
+
+    void handleVtxFrequency(uint16_t freq, int num = -1);
     void sendVtxFrequencyToSerial(uint16_t freq);
+    void sendVtxFrequencyToWebsocket(uint16_t freq);
 
 #if CONFIG_HANDSET
-    void handleHandsetCalibrate(const char * input);
+    void handleHandsetCalibrate(uint8_t const * const input);
     void handleHandsetCalibrateResp(uint8_t * data, int num = -1);
-    void handleHandsetMixer(const char * input, size_t length);
+    void handleHandsetMixer(uint8_t const * const input, size_t length);
     void handleHandsetMixerResp(uint8_t * data, int num = -1);
-    void handleHandsetAdjust(const char * input);
+    void handleHandsetAdjust(uint8_t const * const input);
     void handleHandsetAdjustResp(uint8_t * data, int num = -1);
     void HandsetConfigGet(uint8_t wsnum, uint8_t force = 0);
     void HandsetConfigSave(uint8_t wsnum);
@@ -71,7 +71,7 @@ private:
     void handleHandsetTlmGps(uint8_t * data);
 
     void battery_voltage_report(int num = -1);
-    void battery_voltage_parse(const char * input, int num = -1);
+    void battery_voltage_parse(uint8_t scale, uint8_t warning, int num = -1);
     void batt_voltage_init(void);
     void batt_voltage_measure(void);
 #endif

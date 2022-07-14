@@ -484,7 +484,7 @@ uint16_t FAST_CODE_1 RcChannels_channelMaxValueGet(void)
 void FAST_CODE_1
 RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
 {
-    uint16_t const * const ChannelDataIn = &rcChannels->ch[N_CONTROLS];
+    uint16_t const * const ChannelDataIn = &rcChannels->aux[0];
     uint_fast8_t switch_state, idx;
 
     /**
@@ -511,8 +511,8 @@ RcChannels_processChannels(rc_channels_handset_t const *const rcChannels)
         }
     }
 
-    channels_pack(rcChannels->ch[0], rcChannels->ch[1],
-                  rcChannels->ch[2], rcChannels->ch[3]);
+    channels_pack(rcChannels->gimbal[0], rcChannels->gimbal[1],
+                  rcChannels->gimbal[2], rcChannels->gimbal[3]);
 }
 #endif
 

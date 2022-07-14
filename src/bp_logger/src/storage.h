@@ -13,9 +13,9 @@ typedef struct {
 
 struct storage {
     uint32_t versionNumber;
-    uint32_t batt_voltage_scale;
+    uint32_t batt_voltage_scale;    // range 50...150
     uint32_t batt_voltage_interval;
-    uint32_t batt_voltage_warning;
+    uint32_t batt_voltage_warning;  // range 10...100
 
     uint16_t vtx_freq;
 

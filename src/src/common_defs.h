@@ -36,3 +36,13 @@ struct mixer {
     uint8_t inv;
     uint8_t scale;
 };
+
+enum {
+    ELRS_CMD_GET = 0,
+    ELRS_CMD_RATE,
+    ELRS_CMD_TLM,
+    ELRS_CMD_POWER,
+    ELRS_CMD_DOMAIN, // RF Freq
+    ELRS_CMD_WIFI_START,
+    ELRS_CMD_RF_POWER_TEST,
+};

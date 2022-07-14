@@ -94,12 +94,12 @@
               RF mode
             </td>
             <td>
-              <select name="rf_module" onchange="setting_send('S_rf_module', this)" id="rf_module" disabled>
+              <select name="rf_module" onchange="rf_module_changed(this)" id="rf_module" disabled>
                 <option value="" selected disabled hidden></option>
-                <option value="0"> 900 (SX127x)</option>
-                <option value="3">2400 (SX128x)</option>
-                <option value="5">2400 (SX128x FLRC)</option>
-                <option value="6">2400 (SX128x VANILLA)</option>
+                <option value=0> 900 (SX127x)</option>
+                <option value=3>2400 (SX128x)</option>
+                <option value=5>2400 (SX128x FLRC)</option>
+                <option value=6>2400 (SX128x VANILLA)</option>
               </select>
             </td>
             <td id="region_domain">-</td>
@@ -109,7 +109,7 @@
               Packet Rate
             </td>
             <td colspan="2">
-              <select name="rate" onchange="setting_send('S_rate', this)" id="rates_input" disabled>
+              <select name="rate" onchange="message_send(this)" id="rates_input" disabled>
                 <option value="" selected disabled hidden></option>
               </select>
             </td>
@@ -119,18 +119,18 @@
               TX Power
             </td>
             <td colspan="2">
-              <select name="power" onchange="setting_send('S_power', this)" id="power_input" disabled>
+              <select name="power" onchange="message_send(this)" id="power_input" disabled>
                 <option value="" selected disabled hidden></option>
-                <option value="R">Reset</option>
-                <option value="0">Dynamic</option>
-                <option value="1">10mW</option>
-                <option value="2">25mW</option>
-                <option value="3">50mW</option>
-                <option value="4">100mW</option>
-                <option value="5">250mW</option>
-                <option value="6">500mW</option>
-                <option value="7">1000mW</option>
-                <option value="8">2000mW</option>
+                <option value=255>Reset</option>
+                <option value=0>Dynamic</option>
+                <option value=1>10mW</option>
+                <option value=2>25mW</option>
+                <option value=3>50mW</option>
+                <option value=4>100mW</option>
+                <option value=5>250mW</option>
+                <option value=6>500mW</option>
+                <option value=7>1000mW</option>
+                <option value=8>2000mW</option>
               </select>
             </td>
           </tr>
@@ -139,17 +139,17 @@
               Telemetry Ratio
             </td>
             <td colspan="2">
-              <select name="telemetry" onchange="setting_send('S_telemetry', this)" id="tlm_input" disabled>
+              <select name="telemetry" onchange="message_send(this)" id="tlm_input" disabled>
                 <option value="" selected disabled hidden></option>
-                <option value="R">Reset</option>
-                <option value="0">Off</option>
-                <option value="1">1/128</option>
-                <option value="2">1/64</option>
-                <option value="3">1/32</option>
-                <option value="4">1/16</option>
-                <option value="5">1/8</option>
-                <option value="6">1/4</option>
-                <option value="7">1/2</option>
+                <option value=255>Reset</option>
+                <option value=0>Off</option>
+                <option value=1>1/128</option>
+                <option value=2>1/64</option>
+                <option value=3>1/32</option>
+                <option value=4>1/16</option>
+                <option value=5>1/8</option>
+                <option value=6>1/4</option>
+                <option value=7>1/2</option>
               </select>
             </td>
           </tr>
@@ -159,23 +159,23 @@
               RF PWR
             </td>
             <td colspan="2">
-              <select name="rf_pwr" onchange="setting_send('S_rf_pwr', this)" id="rf_pwr">
-                <option value="0">0</option>
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-                <option value="6">6</option>
-                <option value="7">7</option>
-                <option value="8">8</option>
-                <option value="9">9</option>
-                <option value="A">10</option>
-                <option value="B">11</option>
-                <option value="C">12</option>
-                <option value="D">13</option>
-                <option value="E">14</option>
-                <option value="F">15</option>
+              <select name="rf_pwr" onchange="message_send(this)" id="rf_pwr">
+                <option value=0>0</option>
+                <option value=1>1</option>
+                <option value=2>2</option>
+                <option value=3>3</option>
+                <option value=4>4</option>
+                <option value=5>5</option>
+                <option value=6>6</option>
+                <option value=7>7</option>
+                <option value=8>8</option>
+                <option value=9>9</option>
+                <option value=10>10</option>
+                <option value=11>11</option>
+                <option value=12>12</option>
+                <option value=13>13</option>
+                <option value=14>14</option>
+                <option value=15>15</option>
               </select>
             </td>
             -->
@@ -204,23 +204,8 @@
               <div id="vtx_freq" style="width: 100px;"></div>
             </td>
             <td>
-              <button onclick="setting_send_vtx()" id="vtx_send_btn" disabled>SET</button>
+              <button onclick="msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button>
             </td>
-          </tr>
-          <tr>
-            <!--
-            <td>
-              Power
-            </td>
-            <td>
-              <select name="vtx_pwr" onchange="setting_send('S_vtx_pwr', this)" id="vtx_p_input">
-                <option value="0">Pit</option>
-                <option value="1">0</option>
-                <option value="2">1</option>
-                <option value="3">2</option>
-              </select>
-            </td>
-            -->
           </tr>
         </table>
       </fieldset>
@@ -335,7 +320,7 @@
         </table>
         <div style="padding: 10px; text-align: right;">
           <br/>
-          <button style="width: 100px;" onclick="mixer_send()">SET</button>
+          <button style="width: 100px;" onclick="handset_mixer_send()">SET</button>
         </div>
       </fieldset>
 
@@ -355,50 +340,50 @@
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left;">LEFT, 1</td>
             <td>
-              <button onclick="handset_calibrate(this, 'L1_1')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_min" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'L1_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'L1_2')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L1_mid" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'L1_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'L1_3')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L1_max" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'L1_max')">auto</button>
+              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L1_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">LEFT, 2</td>
             <td>
-              <button onclick="handset_calibrate(this, 'L2_1')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_min" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'L2_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'L2_2')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L2_mid" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'L2_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'L2_3')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L2_max" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'L2_max')">auto</button>
+              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L2_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 1</td>
             <td>
-              <button onclick="handset_calibrate(this, 'R1_1')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_min" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'R1_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'R1_2')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R1_mid" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'R1_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'R1_3')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R1_max" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'R1_max')">auto</button>
+              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R1_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 2</td>
             <td>
-              <button onclick="handset_calibrate(this, 'R2_1')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_min" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'R2_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'R2_2')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R2_mid" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'R2_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate(this, 'R2_3')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R2_max" onchange="handset_calibrate_adjust(event);"></td>
+              <button onclick="handset_calibrate_auto_send(this, 'R2_max')">auto</button>
+              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R2_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr>
             <td id="handset_calibrate_stat" colspan="4">&nbsp;</td>
@@ -407,10 +392,10 @@
       </fieldset>
 
       <div style="padding: 10px; text-align: center;">
-        <button style="width: 100px;" onclick="refresh_values()">Refresh</button>
+        <button name="handset_reload" style="width: 100px;" onclick="message_send(this)">Refresh</button>
       </div>
       <div style="padding: 10px; text-align: center;">
-        <button style="width: 100px;" onclick="save_values()">Save</button>
+        <button name="handset_save" style="width: 100px;" onclick="message_send(this)">Save</button>
       </div>
     </div>
     <!-- HANDSET END -->
@@ -421,10 +406,10 @@
       <fieldset>
         <legend>Radiolink, Uplink</legend>
         <table class="telem" id="tlm_ul">
-          <tr id="ULQ"><td>LQ</td><td>N/A</td></tr>
-          <tr id="UR1"><td>RSSI 1</td><td>N/A</td></tr>
-          <tr id="UR2"><td>RSSI 2</td><td>N/A</td></tr>
-          <tr id="USN"><td>SNR</td><td>N/A</td></tr>
+          <tr><td>LQ</td><td id="tlm_ul_LQ">N/A</td></tr>
+          <tr><td>RSSI 1</td><td id="tlm_ul_RSSI1">N/A</td></tr>
+          <tr><td>RSSI 2</td><td id="tlm_ul_RSSI2">N/A</td></tr>
+          <tr><td>SNR</td><td id="tlm_ul_SNR">N/A</td></tr>
           <!--
           <tr id="PWR"><td>TX Power</td><td>N/A</td></tr>
           <tr id="MO"><td>Mode</td><td>N/A</td></tr>
@@ -436,9 +421,9 @@
       <fieldset>
         <legend>Radiolink, Downlink</legend>
         <table class="telem" id="tlm_dl">
-          <tr id="DLQ"><td>LQ</td><td>N/A</td></tr>
-          <tr id="DR1"><td>RSSI</td><td>N/A</td></tr>
-          <tr id="DSN"><td>SNR</td><td>N/A</td></tr>
+          <tr><td>LQ</td><td id="tlm_dl_LQ">N/A</td></tr>
+          <tr><td>RSSI</td><td id="tlm_dl_RSSI1">N/A</td></tr>
+          <tr><td>SNR</td><td id="tlm_dl_SNR">N/A</td></tr>
           <tr style="text-align: right;"><td id="tlm_dl_updated" colspan="2"></td</tr>
         </table>
       </fieldset>
@@ -446,10 +431,10 @@
       <fieldset>
         <legend>Battery</legend>
         <table class="telem" id="tlm_batt">
-          <tr id="V"><td>voltage</td><td>N/A</td></tr>
-          <tr id="A"><td>current</td><td>N/A</td></tr>
-          <tr id="C"><td>capacity</td><td>N/A</td></tr>
-          <tr id="R"><td>remaining</td><td>N/A</td></tr>
+          <tr><td>voltage</td><td id="tlm_batt_V">N/A</td></tr>
+          <tr><td>current</td><td id="tlm_batt_A">N/A</td></tr>
+          <tr><td>capacity</td><td id="tlm_batt_C">N/A</td></tr>
+          <tr><td>remaining</td><td id="tlm_batt_R">N/A</td></tr>
           <tr style="text-align: right;"><td id="tlm_batt_updated" colspan="2"></td</tr>
         </table>
       </fieldset>
@@ -457,12 +442,12 @@
       <fieldset>
         <legend>GPS</legend>
         <table class="telem" id="tlm_gps">
-          <tr id="lat"><td>latitude</td><td>N/A</td></tr>
-          <tr id="lon"><td>longitude</td><td>N/A</td></tr>
-          <tr id="spe"><td>ground speed</td><td>N/A</td></tr>
-          <tr id="hea"><td>heading</td><td>N/A</td></tr>
-          <tr id="alt"><td>altitude</td><td>N/A</td></tr>
-          <tr id="sat"><td>satellites</td><td>N/A</td></tr>
+          <tr><td>latitude</td><td id="tlm_gps_lat">N/A</td></tr>
+          <tr><td>longitude</td><td id="tlm_gps_lon">N/A</td></tr>
+          <tr><td>ground speed</td><td id="tlm_gps_speed">N/A</td></tr>
+          <tr><td>heading</td><td id="tlm_gps_head">N/A</td></tr>
+          <tr><td>altitude</td><td id="tlm_gps_alt">N/A</td></tr>
+          <tr><td>satellites</td><td id="tlm_gps_sat">N/A</td></tr>
           <tr style="text-align: right;"><td id="tlm_gps_updated" colspan="2"></td</tr>
         </table>
       </fieldset>
