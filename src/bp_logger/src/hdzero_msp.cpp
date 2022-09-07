@@ -59,11 +59,11 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
         String info = "";
         if (msp_in.type != MSP_PACKET_V2_COMMAND &&
                 msp_in.type != MSP_PACKET_V2_RESPONSE) {
-            info = "MSP received: error func: ";
+            info = "Invalid MSP received! func: ";
             info += msp_in.function;
 
         } else if (msp_in.function == HDZ_MSP_FUNC_FREQUENCY_GET) {
-            uint16_t freq = msp_in.payload[0] + ((uint16_t)msp_in.payload[1] << 8);
+            uint16_t const freq = msp_in.payload[0] + ((uint16_t)msp_in.payload[1] << 8);
             info = "Frequency received: ";
             info += freq;
 
@@ -119,6 +119,7 @@ int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const le
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
         websocket_send(settings_out, num);
+        return -1;
     }
 
     switch (cmd->msg_id) {
@@ -128,7 +129,7 @@ int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const le
             break;
         }
         case WSMSGID_RECORDING_CTRL: {
-
+            handleRecordingState(!!cmd->payload[0]);
             break;
         }
         default:
@@ -138,6 +139,7 @@ int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const le
 }
 
 
+// This is received from outside (ESP-NOW)
 int HDZeroMsp::handle_received_msp(mspPacket_t &msp_in)
 {
     /* Just validate the packet and let the espnow handler to forward it */
@@ -239,8 +241,10 @@ void HDZeroMsp::handleVtxFrequency(uint16_t const freq, int const num, bool cons
     if (freq == 0)
         return;
 
-    eeprom_storage.vtx_freq = freq;
-    eeprom_storage.markDirty();
+    if (eeprom_storage.vtx_freq != freq) {
+        eeprom_storage.vtx_freq = freq;
+        eeprom_storage.markDirty();
+    }
 
     // Send to HDZero
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
@@ -264,6 +268,7 @@ void HDZeroMsp::handleRecordingState(uint8_t const start)
     // Send to HDZero
     uint8_t payload[] = {start, (uint8_t)(delay_s & 0xff), (uint8_t)(delay_s >> 8)};
     MspWrite(payload, sizeof(payload), HDZ_MSP_FUNC_RECORDING_STATE_SET);
+    sendVRecordingStateToWebsocket(start);
 }
 
 

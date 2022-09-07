@@ -117,8 +117,10 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq)
     if (freq == 0)
         return;
 
-    eeprom_storage.vtx_freq = freq;
-    eeprom_storage.markDirty();
+    if (eeprom_storage.vtx_freq != freq) {
+        eeprom_storage.vtx_freq = freq;
+        eeprom_storage.markDirty();
+    }
 
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     //payload[2] = power;
@@ -406,15 +408,15 @@ void ExpresslrsMsp::battery_voltage_report(int num)
 
 void ExpresslrsMsp::battery_voltage_parse(uint8_t const scale, uint8_t const warning, int num)
 {
-    if (50 <= scale && scale <= 150) {
+    if (50 <= scale && scale <= 150 && eeprom_storage.batt_voltage_scale != scale) {
         eeprom_storage.batt_voltage_scale = scale;
         eeprom_storage.markDirty();
     }
-    if (10 <= scale && scale <= 100) {
-        eeprom_storage.batt_voltage_warning = scale;
+    if (10 <= warning && warning <= 100 && eeprom_storage.batt_voltage_warning != warning) {
+        eeprom_storage.batt_voltage_warning = warning;
         eeprom_storage.markDirty();
 
-        batt_voltage_warning_limit = ((scale * BATT_NOMINAL_mV) / 100);
+        batt_voltage_warning_limit = ((warning * BATT_NOMINAL_mV) / 100);
     }
 }
 

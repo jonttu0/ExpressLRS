@@ -47,6 +47,8 @@ legend {
   font-size: 18px; font-weight: bold;
   padding: 2px 4px;
 }
+.green{background-color: green;}
+.red{background-color: red;}
   </style>
   <script>
 const WSMSGID_ESPNOW_ADDRS = 0x1100;
@@ -55,6 +57,8 @@ const WSMSGID_RECORDING_CTRL = 0x2401;
 function $id(id) {return document.getElementById(id);}
 function $class(id) {return document.getElementsByClassName(id);}
 function $name(name) {return document.getElementsByName(name);}
+function $class_add(obj, type) {if(obj) obj.classList.add(type);}
+function $class_del(obj, type) {if(obj) obj.classList.remove(type);}
 var websock = null;
 function start() {
   var _bands = $id("vtx_band")
@@ -115,7 +119,6 @@ function message_send_binary(msg_id, bytes=[]) {
 /********************* RECORDING *************************/
 function recording_control_send(btn) {
   var start;
-  console.log(btn.innerHTML);
   if (btn.innerHTML == "START") {
     btn.innerHTML = "STOP";
     start = true;
@@ -126,7 +129,11 @@ function recording_control_send(btn) {
   message_send_binary(WSMSGID_RECORDING_CTRL, [start]);
 }
 function recording_control_received(payload) {
-  $id("recording_state").innerHTML = payload.getUint8() ? "STOP" : "START";
+  const state = payload.getUint8();
+  const button = $id("recording_state");
+  $class_del(button, "green"); $class_del(button, "red");
+  $class_add(button, state ? "red" : "green");
+  button.innerHTML = state ? "STOP" : "START";
 }
 /********************* VTX *******************************/
 // HDZero supported bands and channels
@@ -257,25 +264,25 @@ function espnowclients_autosize(el){
     </table>
   </fieldset>
   <fieldset><legend>Recording</legend>
-    <button id="recording_state" onclick="recording_control_send(this)">START</button>
+    <button id="recording_state" class="green" onclick="recording_control_send(this)">START</button>
   </fieldset>
   <fieldset><legend>Debug</legend>
     <label for="osdtext">OSD text[32]:</label>
     <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32"
       style="width: 320px;"><br>
   </fieldset>
-  <fieldset><legend>Firmware Upgrade</legend>
+  <fieldset><legend>ESP-NOW Clients</legend><div>
+    <label for="espnowclients" class="valigntop">Add one per line</label>
+    <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
+    <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
+  </div></fieldset>
+  <fieldset><legend>Upgrade Own Firmware</legend>
     <div><form method='POST' action='/update' enctype='multipart/form-data'>
         <input type='file' accept='.bin,.bin.gz' name='backpack_fw' id="esp_fw" style="width:350px;">
         <input type='submit' value='FLASH' id='esp_submit' disabled='disabled'>
     </form></div>
     <p><span id="validationMessage" class="hide">Please, select correct firmware file!</span></p>
   </fieldset>
-  <fieldset><legend>ESP-NOW Clients</legend><div>
-    <label for="espnowclients" class="valigntop">Add one per line</label>
-    <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
-    <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
-  </div></fieldset>
   <script>
     const message = $id('validationMessage');
     $id('esp_fw').onchange = function (ev) {

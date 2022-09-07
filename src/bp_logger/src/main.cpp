@@ -8,6 +8,9 @@
 #include <WiFiManager.h>
 #endif /* WIFI_MANAGER */
 #include <ESP8266HTTPUpdateServer.h>
+#if USE_LITTLE_FS // Must be included here to make 6.1x pio happy
+#include <LittleFS.h>
+#endif
 
 #include "storage.h"
 #include "main.h"
@@ -60,7 +63,6 @@
 
 
 ESP8266WebServer server(80);
-
 WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
 

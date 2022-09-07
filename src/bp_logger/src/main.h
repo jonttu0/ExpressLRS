@@ -3,9 +3,9 @@
 #include <Arduino.h>
 
 #include <FS.h>
-#ifdef USE_LITTLE_FS
+#if USE_LITTLE_FS
 #include <LittleFS.h>
-#define FILESYSTEM LittleFS
+#define FILESYSTEM LittleFS // TODO: make LittleFS to default
 #else
 #define FILESYSTEM SPIFFS
 #endif
