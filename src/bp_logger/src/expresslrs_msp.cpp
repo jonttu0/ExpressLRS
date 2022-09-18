@@ -215,7 +215,7 @@ void ExpresslrsMsp::handleHandsetMixer(uint8_t const * const input, size_t const
 void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, int num)
 {
     uint8_t * outptr;
-    uint8_t response[2 + 4 * ARRAY_SIZE(mixer)];
+    uint8_t response[2 + 2 + 4 * ARRAY_SIZE(mixer)];
     uint8_t iter;
     if (data) {
         for (iter = 0; iter < ARRAY_SIZE(mixer); iter++) {

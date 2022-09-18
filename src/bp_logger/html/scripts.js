@@ -73,7 +73,7 @@ DataView.prototype.nextUint8 = function () {
     try {
         return this.getUint8(idx);
     } catch(e) {
-        console.error("error! nextUint8: idx: %o", idx);
+        console.error("error! nextUint8: idx: %o, buffer: %o", idx, this);
         return undefined;
     }
 };
@@ -83,7 +83,7 @@ DataView.prototype.nextInt8 = function () {
     try {
         return this.getInt8(idx);
     } catch(e) {
-        console.error("error! getInt8: idx: %o", idx);
+        console.error("error! getInt8: idx: %o, buffer: %o", idx, this);
         return undefined;
     }
 };
@@ -93,7 +93,7 @@ DataView.prototype.nextUint16 = function (little_endian=false) {
     try {
         return this.getUint16(idx, little_endian);
     } catch(e) {
-        console.error("error! nextUint16: idx: %o", idx);
+        console.error("error! nextUint16: idx: %o, buffer: %o", idx, this);
         return undefined;
     }
 };
@@ -103,7 +103,7 @@ DataView.prototype.nextInt16 = function (little_endian=false) {
     try {
         return this.getInt16(idx, little_endian);
     } catch(e) {
-        console.error("error! nextUint16: idx: %o", idx);
+        console.error("error! nextUint16: idx: %o, buffer: %o", idx, this);
         return undefined;
     }
 };
@@ -113,7 +113,7 @@ DataView.prototype.nextInt32 = function (little_endian=false) {
     try {
         return this.getInt32(idx, little_endian);
     } catch(e) {
-        console.error("error! nextInt32: idx: %o", idx);
+        console.error("error! nextInt32: idx: %o, buffer: %o", idx, this);
         return undefined;
     }
 };

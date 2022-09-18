@@ -236,7 +236,7 @@ void setup()
 void loop()
 {
     uint8_t _tlm_updated = read_u8(&tlm_updated);
-    write_u8(&tlm_updated, 0);
+    write_u8(&tlm_updated, TLM_UPDATES_NA);
 
     tx_common_handle_rx_buffer();
 
