@@ -59,7 +59,7 @@
 #define WIFI_TIMEOUT 60 // default to 1min
 #endif
 
-#define WIFI_DBG 0
+#define WIFI_DBG 1
 
 
 ESP8266WebServer server(80);
@@ -180,6 +180,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
             String info_str = "NA";
             info_str = "My IP address = ";
             info_str += my_ip.toString();
+            info_str += " ms: ";
+            info_str += millis();
+            info_str += " rssi: ";
+            info_str += WiFi.RSSI();
 
             websocket_send(info_str, num);
             websocket_send(espnow_get_info(), num);
@@ -198,6 +202,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 #endif // LATEST_COMMIT
 #if WIFI_DBG
             websocket_send(wifi_log, num);
+            wifi_log = "";
 #endif
             if (boot_log)
                 websocket_send(boot_log, num);
@@ -377,8 +382,15 @@ void onStationConnected(const WiFiEventStationModeConnected& evt) {
 
 void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
 #if WIFI_DBG
-    wifi_log += "Wifi_STA_diconnect();\n";
+    wifi_log += "Wifi_STA_diconnect() ";
+    wifi_log += "reason:";
+    wifi_log += evt.reason;
+    wifi_log += "\n";
 #endif
+    wifi_connect_started = millis();
+    wifi_connection_state = WIFI_STATE_NA;
+    MDNS.end();
+    WiFi.reconnect(); // Force reconnect
 }
 
 void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
@@ -469,37 +481,6 @@ static void wifi_config(void)
 #if WIFI_DBG
     wifi_log = "";
 #endif
-    boot_log = "Reset reason: ";
-    switch (get_reset_reason()) {
-        case REASON_WDT_RST:
-            /* 1 = hardware watch dog reset */
-            boot_log += "HW WD reset";
-            break;
-        case REASON_EXCEPTION_RST:
-            /* 2 = exception reset, GPIO status won’t change */
-            boot_log += "Exception";
-            break;
-        case REASON_SOFT_WDT_RST:
-            /* 3 = software watch dog reset, GPIO status won’t change */
-            boot_log += "SW WD reset";
-            break;
-        case REASON_SOFT_RESTART:
-            /* 4 = software restart ,system_restart , GPIO status won’t change */
-            boot_log += "SW restart";
-            break;
-        case REASON_DEEP_SLEEP_AWAKE:
-            /* 5 = wake up from deep-sleep */
-            boot_log += "deep sleep wakeup";
-            break;
-        case REASON_EXT_SYS_RST:
-            /* 6 = external system reset */
-            boot_log += "External reset";
-            break;
-        case REASON_DEFAULT_RST:
-        default:
-            /* 0 = normal startup by power on */
-            break;
-    }
 
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
     /* Force WIFI off until it is realy needed */
@@ -586,13 +567,45 @@ void setup()
 {
     //ESP.eraseConfig();
 
+    boot_log = "";
+    switch (get_reset_reason()) {
+        case REASON_WDT_RST:
+            /* 1 = hardware watch dog reset */
+            boot_log += "Reset: HW WD";
+            break;
+        case REASON_EXCEPTION_RST:
+            /* 2 = exception reset, GPIO status won’t change */
+            boot_log += "Reset: Exception";
+            break;
+        case REASON_SOFT_WDT_RST:
+            /* 3 = software watch dog reset, GPIO status won’t change */
+            boot_log += "Reset: SW WD";
+            break;
+        case REASON_SOFT_RESTART:
+            /* 4 = software restart ,system_restart , GPIO status won’t change */
+            boot_log += "Reset: SW restart";
+            break;
+        case REASON_DEEP_SLEEP_AWAKE:
+            /* 5 = wake up from deep-sleep */
+            boot_log += "Reset: deep sleep wakeup";
+            break;
+        case REASON_EXT_SYS_RST:
+            /* 6 = external system reset */
+            boot_log += "Reset: External";
+            break;
+        case REASON_DEFAULT_RST:
+        default:
+            /* 0 = normal startup by power on */
+            break;
+    }
+
     eeprom_storage.setup();
 
     msp_handler.init();
 
     buzzer_init();
 
-    //Serial.setRxBufferSize(256);
+    //Serial.setRxBufferSize(512);
     Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, SERIAL_INVERTED);
 
     led_init();
@@ -663,4 +676,9 @@ void loop()
     msp_handler.loop();
 
     eeprom_storage.update();
+
+#if WIFI_DBG
+    if (512 <= wifi_log.length())
+        wifi_log = "F*CK, overflow!\n";
+#endif
 }
