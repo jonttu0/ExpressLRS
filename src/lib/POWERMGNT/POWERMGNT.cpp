@@ -98,7 +98,7 @@ PowerLevels_e POWERMGNT::loopPower()
     return next;
 }
 
-void POWERMGNT::setPower(PowerLevels_e power)
+uint8_t POWERMGNT::setPower(PowerLevels_e power)
 {
     if (power == PWR_DYNAMIC) {
         // enable dynamic power and reset current level to default
@@ -110,7 +110,7 @@ void POWERMGNT::setPower(PowerLevels_e power)
         p_dyn_power = 0;
     }
 
-    p_set_power(power);
+    return p_set_power(power);
 }
 
 void FAST_CODE_1 POWERMGNT::pa_off(void) const
@@ -127,11 +127,11 @@ void FAST_CODE_1 POWERMGNT::pa_on(void) const
 
 /************************** PRIVATE ******************************/
 
-void POWERMGNT::p_set_power(PowerLevels_e power)
+uint8_t POWERMGNT::p_set_power(PowerLevels_e power)
 {
     if (power == p_current_power || power < PWR_10mW ||
         power > p_max_power || !p_radio)
-        return;
+        return 0;
 
     uint8_t type = p_radio->GetModuleType();
 
@@ -147,4 +147,5 @@ void POWERMGNT::p_set_power(PowerLevels_e power)
 
     if (gpio_out_valid(fan_pin))
         gpio_out_write(fan_pin, (PWR_50mW < power));
+    return 1;
 }

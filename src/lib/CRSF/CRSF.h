@@ -406,6 +406,7 @@ public:
         MspCallback = NULL;
         BattInfoCallback = NULL;
         GpsCallback = NULL;
+        DevInfoCallback = NULL;
     }
 
     void Begin();
@@ -414,6 +415,7 @@ public:
     MspCallback_t MspCallback;
     BattInfoCallback_t BattInfoCallback;
     GpsCallback_t GpsCallback;
+    DevInfoCallback_t DevInfoCallback;
 
 protected:
     uint8_t CalcCRC(uint8_t const * data, uint8_t size) const;

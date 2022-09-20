@@ -16,6 +16,7 @@ enum {
     TLM_UPDATES_LNK_STATS = 1 << 0,
     TLM_UPDATES_BATTERY = 1 << 1,
     TLM_UPDATES_GPS = 1 << 2,
+    TLM_UPDATES_DEV_INFO = 1 << 3,
 };
 
 //////////// TELEMETRY /////////
@@ -25,16 +26,23 @@ extern uint8_t tlm_msp_send, tlm_msp_rcvd;
 
 extern LinkStats_t LinkStatistics;
 extern GpsOta_t GpsTlm;
+extern DeviceInfo_t DevInfo;
 extern uint32_t tlm_updated;
 
 
 void tx_common_init_globals(void);
 void tx_common_init(void);
+#if defined(TX_TLM_WHEN_DISARMED)
+void tx_common_armed_state(uint8_t armed);
+#else
+#define tx_common_armed_state(...) // ignore
+#endif
 void tx_common_handle_rx_buffer(void);
 int  tx_common_has_telemetry(void);
 int  tx_common_check_connection(void);
 void tx_common_handle_ctrl_serial(void);
 void tx_common_update_link_stats(void);
+
 
 int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
                              uint8_t inlen, uint8_t &outlen);

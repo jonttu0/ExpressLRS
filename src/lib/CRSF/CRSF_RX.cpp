@@ -214,6 +214,9 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
         case CRSF_FRAMETYPE_DEVICE_INFO: {
             /* These are sent after startup */
             negotiate_baud();
+            if (DevInfoCallback) {
+                DevInfoCallback(1);
+            }
             break;
         }
 

@@ -225,12 +225,21 @@ void MSP::markPacketFree()
     m_inputState = MSP_IDLE;
 }
 
+#if TARGET_HANDSET
+static uint8_t msp_send_buffer_ping_pong[2][MSP_PORT_INBUF_SIZE+sizeof(mspHeaderV2_t)+1];
+static uint8_t msp_ping_pong;
+#else
 static uint8_t msp_send_buffer[MSP_PORT_INBUF_SIZE+sizeof(mspHeaderV2_t)+1];
+#endif
 
 bool MSP::sendPacket(CtrlSerial *port, mspPacketType_e type,
                      uint16_t function, uint8_t flags,
                      uint8_t payloadSize, uint8_t const * payload)
 {
+#if TARGET_HANDSET
+    uint8_t * msp_send_buffer = &msp_send_buffer_ping_pong[msp_ping_pong][0];
+    msp_ping_pong ^= 1;
+#endif
     uint8_t * buff = msp_send_buffer;
     uint16_t i;
     uint8_t crc = 0, data;

@@ -73,7 +73,7 @@ struct platform_config
     uint32_t key;
     uint32_t rf_mode;
     struct rf_s {
-        uint32_t mode;
+        uint32_t mode; // TODO: rename to rate_index :)
         uint32_t power;
         uint32_t tlm;
     } rf[4]; // rf_mode: see RADIO_TYPE_MAX

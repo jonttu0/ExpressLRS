@@ -462,7 +462,6 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t const rx_us, uint16_t const irqs
     if (!(irqs & SX1280_IRQ_RX_DONE) ||
             (irqs & (SX1280_IRQ_CRC_ERROR | SX1280_IRQ_RX_TX_TIMEOUT)) ||
             (status & ~(SX1280_FLRC_PKT_ERROR_PKT_RCVD | SX1280_FLRC_PKT_ERROR_HDR_RCVD))) {
-        DEBUG_PRINTF("?");
         RXdoneCallback1(NULL, rx_us, 0, 0); // Error!
         return;
     }

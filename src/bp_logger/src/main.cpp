@@ -75,6 +75,7 @@ static const char target_name[] = STR(TARGET_NAME);
 #if WIFI_DBG
 String wifi_log = "";
 #endif
+String boot_log = "";
 
 enum {
     WSMSGID_ESPNOW_ADDRS = WSMSGID_BASE_ESPNOW,
@@ -148,6 +149,11 @@ void websocket_send(String & data, int num)
 
 void websocket_send(uint8_t const * data, uint8_t const len, int const num)
 {
+    websocket_send_bin(data, len, num);
+}
+
+void websocket_send_bin(uint8_t const * data, uint8_t const len, int const num)
+{
     if (!len || !data)
         return;
     if (0 <= num)
@@ -193,6 +199,8 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 #if WIFI_DBG
             websocket_send(wifi_log, num);
 #endif
+            if (boot_log)
+                websocket_send(boot_log, num);
 #if ESP_NOW
             if (eeprom_storage.espnow_initialized == LOGGER_ESPNOW_INIT_KEY) {
                 uint8_t const size = eeprom_storage.espnow_clients_count * 6;
@@ -360,7 +368,10 @@ static uint8_t wifi_connection_state;
 
 void onStationConnected(const WiFiEventStationModeConnected& evt) {
 #if WIFI_DBG
-    wifi_log += "Wifi_STA_connect();\n";
+    wifi_log += "Wifi_STA_connect() ";
+    wifi_log += "RSSI=";
+    wifi_log += WiFi.RSSI();
+    wifi_log += "\n";
 #endif
 }
 
@@ -458,6 +469,37 @@ static void wifi_config(void)
 #if WIFI_DBG
     wifi_log = "";
 #endif
+    boot_log = "Reset reason: ";
+    switch (get_reset_reason()) {
+        case REASON_WDT_RST:
+            /* 1 = hardware watch dog reset */
+            boot_log += "HW WD reset";
+            break;
+        case REASON_EXCEPTION_RST:
+            /* 2 = exception reset, GPIO status won’t change */
+            boot_log += "Exception";
+            break;
+        case REASON_SOFT_WDT_RST:
+            /* 3 = software watch dog reset, GPIO status won’t change */
+            boot_log += "SW WD reset";
+            break;
+        case REASON_SOFT_RESTART:
+            /* 4 = software restart ,system_restart , GPIO status won’t change */
+            boot_log += "SW restart";
+            break;
+        case REASON_DEEP_SLEEP_AWAKE:
+            /* 5 = wake up from deep-sleep */
+            boot_log += "deep sleep wakeup";
+            break;
+        case REASON_EXT_SYS_RST:
+            /* 6 = external system reset */
+            boot_log += "External reset";
+            break;
+        case REASON_DEFAULT_RST:
+        default:
+            /* 0 = normal startup by power on */
+            break;
+    }
 
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
     /* Force WIFI off until it is realy needed */

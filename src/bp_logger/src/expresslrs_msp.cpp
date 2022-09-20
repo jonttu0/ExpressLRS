@@ -89,15 +89,11 @@ void ExpresslrsMsp::MspWrite(uint8_t * buff, uint8_t const len, uint8_t const fu
 
 void ExpresslrsMsp::handleVtxFrequency(uint16_t const freq, int const num)
 {
-    String dbg_info = "Setting vtx freq to: ";
-    dbg_info += freq;
-    dbg_info += "MHz";
-
     if (freq == 0)
         return;
 
     // Send to ELRS
-    sendVtxFrequencyToSerial(freq);
+    sendVtxFrequencyToSerial(freq, num);
 
     // Send to other esp-now clients
     msp_out.reset();
@@ -108,12 +104,15 @@ void ExpresslrsMsp::handleVtxFrequency(uint16_t const freq, int const num)
     msp_out.payload[0] = (freq & 0xff);
     msp_out.payload[1] = (freq >> 8);
     espnow_send_msp(msp_out);
-
-    websocket_send(dbg_info, num);
 }
 
-void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq)
+void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, int const num)
 {
+    String dbg_info = "Setting vtx freq to: ";
+    dbg_info += freq;
+    dbg_info += "MHz (0=ignored)";
+    websocket_send(dbg_info, num);
+
     if (freq == 0)
         return;
 
@@ -327,35 +326,32 @@ void ExpresslrsMsp::HandsetConfigSave(uint8_t wsnum)
     MSP::sendPacket(&msp_out, _serial);
 }
 
-void ExpresslrsMsp::handleHandsetTlmLnkStats(uint8_t * data)
+void ExpresslrsMsp::handleHandsetTlmLnkStatsAndBatt(uint8_t * data)
 {
-    LinkStatsLink_t * stats = (LinkStatsLink_t*)data;
-    uint8_t info[2 + sizeof(LinkStatsLink_t)];
+    LinkStats_t * stats = (LinkStats_t*)data;
+
+    uint8_t info[2 + sizeof(LinkStatsLink_t) + sizeof(LinkStatsBatt_t)];
+    uint8_t * outptr = info;
     // Adjust values
-    stats->downlink_RSSI = (uint8_t)(stats->downlink_RSSI - 120);
+    stats->link.downlink_RSSI = (uint8_t)(stats->link.downlink_RSSI - 120);
     // fill the message
     info[0] = (uint8_t)(WSMSGID_HANDSET_TLM_LINK_STATS >> 8);
     info[1] = (uint8_t)WSMSGID_HANDSET_TLM_LINK_STATS;
-    memcpy(&info[2], stats, sizeof(LinkStatsLink_t));
-    websocket_send(info, sizeof(info));
-}
-
-void ExpresslrsMsp::handleHandsetTlmBattery(uint8_t * data)
-{
-    LinkStatsBatt_t * stats = (LinkStatsBatt_t*)data;
-    uint8_t info[10];
-    // fill the message
-    info[0] = (uint8_t)(WSMSGID_HANDSET_TLM_BATTERY >> 8);
-    info[1] = (uint8_t)WSMSGID_HANDSET_TLM_BATTERY;
-    info[2] = (uint8_t)(stats->voltage >> 8);
-    info[3] = (uint8_t)stats->voltage;
-    info[4] = (uint8_t)(stats->current >> 8);
-    info[5] = (uint8_t)stats->current;
-    info[6] = (uint8_t)(stats->capacity >> 16);
-    info[7] = (uint8_t)(stats->capacity >> 8);
-    info[8] = (uint8_t)stats->capacity;
-    info[9] = (uint8_t)stats->remaining;
-    websocket_send(info, sizeof(info));
+    outptr += 2;
+    // Add link stats
+    memcpy(outptr, &stats->link, sizeof(LinkStatsLink_t));
+    outptr += sizeof(LinkStatsLink_t);
+    // Add battery info (note: values are in bigendian format)
+    outptr[0] = (uint8_t)(stats->batt.voltage);
+    outptr[1] = (uint8_t)(stats->batt.voltage >> 8);
+    outptr[2] = (uint8_t)(stats->batt.current);
+    outptr[3] = (uint8_t)(stats->batt.current >> 8);
+    outptr[4] = (uint8_t)(stats->batt.capacity);
+    outptr[5] = (uint8_t)(stats->batt.capacity >> 8);
+    outptr[6] = (uint8_t)(stats->batt.capacity >> 16);
+    outptr[7] = (uint8_t)stats->batt.remaining;
+    outptr += 8;
+    websocket_send_bin(info, (outptr - info));
 }
 
 void ExpresslrsMsp::handleHandsetTlmGps(uint8_t * data)
@@ -369,7 +365,7 @@ void ExpresslrsMsp::handleHandsetTlmGps(uint8_t * data)
     info[0] = (uint8_t)(WSMSGID_HANDSET_TLM_GPS >> 8);
     info[1] = (uint8_t)WSMSGID_HANDSET_TLM_GPS;
     memcpy(&info[2], stats, sizeof(GpsOta_t));
-    websocket_send(info, sizeof(info));
+    websocket_send_bin(info, sizeof(info));
 }
 
 
@@ -524,7 +520,7 @@ int ExpresslrsMsp::parse_data(uint8_t const chr) {
         uint8_t forward = true;
         String info = "MSP received: ";
         mspPacket_t &msp_in = _handler.getPacket();
-        if (msp_in.type == MSP_PACKET_V1_ELRS) {
+        if (msp_in.type == MSP_PACKET_V1_ELRS /*&& msp_in.type & MSP_ELRS_INT*/) {
             uint8_t * payload = (uint8_t*)msp_in.payload;
             forward = false;
             switch (msp_in.function) {
@@ -539,6 +535,13 @@ int ExpresslrsMsp::parse_data(uint8_t const chr) {
                     settings_valid = 1;
 
                     send_current_values();
+                    break;
+                }
+                case ELRS_INT_MSP_DEV_INFO: {
+                    info += "device info";
+                    // Respond with the VTX config
+                    if (payload[0] == 1)
+                        sendVtxFrequencyToSerial(eeprom_storage.vtx_freq);
                     break;
                 }
 #if CONFIG_HANDSET
@@ -561,12 +564,7 @@ int ExpresslrsMsp::parse_data(uint8_t const chr) {
                 }
                 case ELRS_HANDSET_TLM_LINK_STATS: {
                     info = "";
-                    handleHandsetTlmLnkStats(payload);
-                    break;
-                }
-                case ELRS_HANDSET_TLM_BATTERY: {
-                    info = "";
-                    handleHandsetTlmBattery(payload);
+                    handleHandsetTlmLnkStatsAndBatt(payload);
                     break;
                 }
                 case ELRS_HANDSET_TLM_GPS: {
@@ -579,6 +577,11 @@ int ExpresslrsMsp::parse_data(uint8_t const chr) {
                     info += "UNKNOWN";
                     break;
             };
+        } else {
+            info = "DL MSP rcvd. func: ";
+            info += String(msp_in.function, HEX);
+            info += ", size: ";
+            info += msp_in.payloadSize;
         }
 
         if (info.length())

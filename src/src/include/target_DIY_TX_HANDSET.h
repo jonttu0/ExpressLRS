@@ -26,14 +26,12 @@
 #define GPIO_PIN_LED_RGB   PA11 // WS2812 RGB
 
 // ESPbackpack logger (USART1)
-#define CTRL_SERIAL Serial1
-//#define CTRL_SERIAL_BAUD    420000
-//#define CTRL_SERIAL_BAUD    460800
-#define CTRL_SERIAL_BAUD    921600
+#define CTRL_SERIAL        Serial1
+#define CTRL_SERIAL_BAUD   2000000
 #define DEFINE_SERIAL1
-#define SERIAL1_USE_DMA     1
-#define PRINTF_NUM_BLOCKS   128
-#define PRINTF_BUFF_SIZE    256
+#define SERIAL1_USE_DMA    1
+#define PRINTF_NUM_BLOCKS  128
+#define PRINTF_BUFF_SIZE   256
 
 // Both radios are included
 #define RADIO_SX128x 1

@@ -119,6 +119,27 @@ static expresslrs_mod_settings_t* get_air_rate_config(uint8_t const type)
     }
 }
 
+static uint8_t get_elrs_airRateMaxByConfig(expresslrs_mod_settings_t const * const cfg)
+{
+#if RADIO_SX127x
+    if (cfg == ExpressLRS_AirRateConfig_127x)
+        return ARRAY_SIZE(ExpressLRS_AirRateConfig_127x);
+#endif
+#if RADIO_SX128x
+    if (cfg == ExpressLRS_AirRateConfig_128x)
+        return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x);
+#if RADIO_SX128x_FLRC
+    if (cfg == ExpressLRS_AirRateConfig_128x_FLRC)
+        return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_FLRC);
+#endif
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
+    if (cfg == ExpressLRS_AirRateConfig_128x_VANILLA)
+        return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_VANILLA);
+#endif
+#endif
+    return 0;
+}
+
 const expresslrs_mod_settings_t *get_elrs_airRateConfig(uint8_t rate)
 {
     if (get_elrs_airRateMax() <= rate || !current_settings)
@@ -135,23 +156,7 @@ uint8_t get_elrs_airRateIndex(void * current)
 
 uint8_t get_elrs_airRateMax(void)
 {
-#if RADIO_SX127x
-    if (current_settings == ExpressLRS_AirRateConfig_127x)
-        return ARRAY_SIZE(ExpressLRS_AirRateConfig_127x);
-#endif
-#if RADIO_SX128x
-    if (current_settings == ExpressLRS_AirRateConfig_128x)
-        return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x);
-#if RADIO_SX128x_FLRC
-    if (current_settings == ExpressLRS_AirRateConfig_128x_FLRC)
-        return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_FLRC);
-#endif
-#if TARGET_HANDSET && OTA_VANILLA_ENABLED
-    if (current_settings == ExpressLRS_AirRateConfig_128x_VANILLA)
-        return ARRAY_SIZE(ExpressLRS_AirRateConfig_128x_VANILLA);
-#endif
-#endif
-    return 0;
+    return get_elrs_airRateMaxByConfig(current_settings);
 }
 
 uint8_t get_elrs_current_radio_type(void)
@@ -173,6 +178,15 @@ uint8_t get_elrs_current_radio_type(void)
 #endif
 #endif
     return RADIO_TYPE_MAX;
+}
+
+uint8_t get_elrs_default_tlm_interval(uint8_t type, uint8_t rate)
+{
+    expresslrs_mod_settings_t const * const cfg = get_air_rate_config(type);
+    if (cfg && rate < get_elrs_airRateMaxByConfig(cfg)) {
+        return cfg[rate].TLMinterval;
+    }
+    return TLM_RATIO_NO_TLM;
 }
 
 #ifndef MY_UID

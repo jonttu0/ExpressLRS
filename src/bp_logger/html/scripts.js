@@ -21,7 +21,7 @@ const WSMSGID_HANDSET_BATT_INFO     = 0x2305;
 const WSMSGID_HANDSET_BATT_CONFIG   = 0x2306;
 
 const WSMSGID_HANDSET_TLM_LINK_STATS = 0x2380;
-const WSMSGID_HANDSET_TLM_BATTERY    = 0x2381;
+const WSMSGID_HANDSET_TLM_BATTERY    = 0x2381; // not used
 const WSMSGID_HANDSET_TLM_GPS        = 0x2382;
 
 const WSMSGID_VIDEO_FREQ         = 0x2400;
@@ -64,8 +64,13 @@ function $name(name) {
     return document.getElementsByName(name);
 }
 function time_current() {
-    var date = new Date();
-    return new Date(date.getTime()).toLocaleTimeString([], {hour12: false});
+    const dateobj = new Date()
+    return dateobj.toLocaleTimeString([], {hour12: false});
+}
+function datetime_current() {
+    const dateobj = new Date()
+    return dateobj.toLocaleTimeString([], {hour12: false}) + '.' +
+            `00${dateobj.getMilliseconds()}`.slice(-3);
 }
 DataView.prototype.nextUint8 = function () {
     if (this.offset_next == undefined) this.offset_next = 0;
@@ -120,7 +125,8 @@ DataView.prototype.nextInt32 = function (little_endian=false) {
 
 var websock = null;
 function start() {
-    var _bands = $id("vtx_band")
+    const logger = $id("logField");
+    var _bands = $id("vtx_band");
     while (_bands.length > 1) {
         _bands.remove(_bands.length - 1);
     }
@@ -130,10 +136,14 @@ function start() {
       _bands.add(option);
     }
 
-    $id("logField").scrollTop = $id("logField").scrollHeight;
-    if (!window.location.hostname)
-      return;
-    websock = new WebSocket('ws://' + window.location.hostname + ':81/');
+    logger.scrollTop = logger.scrollHeight;
+    if (false) {
+        websock = new WebSocket('ws://elrs_handset.local:81/');
+    } else {
+        if (!window.location.hostname)
+          return;
+        websock = new WebSocket('ws://' + window.location.hostname + ':81/');
+    }
     websock.binaryType = "arraybuffer";
     websock.onopen = function (evt) {console.log('websock open');};
     websock.onclose = function(e) {
@@ -142,49 +152,37 @@ function start() {
     };
     websock.onerror = function (evt) {console.log("websock error: ", evt);};
     websock.onmessage = function (evt) {
-        //console.log(evt);
-        if (evt.data instanceof ArrayBuffer) { // handle binary message
+        if (evt.data instanceof ArrayBuffer) {
             const message = new DataView(evt.data);
             const msgid = message.getUint16();
             const payload = new DataView(evt.data, 2);
-            if (msgid == WSMSGID_ESPNOW_ADDRS) {
-                espnowclients_parse(payload);
-            } else if (msgid == WSMSGID_ELRS_SETTINGS) {
-                settings_parse(payload);
-            } else if (msgid == WSMSGID_VIDEO_FREQ) {
-                msp_vtx_freq(payload.getUint16());
-            } else if (msgid == WSMSGID_HANDSET_CALIBRATE) {
-                if (calibrate_btn != null) {
-                    calibrate_btn.disabled = false;
-                    calibrate_btn = null;
-                    $id("handset_calibrate_stat").innerHTML = 'Calibration failed!';
-                }
-            } else if (msgid == WSMSGID_HANDSET_BATT_INFO) {
-                handset_battery_value(payload);
-            } else if (msgid == WSMSGID_HANDSET_ADJUST) {
-                handset_calibrate_adjust(payload);
-            } else if (msgid == WSMSGID_HANDSET_MIXER) {
-                handset_mixer(payload);
-            } else if (msgid == WSMSGID_HANDSET_TLM_LINK_STATS) {
-                handset_telemetry_link_stats(payload);
-            } else if (msgid == WSMSGID_HANDSET_TLM_BATTERY) {
-                handset_telemetry_battery(payload);
-            } else if (msgid == WSMSGID_HANDSET_TLM_GPS) {
-                handset_telemetry_gps(payload);
-            } else {
-                console.error("Invalid message received: " + msgid);
+            switch(msgid) {
+                case WSMSGID_ESPNOW_ADDRS: espnowclients_parse(payload);break;
+                case WSMSGID_ELRS_SETTINGS: settings_parse(payload); break;
+                case WSMSGID_VIDEO_FREQ: msp_vtx_freq(payload.getUint16()); break;
+                case WSMSGID_HANDSET_CALIBRATE:
+                    if (calibrate_btn != null) {
+                        calibrate_btn.disabled = false;
+                        calibrate_btn = null;
+                        $id("handset_calibrate_stat").innerHTML = 'Calibration failed!';
+                    } break;
+                case WSMSGID_HANDSET_BATT_INFO: handset_battery_value(payload); break;
+                case WSMSGID_HANDSET_ADJUST: handset_calibrate_adjust(payload); break;
+                case WSMSGID_HANDSET_MIXER: handset_mixer(payload); break;
+                case WSMSGID_HANDSET_TLM_LINK_STATS: handset_telemetry_link_stats(payload); break;
+                case WSMSGID_HANDSET_TLM_BATTERY: handset_telemetry_battery(payload); break;
+                case WSMSGID_HANDSET_TLM_GPS: handset_telemetry_gps(payload); break;
+                default: console.error("Invalid message received: " + msgid);
             }
             return;
         }
         const text = evt.data;
         if (!text) return; // ignore empty messages
-        const logger = $id("logField");
+
         const scrollsize = parseInt($id("scrollsize").value, 10);
         var log_history = logger.value.split("\n");
         while (scrollsize < log_history.length) {log_history.shift();}
-        const date = new Date();
-        const n=new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString();
-        log_history.push(n + ' ' + text);
+        log_history.push(datetime_current() + ' ' + text);
         logger.value = log_history.join('\n');
         if ($id("autoscroll").checked)
             logger.scrollTop = logger.scrollHeight;
@@ -315,7 +313,8 @@ function settings_parse(payload)
     handle_setting_generic($id("tlm_input"), payload.nextUint8());
     // disable telemetry options if vanilla mode
     $id("tlm_input").disabled = ($id("rf_module").domain_in_use == 6);
-    msp_vtx_freq(payload.nextUint8());
+    const vtxFreq = (payload.nextUint8() << 8) + payload.nextUint8();
+    msp_vtx_freq(vtxFreq);
 }
 
 /********************* VTX *******************************/
@@ -690,16 +689,19 @@ function handset_telemetry_link_stats(payload)
     const now = time_current();
     $id("tlm_ul_updated").innerHTML = now;
     $id("tlm_dl_updated").innerHTML = now;
+
+    handset_telemetry_battery(payload, now);
 }
 
-function handset_telemetry_battery(payload)
+function handset_telemetry_battery(payload, now=null)
 {
     $id("tlm_batt_V").innerHTML = (payload.nextUint16().toFixed(1) / 10.).toString() + " V";
     $id("tlm_batt_A").innerHTML = (payload.nextUint16().toFixed(1) / 10.).toString() + " A";
-    var capacity = (payload.nextUint8() << 16) + (payload.nextUint8() << 8) + payload.nextUint8();
+    const capacity = (payload.nextUint8() << 16) + (payload.nextUint8() << 8) + payload.nextUint8();
     $id("tlm_batt_C").innerHTML = capacity.toString() + " mAh";
     $id("tlm_batt_R").innerHTML = payload.nextUint8().toString() + " %";
-    $id("tlm_batt_updated").innerHTML = time_current();
+    if (now == null) now = time_current();
+    $id("tlm_batt_updated").innerHTML = now;
 }
 
 function handset_telemetry_gps(payload)

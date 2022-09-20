@@ -25,14 +25,10 @@ typedef union {
 } rc_channels_internal_u;
 
 static rc_channels_internal_u DRAM_ATTR rc_data;
-#if RC_CH_PRINT_INTERVAL
-static uint32_t last_rc_info;
-#endif
 
 ///////////////////////////////////////
 
-void LinkStatisticsSend(void);
-void BatterySensorSend(void);
+void LinkStatisticsAndBatterySend(void);
 void GpsSensorSend(void);
 
 ///////////////////////////////////////
@@ -103,7 +99,10 @@ rc_data_collect(uint32_t const current_us)
         OTA_vanilla_processChannels(&rc_data.ota_pkt);
     } else
 #endif
-    RcChannels_processChannels(&rc_data.ota_pkt);
+    {
+        RcChannels_processChannels(&rc_data.ota_pkt);
+        tx_common_armed_state(RcChannels_get_arm_channel_state());
+    }
 #ifdef DBG_PIN
     gpio_out_write(debug, 0);
 #endif
@@ -140,9 +139,9 @@ void send_configs_gimbals(void)
 
 void send_configs(void)
 {
-    delay(10);
+    //delay(2);
     send_config_mixer();
-    delay(10);
+    delay(2);
     send_configs_gimbals();
 }
 
@@ -235,7 +234,8 @@ void setup()
 
 void loop()
 {
-    uint8_t _tlm_updated = read_u8(&tlm_updated);
+    uint32_t const now = millis();
+    uint32_t const _tlm_updated = read_u32(&tlm_updated);
     write_u8(&tlm_updated, TLM_UPDATES_NA);
 
     tx_common_handle_rx_buffer();
@@ -243,24 +243,29 @@ void loop()
     if (0 <= tx_common_has_telemetry() && _tlm_updated) {
         (void)tx_common_check_connection();
 
-        if (_tlm_updated & TLM_UPDATES_LNK_STATS) {
-            tx_common_update_link_stats();
-            LinkStatisticsSend();
-            delay(2);
-        }
-        if (_tlm_updated & TLM_UPDATES_BATTERY) {
-            BatterySensorSend();
-            delay(2);
-        }
-        if (_tlm_updated & TLM_UPDATES_GPS) {
+        // TODO: limit tlm output speed for higher ratios?
+
+        if (_tlm_updated & TLM_UPDATES_DEV_INFO) {
+            MSP::sendPacket(
+                &ctrl_serial, MSP_PACKET_V1_ELRS, ELRS_INT_MSP_DEV_INFO,
+                MSP_ELRS_INT, sizeof(DevInfo.state),
+                (uint8_t*)&DevInfo.state);
+        } else if (_tlm_updated & TLM_UPDATES_GPS) {
             GpsSensorSend();
-            delay(2);
+        } else if (_tlm_updated & (TLM_UPDATES_LNK_STATS | TLM_UPDATES_BATTERY)) {
+            static uint32_t last_tlm_sent;
+            if (100U <= (now - last_tlm_sent)) {
+                tx_common_update_link_stats();
+                LinkStatisticsAndBatterySend();
+                last_tlm_sent = now;
+            }
         }
     }
 
 #if RC_CH_PRINT_INTERVAL
-    if (RC_CH_PRINT_INTERVAL <= (millis() - last_rc_info)) {
-        last_rc_info = millis();
+    static uint32_t last_rc_info;
+    if (RC_CH_PRINT_INTERVAL <= (now - last_rc_info) && !_tlm_updated) {
+        last_rc_info = now;
         DEBUG_PRINTF("RC: %u|%u|%u|%u -- %u|%u|%u|%u|%u|%u\n",
             rc_data.ch[0], rc_data.ch[1], rc_data.ch[2], rc_data.ch[3],
             rc_data.ch[4], rc_data.ch[5], rc_data.ch[6], rc_data.ch[7],
@@ -270,17 +275,13 @@ void loop()
 
     // Send MSP resp if allowed and packet ready
     if (tlm_msp_rcvd) {
-        //DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
-        //    msp_packet_rx.function, msp_packet_rx.payloadSize);
-
-        // TODO: Send received MSP packet to CTRL_SERIAL (MSP)
-        // msp_packet_rx;
-
+        MSP::sendPacket(&msp_packet_rx, &ctrl_serial);
         msp_packet_rx.reset();
         tlm_msp_rcvd = 0;
-    } else {
-        tx_common_handle_ctrl_serial();
     }
+
+    tx_common_handle_ctrl_serial();
+
     platform_loop(connectionState);
     platform_wd_feed();
 }
@@ -373,20 +374,11 @@ void tx_handle_set_link_rate(uint32_t const interval)
 
 /***********************/
 
-void LinkStatisticsSend(void)
+void LinkStatisticsAndBatterySend(void)
 {
     MSP::sendPacket(
         &ctrl_serial, MSP_PACKET_V1_ELRS, ELRS_HANDSET_TLM_LINK_STATS,
-        MSP_ELRS_INT, sizeof(LinkStatistics.link),
-        (uint8_t*)&LinkStatistics.link);
-}
-
-void BatterySensorSend(void)
-{
-    MSP::sendPacket(
-        &ctrl_serial, MSP_PACKET_V1_ELRS, ELRS_HANDSET_TLM_BATTERY,
-        MSP_ELRS_INT, sizeof(LinkStatistics.batt),
-        (uint8_t*)&LinkStatistics.batt);
+        MSP_ELRS_INT, sizeof(LinkStatistics), (uint8_t*)&LinkStatistics);
 }
 
 void GpsSensorSend(void)

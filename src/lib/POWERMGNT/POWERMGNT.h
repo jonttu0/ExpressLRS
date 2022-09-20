@@ -37,7 +37,7 @@ private:
     R9DAC * p_dac;
     struct gpio_out fan_pin;
 
-    void p_set_power(PowerLevels_e power);
+    uint8_t p_set_power(PowerLevels_e power);
 
 public:
     POWERMGNT(int fan = -1);
@@ -61,7 +61,7 @@ public:
     {
         return p_max_power;
     }
-    void setPower(PowerLevels_e power);
+    uint8_t setPower(PowerLevels_e power);
 
     uint8_t power_to_radio_enum(PowerLevels_e power = PWR_UNKNOWN)
     {

@@ -57,6 +57,7 @@ uint8_t DRAM_ATTR tlm_msp_send, tlm_msp_rcvd;
 
 LinkStats_t DRAM_ATTR LinkStatistics;
 GpsOta_t DRAM_ATTR GpsTlm;
+DeviceInfo_t DRAM_ATTR DevInfo;
 uint32_t tlm_updated;
 
 
@@ -76,7 +77,7 @@ void tx_common_init_globals(void)
     for (uint8_t iter = 0; iter < ARRAY_SIZE(pl_config.rf); iter++) {
         pl_config.rf[iter].mode = RATE_DEFAULT;
         pl_config.rf[iter].power = TX_POWER_DEFAULT;
-        pl_config.rf[iter].tlm = TLM_RATIO_DEFAULT;
+        pl_config.rf[iter].tlm = get_elrs_default_tlm_interval(iter, RATE_DEFAULT);
     }
 
     // Default to 127x if both defined
@@ -141,54 +142,63 @@ void tx_common_init(void)
 static void PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, size_t payloadSize, int32_t freq_err);
 static void TransmissionCompletedCallback();
 
-uint8_t tx_tlm_change_interval(uint8_t value, uint8_t init = 0)
+uint8_t tx_tlm_value_validate(uint8_t value)
 {
-    uint32_t ratio = 0;
-    if (value == TLM_RATIO_DEFAULT)
-    {
-        // Default requested
+    if (value == TLM_RATIO_DEFAULT) {
+        // reset to default value
         value = ExpressLRS_currAirRate->TLMinterval;
-    }
-    else if (TLM_RATIO_MAX <= value)
-    {
-        DEBUG_PRINTF("TLM: Invalid value! disable tlm\n");
+    } else if (TLM_RATIO_MAX <= value) {
         value = TLM_RATIO_NO_TLM;
     }
+    return value;
+}
 
-    if (value != TLMinterval || init)
-    {
+uint8_t tx_tlm_change_interval(uint8_t const value, uint8_t const init = 0)
+{
+    uint32_t ratio = 0;
+    if (value != TLMinterval || init) {
         if (TLM_RATIO_NO_TLM < value) {
             Radio->RXdoneCallback1 = PacketReceivedCallback;
             Radio->TXdoneCallback1 = TransmissionCompletedCallback;
             connectionState = STATE_disconnected;
-            ratio = TLMratioEnumToValue(value);
-            DEBUG_PRINTF("TLM ratio %u\n", ratio);
-            ratio -= 1;
+            ratio = TlmEnumToMask(value);
         } else {
             Radio->RXdoneCallback1 = Radio->rx_nullCallback;
             Radio->TXdoneCallback1 = Radio->tx_nullCallback;
             // Set connected if telemetry is not used
             connectionState = STATE_connected;
-            DEBUG_PRINTF("TLM disabled\n");
         }
-        write_u32(&TLMinterval, value);
-        write_u32(&tlm_check_ratio, ratio);
+        //write_u32(&TLMinterval, value);
+        //write_u32(&tlm_check_ratio, ratio);
+        TLMinterval = value;
+        tlm_check_ratio = ratio;
         return 1;
     }
     return 0;
 }
 
-void tx_tlm_disable_enable(uint8_t const enable)
-{
-    tx_tlm_change_interval((enable) ? TLM_RATIO_DEFAULT : TLM_RATIO_NO_TLM);
-}
-
 int8_t tx_tlm_toggle(void)
 {
     /* Toggle TLM between NO_TLM and DEFAULT */
-    uint8_t tlm = (TLMinterval == TLM_RATIO_NO_TLM) ? TLM_RATIO_DEFAULT : TLM_RATIO_NO_TLM;
+    uint8_t const tlm = (TLMinterval == TLM_RATIO_NO_TLM) ?
+        pl_config.rf[pl_config.rf_mode].tlm : TLM_RATIO_NO_TLM;
     tx_tlm_change_interval(tlm);
     return (TLMinterval != TLM_RATIO_NO_TLM);
+}
+
+#if defined(TX_TLM_WHEN_DISARMED)
+void FAST_CODE_1 tx_common_armed_state(uint8_t const armed)
+{
+    uint8_t next_tlm_value =
+        (armed) ? pl_config.rf[pl_config.rf_mode].tlm : TLM_RATIO_1_4;
+    tx_tlm_change_interval(next_tlm_value);
+}
+#endif
+
+uint_fast8_t FORCED_INLINE tx_common_frame_frame_is_tlm(void)
+{
+    uint32_t const tlm_ratio = tlm_check_ratio;
+    return TlmFrameCheck(_rf_rxtx_counter, tlm_ratio) && !FHSScurrSequenceIndexIsSyncChannel();
 }
 
 ///////////////////////////////////////
@@ -209,7 +219,7 @@ void platform_radio_force_stop(void)
     _RESTORE_IRQ(irq);
 }
 
-static uint8_t SetRadioType(uint8_t type)
+static uint8_t SetRadioType(uint8_t const type)
 {
     uint32_t const uid_u32 = my_uid_to_u32();
     /* Configure if ratio not set or its type will be changed */
@@ -226,23 +236,21 @@ static uint8_t SetRadioType(uint8_t type)
         current_rate_config =
             pl_config.rf[type].mode % get_elrs_airRateMax();
         if (type == RADIO_TYPE_128x_VANILLA) {
-            TLMinterval = TLM_RATIO_NO_TLM;
             CRCCaesarCipher = uid_u32 & 0xffff;
             // Sync word must be set To make IQ inversion correct
             Radio->SetSyncWord(uid_u32 & 0xff);
         } else {
-            TLMinterval = pl_config.rf[type].tlm;
             CRCCaesarCipher = my_uid_crc16();
             SyncCipher = (CRCCaesarCipher ^ uid_u32) & SYNC_CIPHER_MASK;
             Radio->SetSyncWord(my_uid_crc8());
         }
 
-        PowerLevels_e power =
+        PowerLevels_e const power =
             (PowerLevels_e)(pl_config.rf[type].power % PWR_UNKNOWN);
         platform_mode_notify(get_elrs_airRateMax() - current_rate_config);
 
         DEBUG_PRINTF("SetRadioType type:%u, rate:%u, tlm:%u, pwr:%u, cipher:0x%X\n",
-            type, current_rate_config, TLMinterval, power, CRCCaesarCipher);
+            type, current_rate_config, pl_config.rf[type].tlm, power, CRCCaesarCipher);
 
 #if DAC_IN_USE
         PowerMgmt.Begin(Radio, &r9dac);
@@ -269,8 +277,7 @@ void process_rx_buffer(uint8_t payloadSize)
         const uint16_t crc = CalcCRC16((uint8_t*)rx_buffer, payloadSize, CRCCaesarCipher);
         const uint16_t crc_in = ((uint16_t)rx_buffer[payloadSize] << 8) + rx_buffer[payloadSize + 1];
 
-        if (crc_in != crc)
-        {
+        if (crc_in != crc) {
             DEBUG_PRINTF("!C");
             return;
         }
@@ -284,17 +291,14 @@ void process_rx_buffer(uint8_t payloadSize)
     LastPacketRecvMillis = ms;
     recv_tlm_counter++;
 
-    switch (RcChannels_packetTypeGet((uint8_t*)rx_buffer, payloadSize))
-    {
-        case DL_PACKET_TLM_MSP:
-        {
+    switch (RcChannels_packetTypeGet((uint8_t*)rx_buffer, payloadSize)) {
+        case DL_PACKET_TLM_MSP: {
             //DEBUG_PRINTF("DL MSP junk\n");
             if (RcChannels_tlm_ota_receive((uint8_t*)rx_buffer, msp_packet_rx))
                 tlm_msp_rcvd = 1;
             break;
         }
-        case DL_PACKET_TLM_LINK:
-        {
+        case DL_PACKET_TLM_LINK: {
             RcChannels_link_stas_extract((uint8_t*)rx_buffer, LinkStatistics,
                                          (int8_t)read_u8(&Radio->LastPacketSNR),
                                          (int16_t)read_u16(&Radio->LastPacketRSSI));
@@ -312,13 +316,16 @@ void process_rx_buffer(uint8_t payloadSize)
             }
             break;
         }
-        case DL_PACKET_GPS:
-        {
+        case DL_PACKET_GPS: {
             RcChannels_gps_extract((uint8_t*)rx_buffer, GpsTlm);
             tlm_updated |= TLM_UPDATES_GPS;
             break;
         }
-        case DL_PACKET_FREE1:
+        case DL_PACKET_DEV_INFO: {
+            if (RcChannels_dev_info_extract((uint8_t*)rx_buffer, DevInfo))
+                tlm_updated |= TLM_UPDATES_DEV_INFO;
+            break;
+        }
         default:
             break;
     }
@@ -339,8 +346,7 @@ static void FAST_CODE_1 PacketReceivedCallback(uint8_t *buff, uint32_t rx_us, si
 static void FAST_CODE_1 TransmissionCompletedCallback()
 {
     //DEBUG_PRINTF("X ");
-    uint32_t const tlm_ratio = tlm_check_ratio;
-    if (tlm_ratio && (_rf_rxtx_counter & tlm_ratio) == 0) {
+    if (tx_common_frame_frame_is_tlm()) {
         // receive tlm package
         PowerMgmt.pa_off();
         Radio->RXnb(FHSSgetCurrFreq());
@@ -379,7 +385,7 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
     uint16_t crc_or_type;
     uint_fast8_t payloadSize = RcChannels_payloadSizeGet();
     const uint_fast8_t numOfTxPerRc = ExpressLRS_currAirRate->numOfTxPerRc;
-    const uint_fast8_t arm_state = RcChannels_get_arm_channel_state();
+    const uint_fast8_t arm_state = RcChannels_get_arm_channel_state() && TX_SKIP_SYNC;
     const uint32_t sync_interval_us = SyncPacketInterval_us / (!arm_state + 1);
 
     // only send sync when its time and only on sync channel;
@@ -463,7 +469,6 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
     // Called by HW timer
     uint32_t freq;
     uint32_t const rxtx_counter = _rf_rxtx_counter;
-    uint32_t const tlm_ratio = tlm_check_ratio;
     // esp requires word aligned buffer
     uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
     uint8_t * const tx_buffer = (uint8_t *)__tx_buffer;
@@ -471,7 +476,7 @@ static void FAST_CODE_1 SendRCdataToRF(uint32_t const current_us)
     uint_fast8_t payloadSize;
 
     // Check if telemetry RX ongoing
-    if (tlm_ratio && (rxtx_counter & tlm_ratio) == 0) {
+    if (tx_common_frame_frame_is_tlm()) {
         // Skip TX because TLM RX is ongoing
         goto send_to_rf_exit;
     }
@@ -531,7 +536,6 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
         case ELRS_CMD_RATE:
             if (inlen != 2)
                 return -1;
-
             // set air rate
             if (get_elrs_airRateMax() > value)
                 modified |= (SetRFLinkRate(value) << 1);
@@ -541,17 +545,21 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
             // set TLM interval
             if (inlen != 2)
                 return -1;
-            modified = (tx_tlm_change_interval(value) << 2);
+            value = tx_tlm_value_validate(value);
+            modified = (pl_config.rf[pl_config.rf_mode].tlm != value) ? (1 << 2) : 0;
+            pl_config.rf[pl_config.rf_mode].tlm = value;
+            DEBUG_PRINTF("Telemetry index: %u\n", value);
+#if !defined(TX_TLM_WHEN_DISARMED)
+            tx_tlm_change_interval(value);
+#endif
             break;
 
         case ELRS_CMD_POWER:
             // set TX power
             if (inlen != 2)
                 return -1;
-            modified = PowerMgmt.currPower();
-            PowerMgmt.setPower((PowerLevels_e)value);
+            modified = PowerMgmt.setPower((PowerLevels_e)value) << 3;
             DEBUG_PRINTF("Power: %u\n", PowerMgmt.currPower());
-            modified = (modified != PowerMgmt.currPower()) ? (1 << 3) : 0;
             break;
 
         case ELRS_CMD_DOMAIN:
@@ -581,14 +589,14 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
         default:
             return -1;
     }
+    uint8_t const rf_mode = pl_config.rf_mode;
 
-    //buff[0] = get_elrs_airRateIndex((void*)ExpressLRS_currAirRate);
     buff[0] = (uint8_t)current_rate_config;
-    buff[1] = (uint8_t)TLMinterval;
+    buff[1] = (uint8_t)pl_config.rf[rf_mode].tlm;
     buff[2] = (uint8_t)PowerMgmt.currPower();
     buff[3] = (uint8_t)PowerMgmt.maxPowerGet();
     buff[4] = RADIO_RF_MODE_INVALID;
-    if (RADIO_SX127x && pl_config.rf_mode == RADIO_TYPE_127x) {
+    if (RADIO_SX127x && rf_mode == RADIO_TYPE_127x) {
 #if defined(Regulatory_Domain_AU_915) || defined(Regulatory_Domain_FCC_915)
         buff[4] = RADIO_RF_MODE_915_AU_FCC;
 #elif defined(Regulatory_Domain_EU_868) || defined(Regulatory_Domain_EU_868_R9)
@@ -597,11 +605,11 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
         buff[4] = RADIO_RF_MODE_433_AU_EU;
 #endif
     } else if (RADIO_SX128x) {
-        if (pl_config.rf_mode == RADIO_TYPE_128x)
+        if (rf_mode == RADIO_TYPE_128x)
             buff[4] = RADIO_RF_MODE_2400_ISM_500Hz;
-        else if (pl_config.rf_mode == RADIO_TYPE_128x_FLRC)
+        else if (rf_mode == RADIO_TYPE_128x_FLRC)
             buff[4] = RADIO_RF_MODE_2400_ISM_FLRC;
-        else if (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA)
+        else if (rf_mode == RADIO_TYPE_128x_VANILLA)
             buff[4] = RADIO_RF_MODE_2400_ISM_VANILLA;
     }
 #if DOMAIN_BOTH
@@ -615,7 +623,6 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
 #endif
     buff += 5;
 
-    /* TODO: fill version info etc */
 #if defined(LATEST_COMMIT)
     for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
         *buff++ = commit_sha[iter];
@@ -637,18 +644,17 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
         memcpy(out, settings_buff, outlen);
     }
 
-    if (cmd && modified) {
+    if (cmd != ELRS_CMD_GET && modified) {
         // Stop timer before save if not already done
         if ((modified & (1 << 1)) == 0) {
             stop_processing();
         }
 
         // Save modified values
-        uint8_t type = pl_config.rf_mode;
         pl_config.key = ELRS_EEPROM_KEY;
-        pl_config.rf[type].mode = current_rate_config;
-        pl_config.rf[type].power = PowerMgmt.currPower();
-        pl_config.rf[type].tlm = TLMinterval;
+        pl_config.rf[rf_mode].mode = current_rate_config;
+        pl_config.rf[rf_mode].power = PowerMgmt.currPower();
+        //pl_config.rf[rf_mode].tlm = ; // Set already
         platform_config_save(pl_config);
 
         // and restart timer
@@ -659,9 +665,8 @@ int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
 }
 
 
-
 ///////////////////////////////////////
-uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
+uint8_t SetRFLinkRate(uint8_t const rate, uint8_t const init) // Set speed of RF link (hz)
 {
     const expresslrs_mod_settings_t *const config = get_elrs_airRateConfig(rate);
     if (config == NULL || config == ExpressLRS_currAirRate)
@@ -691,7 +696,8 @@ uint8_t SetRFLinkRate(uint8_t rate, uint8_t init) // Set speed of RF link (hz)
 
     LinkStatistics.link.rf_Mode = config->rate_osd_num;
 
-    tx_tlm_change_interval(TLMinterval, init);
+    uint8_t telemtery = pl_config.rf[pl_config.rf_mode].tlm;
+    tx_tlm_change_interval(telemtery, init);
 
     write_u32(&SyncPacketInterval_us, config->syncInterval);
 
@@ -724,8 +730,10 @@ static void MspOtaCommandsSend(mspPacket_t &packet)
 {
     uint16_t iter;
 
+    // TODO,FIXME: add a retry!!
     if (read_u8(&tlm_msp_send)) {
-        DEBUG_PRINTF("MSP TX packet ignored\n");
+        DEBUG_PRINTF("UL MSP ignored. func: %x, size: %u\n",
+                     packet.function, packet.payloadSize);
         return;
     }
 
@@ -759,12 +767,12 @@ void tx_common_handle_rx_buffer(void)
 
 int tx_common_has_telemetry(void)
 {
-    return (TLM_RATIO_NO_TLM < TLMinterval) ? 0 : -1;
+    return (tlm_check_ratio) ? 0 : -1;
 }
 
 int tx_common_check_connection(void)
 {
-    if (0 <= tx_common_has_telemetry() && STATE_lost < connectionState) {
+    if (STATE_lost < connectionState) {
         uint32_t current_ms = millis();
         if (RX_CONNECTION_LOST_TIMEOUT < (uint32_t)(current_ms - LastPacketRecvMillis)) {
             connectionState = STATE_disconnected;

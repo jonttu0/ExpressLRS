@@ -89,7 +89,7 @@ enum {
 
 // ExpressLRS packet header types for downlink OTA packets
 enum {
-    DL_PACKET_FREE1 = 0b00,
+    DL_PACKET_DEV_INFO = 0b00,
     DL_PACKET_TLM_MSP = 0b01,
     DL_PACKET_GPS = 0b10,
     DL_PACKET_TLM_LINK = 0b11,
@@ -340,5 +340,22 @@ void FAST_CODE_1
 RcChannels_gps_extract(uint8_t const *const input, GpsOta_t & output);
 uint8_t FAST_CODE_1
 RcChannels_gps_pack(uint8_t *const output, GpsOta_t & input);
+
+
+/*************************************************************************************
+ * DEVICE INFO OTA PACKET
+ *************************************************************************************/
+typedef struct DeviceInfo_s {
+    uint8_t state;
+    uint8_t transmit;
+} PACKED DeviceInfo_t;
+
+/* Device info packet received callback */
+typedef void (*DevInfoCallback_t)(uint8_t state);
+
+uint8_t FAST_CODE_1
+RcChannels_dev_info_extract(uint8_t const *const input, DeviceInfo_t & output);
+uint8_t FAST_CODE_1
+RcChannels_dev_info_pack(uint8_t *const output, DeviceInfo_t & input);
 
 #endif /* __RC_CHANNELS_H */

@@ -66,6 +66,7 @@ static uint8_t DRAM_ATTR update_servos;
 static rc_channels_rx_t DRAM_ATTR rcChannelsData;
 static LinkStats_t DRAM_ATTR LinkStatistics;
 static GpsOta_t DRAM_ATTR GpsTlm;
+static DeviceInfo_t DRAM_ATTR DevInfo;
 static uint8_t DRAM_ATTR rcDataRcvdCnt;
 static uint32_t DRAM_ATTR rcDataTxCountMask;
 
@@ -149,7 +150,7 @@ static void FAST_CODE_1 handle_tlm_ratio(uint8_t interval)
 
     if ((TLM_RATIO_NO_TLM < interval) && (TLM_RATIO_MAX > interval))
     {
-        tlm_check_ratio = TLMratioEnumToValue(interval) - 1;
+        tlm_check_ratio = TlmEnumToMask(interval);
     }
     else
     {
@@ -221,20 +222,17 @@ void FAST_CODE_1 HandleSendTelemetryResponse(void) // total ~79us
     uint16_t crc_or_type;
     uint_fast8_t payloadSize = RcChannels_payloadSizeGet();
 
-    if ((tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
-    {
+    if (RcChannels_dev_info_pack(tx_buffer, DevInfo)) {
+        crc_or_type = DL_PACKET_DEV_INFO;
+    } else if ((tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA)) {
         if (RcChannels_tlm_ota_send(tx_buffer, msp_packet_tx, 0) || msp_packet_tx.error) {
             msp_packet_tx.reset();
             tlm_msp_send = 0;
         }
         crc_or_type = DL_PACKET_TLM_MSP;
-    }
-    else if (RcChannels_gps_pack(tx_buffer, GpsTlm))
-    {
+    } else if (RcChannels_gps_pack(tx_buffer, GpsTlm)) {
         crc_or_type = DL_PACKET_GPS;
-    }
-    else
-    {
+    } else {
         RcChannels_link_stas_pack(tx_buffer, LinkStatistics, uplink_Link_quality);
         crc_or_type = DL_PACKET_TLM_LINK;
     }
@@ -322,8 +320,9 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     /*fhss_config_rx |=*/ RadioFreqErrorCorr();
     fhss_config_rx |= HandleFHSS(nonce);
 
-    if ((0 < tlm_ratio) && ((nonce & tlm_ratio) == 0)
-            && (conn_state == STATE_connected)) {
+    if (TlmFrameCheck(nonce, tlm_ratio)
+            && (conn_state == STATE_connected)
+            && !FHSScurrSequenceIndexIsSyncChannel()) {
         /* Send telemetry response */
 #if (DBG_PIN_TMR_ISR != UNDEF_PIN)
         gpio_out_write(dbg_pin_tmr, 0);
@@ -738,6 +737,13 @@ void gps_info_cb(GpsOta_t * gps)
     GpsTlm.pkt_cnt = 3;
 }
 
+void dev_info_cb(uint8_t const state)
+{
+    // FC connection ok, send info to transmitter
+    DevInfo.state = state;
+    DevInfo.transmit = true;
+}
+
 void radio_prepare(uint8_t const type)
 {
     if (get_elrs_current_radio_type() == type)
@@ -815,6 +821,7 @@ void setup()
     crsf.MspCallback = msp_data_cb;
     crsf.BattInfoCallback = battery_info_cb;
     crsf.GpsCallback = gps_info_cb;
+    crsf.DevInfoCallback = dev_info_cb;
     crsf.Begin();
 #endif
 }

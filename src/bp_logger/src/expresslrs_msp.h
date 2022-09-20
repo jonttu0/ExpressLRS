@@ -54,7 +54,7 @@ private:
     void MspWrite(uint8_t * buff, uint8_t len, uint8_t function);
 
     void handleVtxFrequency(uint16_t freq, int num = -1);
-    void sendVtxFrequencyToSerial(uint16_t freq);
+    void sendVtxFrequencyToSerial(uint16_t freq, int num = -1);
     void sendVtxFrequencyToWebsocket(uint16_t freq);
 
 #if CONFIG_HANDSET
@@ -66,8 +66,7 @@ private:
     void handleHandsetAdjustResp(uint8_t * data, int num = -1);
     void HandsetConfigGet(uint8_t wsnum, uint8_t force = 0);
     void HandsetConfigSave(uint8_t wsnum);
-    void handleHandsetTlmLnkStats(uint8_t * data);
-    void handleHandsetTlmBattery(uint8_t * data);
+    void handleHandsetTlmLnkStatsAndBatt(uint8_t * data);
     void handleHandsetTlmGps(uint8_t * data);
 
     void battery_voltage_report(int num = -1);

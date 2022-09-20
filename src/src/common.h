@@ -140,8 +140,10 @@ uint8_t get_elrs_current_radio_type(void);
 static inline uint8_t get_elrs_airRateOsd(void) {
     return ExpressLRS_currAirRate->rate_osd_num;
 }
+uint8_t get_elrs_default_tlm_interval(uint8_t type, uint8_t rate);
 
-#define TLMratioEnumToValue(TLM) (256U >> (TLM))
+#define TlmEnumToMask(_TLM) ((256U >> (_TLM)) - 1)
+#define TlmFrameCheck(_CNTR, _MASK) ((_MASK) && (((_CNTR) & (_MASK)) == 1))
 
 #if defined(RX_MODULE)
 void forced_stop(void);

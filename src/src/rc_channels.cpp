@@ -616,10 +616,8 @@ RcChannels_get_arm_channel_state(void)
     #if (N_SWITCHES <= AUX_CHANNEL_ARM)
         #error "Invalid AUX channel for arming!"
     #endif
-    return !!currentSwitches[AUX_CHANNEL_ARM];
-#else
-    return 0;
 #endif
+    return !!currentSwitches[AUX_CHANNEL_ARM];
 }
 
 /*************************************************************************************
@@ -853,5 +851,31 @@ RcChannels_gps_pack(uint8_t *const output, GpsOta_t & input)
             break;
     }
     output[5] = type << 2;
+    return 1;
+}
+
+
+/*************************************************************************************
+ * DEVICE INFO OTA PACKET
+ *************************************************************************************/
+uint8_t FAST_CODE_1
+RcChannels_dev_info_extract(uint8_t const *const input, DeviceInfo_t & output)
+{
+    if (input[0] == 0xCA && input[1] == 0xFE) {
+        output.state = input[2];
+        return 1;
+    }
+    return 0;
+}
+
+uint8_t FAST_CODE_1
+RcChannels_dev_info_pack(uint8_t *const output, DeviceInfo_t & input)
+{
+    if (!input.transmit)
+        return 0;
+    output[0] = 0xCA;
+    output[1] = 0xFE;
+    output[2] = input.state;
+    input.transmit = false;
     return 1;
 }
