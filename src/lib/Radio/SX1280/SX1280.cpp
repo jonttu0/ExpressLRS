@@ -228,8 +228,10 @@ void FAST_CODE_2 SX1280Driver::SetMode(SX1280_RadioOperatingModes_t OPmode)
         buffer[0] = SX1280_RADIO_SET_TX;
         buffer[1] = SX1280_RADIO_TICK_SIZE_15_625us;
         // periodBaseCount: 0x0 = no timeout, returns when TX is ready
-        buffer[2] = 0x0;
-        buffer[3] = 0x0;
+        //buffer[2] = 0x0;
+        //buffer[3] = 0x0;
+        buffer[2] = (tx_timeout >> 8) & 0xFF;
+        buffer[3] = tx_timeout & 0xFF;
         len = 4;
         break;
     }
@@ -409,10 +411,12 @@ int32_t FAST_CODE_2 SX1280Driver::GetFrequencyError()
 
 void FAST_CODE_1 SX1280Driver::SetPacketInterval(uint32_t const interval_us) {
     // Time-out duration = periodBase * periodBaseCount
-    // period base is configured to 62.5us
-    // periodBaseCount: 0xffff = Rx Continuous mode.
+    // period base is configured to 15.625us
+    // periodBaseCount: 0xffff = Rx Continuous mode aka no timeout.
     rx_timeout = (interval_us) ? ((interval_us * 1000) / 15625) : 0xffff;
-    DEBUG_PRINTF("rx_timeout reg:%u\n", rx_timeout);
+    // periodBaseCount: 0 = no timeout. Use a 100us safe guard
+    tx_timeout = (interval_us) ? (((interval_us - 100) * 1000) / 15625) : 0;
+    DEBUG_PRINTF("timeout rx:%u, tx:%u\n", rx_timeout, tx_timeout);
 }
 
 void FAST_CODE_1 SX1280Driver::TXnbISR(uint16_t irqs)
@@ -458,7 +462,7 @@ void FAST_CODE_1 SX1280Driver::RXnbISR(uint32_t const rx_us, uint16_t const irqs
     }
     status = GetLastPacketStatus();
 
-    // Ignore if not a RX DONE ISR, CRC fail or timeout
+    // Ignore if not a RX DONE ISR and CRC fail or timeout has happened
     if (!(irqs & SX1280_IRQ_RX_DONE) ||
             (irqs & (SX1280_IRQ_CRC_ERROR | SX1280_IRQ_RX_TX_TIMEOUT)) ||
             (status & ~(SX1280_FLRC_PKT_ERROR_PKT_RCVD | SX1280_FLRC_PKT_ERROR_HDR_RCVD))) {

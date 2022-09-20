@@ -686,7 +686,7 @@ uint8_t SetRFLinkRate(uint8_t const rate, uint8_t const init) // Set speed of RF
     FHSSresetCurrIndex();
     RcChannels_initRcPacket(config->payloadSize);
     Radio->SetRxBufferSize(config->payloadSize + (config->hwCrc == HWCRC_DIS ? OTA_PACKET_CRC : 0));
-    Radio->SetPacketInterval(config->interval + 100); // 100us extra before timeout
+    Radio->SetPacketInterval(config->interval);
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
                   config->PreambleLen, config->hwCrc,
