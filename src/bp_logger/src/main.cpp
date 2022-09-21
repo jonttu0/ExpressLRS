@@ -605,7 +605,7 @@ void setup()
 
     buzzer_init();
 
-    //Serial.setRxBufferSize(512);
+    Serial.setRxBufferSize(512);
     Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, SERIAL_INVERTED);
 
     led_init();
