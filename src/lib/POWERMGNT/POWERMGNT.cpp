@@ -33,8 +33,7 @@ PowerArray_t power_array[MODULE_COUNT] = {
     {PWR_10mW,      8,   12,   15,    15,    15,    15,     15,     15},
 #elif (TARGET_MODULE_E28_VER == 20) || defined(TARGET_MODULE_E28_2G4M20S)
     // E28_2G4M20S (100mW)
-#warning "E28_2G4M20S needs to be verified"
-    {PWR_100mW,     8,   12,   15,    15,    15,    15,     15,     15},
+    {PWR_100mW,    -7,   -4,   -1,     3,     5,     5,      5,      5},
 #elif (TARGET_MODULE_E28_VER == 27) || defined(TARGET_MODULE_E28_2G4M27S)
     // E28_2G4M27S (500mW)
     {PWR_250mW,   -17,  -13,  -10,    -7,    -3,     0,      0,      0},
