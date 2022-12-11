@@ -62,6 +62,15 @@
 #define WIFI_DBG 1
 
 
+#if (LED_BUILTIN != BOOT0_PIN) && (LED_BUILTIN != RESET_PIN) && (LED_BUILTIN != BUZZER_PIN) && (LED_BUILTIN != WS2812_PIN)
+#define BUILTIN_LED_INIT()      pinMode((LED_BUILTIN), OUTPUT)
+#define BUILTIN_LED_SET(_state) digitalWrite((LED_BUILTIN), !(_state))
+#else
+#define BUILTIN_LED_INIT()
+#define BUILTIN_LED_SET(_state)
+#endif
+
+
 ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
@@ -277,7 +286,7 @@ void handle_recover()
 #endif
 }
 
-void handleMacAddress()
+void handleMacAddress(void)
 {
     String message = "WiFi STA MAC: ";
     message += WiFi.macAddress();
@@ -290,6 +299,25 @@ void handleMacAddress()
     message += "\n  - IP: ";
     message += WiFi.softAPIP().toString();
     message += "\n";
+    server.send(200, "text/plain", message);
+}
+
+void handleApInfo(void)
+{
+    String message = "== WiFi AP ==\n  - MAC: ";
+    message += WiFi.softAPmacAddress();
+    message += "\n  - IP: 192.168.4.1 / 24";
+    message += "\n  - AP channel: ";
+    message += ESP_NOW_CHANNEL;
+    message += "\n  - SSID: ";
+    message += WIFI_AP_SSID;
+    message +=  WIFI_AP_SUFFIX;
+    message += "\n  - PSK: ";
+    message += WIFI_AP_PSK;
+    message += "\n  - Hidden: ";
+    message += WIFI_AP_HIDDEN;
+    message += "\n  - Conn max: ";
+    message += WIFI_AP_MAX_CONN;
     server.send(200, "text/plain", message);
 }
 
@@ -391,6 +419,8 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
     wifi_connection_state = WIFI_STATE_NA;
     MDNS.end();
     WiFi.reconnect(); // Force reconnect
+
+    BUILTIN_LED_SET(0);
 }
 
 void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
@@ -425,6 +455,7 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
         });
     }
     led_set(LED_WIFI_STA);
+    BUILTIN_LED_SET(1);
     /*buzzer_beep(440, 30);
     delay(200);
     buzzer_beep(440, 30);*/
@@ -465,12 +496,19 @@ static void wifi_config_ap(void)
     WiFi.forceSleepWake();
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(local_IP, gateway, subnet);
-    WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL,
-                WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN);
-    wifi_connection_state = WIFI_STATE_AP;
+    if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL,
+                    WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN)) {
+        wifi_connection_state = WIFI_STATE_AP;
 #if WIFI_DBG
-    wifi_log += "WifiAP started\n";
+        wifi_log += "WifiAP started\n";
 #endif
+        led_set(LED_WIFI_AP);
+        buzzer_beep(400, 20);
+        BUILTIN_LED_SET(1);
+    } else {
+        wifi_connection_state = WIFI_STATE_NA;
+        wifi_connect_started = millis();
+    }
 }
 
 static void wifi_config(void)
@@ -528,8 +566,6 @@ static void wifi_check(void)
     uint32_t const now = millis();
     if (WIFI_LOOP_TIMEOUT < (now - wifi_connect_started)) {
         wifi_config_ap();
-        led_set(LED_WIFI_AP);
-        buzzer_beep(400, 20);
     } else if (500 <= (now - wifi_last_check)) {
         wifi_last_check = now;
         /* Blink led */
@@ -543,6 +579,7 @@ static void wifi_config_server(void)
     server.on("/fs", handle_fs);
     server.on("/return", sendReturn);
     server.on("/mac", handleMacAddress);
+    server.on("/ap", handleApInfo);
 #if CONFIG_STM_UPDATER
     server.on("/upload", HTTP_POST, // STM32 OTA upgrade
         stm32_ota_handleFileUploadEnd, stm32_ota_handleFileUpload);
@@ -598,6 +635,9 @@ void setup()
             /* 0 = normal startup by power on */
             break;
     }
+
+    BUILTIN_LED_INIT();
+    BUILTIN_LED_SET(0);
 
     eeprom_storage.setup();
 

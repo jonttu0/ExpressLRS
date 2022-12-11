@@ -24,8 +24,6 @@ uint8_t file_buffer[BLOCK_SIZE];
   		debug_log(); \
 	}while(0);
 
-uint8_t isp_serial_flush();
-
 
 void reset_stm32_to_isp_mode()
 {
@@ -33,12 +31,11 @@ void reset_stm32_to_isp_mode()
 	pinMode(RESET_PIN, OUTPUT);
 	pinMode(BOOT0_PIN, OUTPUT);
 	digitalWrite(BOOT0_PIN, HIGH);
-	delay(10);
+	delay(20);
 	digitalWrite(RESET_PIN, LOW);
-	delay(50);
-	isp_serial_flush();
+	delay(100);
 	digitalWrite(RESET_PIN, HIGH);
-	delay(50);
+	delay(100);
 }
 
 void reset_stm32_to_app_mode()
@@ -56,7 +53,7 @@ void reset_stm32_to_app_mode()
 void stm32flasher_hardware_init()
 {
 	Serial.begin(115200, SERIAL_8E1);
-	Serial.setTimeout(5000);
+	Serial.setTimeout(500);
 }
 
 void debug_log()
@@ -64,78 +61,64 @@ void debug_log()
 	webSocket.broadcastTXT(log_buffer);
 }
 
-
-uint8_t cmd_generic(uint8_t command);
-uint8_t cmd_get();
-
-
-uint8_t isp_serial_write(uint8_t *buffer, uint8_t length)
+static inline void isp_serial_write(uint8_t const * buffer, uint8_t const length)
 {
-	uint8_t len = Serial.write(buffer, length);
-	Serial.flush();
-	return len;
+	Serial.write(buffer, length);
+	//Serial.flush();
 }
 
-uint8_t isp_serial_read(uint8_t *buffer, uint8_t length, uint8_t timeout = 100)
+static inline void isp_serial_write(uint8_t const buffer)
 {
-	// wait until date is available
-	while(!Serial.available() && timeout) {
-		delay(1);
-		timeout--;
-	}
-	if (!timeout)
-		return 0;
+	isp_serial_write(&buffer, 1);
+}
+
+static inline uint8_t isp_serial_read(uint8_t *buffer, uint8_t const length, uint8_t const timeout = 100)
+{
+	Serial.setTimeout(timeout);
 	return Serial.readBytes(buffer, length);
 }
 
-uint8_t isp_serial_flush()
+static inline void isp_serial_flush_rx(void)
 {
-	while (Serial.available() > 0)
-	{
+	while (Serial.available())
 		Serial.read();
-	}
-	return 1;
 }
 
-uint8_t wait_for_ack(char const *when, int8_t timeout = 20)
+
+enum {
+	RESP_ACK = 0x79,
+	RESP_NACK = 0x1F,
+	RESP_BUSY = 0x76,
+};
+
+int8_t wait_for_ack(char const *when, int8_t timeout = 20)
 {
 	uint8_t cmd = 0;
+	uint8_t nread;
 	while (timeout--) {
-		uint8_t nread = isp_serial_read(&cmd, 1);
-		if (cmd == 0x79)
-		{ // ack
+		nread = isp_serial_read(&cmd, 1);
+		if (cmd == RESP_ACK) {
 			return 1;
-		}
-		else if (cmd == 0x1F)
-		{ // nack
+		} else if (cmd == RESP_NACK) {
 			DEBUG_PRINT("got NACK when: %s", when);
-			return 2;
-		}
-		else if (cmd == 0x76)
-		{ // busy
-			DEBUG_PRINT("got BUSY when: %s", when);
-			continue;
-		}
-		else if (nread)
-		{
-			DEBUG_PRINT("[WARNING] got unknown response: %d when: %s.", cmd, when);
 			break;
-		}
-		else
-		{
+		} else if (cmd == RESP_BUSY) {
+			DEBUG_PRINT("got BUSY when: %s", when);
+		} else if (nread) {
+			DEBUG_PRINT("[WARNING] got unknown response: %d when: %s.", cmd, when);
+		} else {
 			delay(1);
 		}
 	}
 
-	if (timeout <= 0)
-	{
+	if (timeout <= 0) {
 		DEBUG_PRINT("[ERROR] no response when: %s.", when);
 	}
 
-	return 0;
+	return -1;
 }
 
-uint8_t init_chip()
+int8_t init_chip(void)
 {
 	uint8_t cmd = 0x7F;
 
@@ -146,25 +129,26 @@ uint8_t init_chip()
 		DEBUG_PRINT("Trying to init chip... %u / %u", j+1, STM_MODE_LOOPS);
 		reset_stm32_to_isp_mode();
 		for (int i = 0; i < STM_INIT_LOOPS; i++) {
+			isp_serial_flush_rx();
 			isp_serial_write(&cmd, 1);
-			if (wait_for_ack("init_chip_write_cmd", 10) > 0) {
+			if (0 <= wait_for_ack("init_chip_write_cmd", 20)) {
 				DEBUG_PRINT("init chip succeeded.");
-				return 1;
+				return 0;
 			}
 		}
 	}
 	DEBUG_PRINT("[ERROR] init chip failed.");
-	return 0;
+	return -1;
 }
 
-uint8_t cmd_generic(uint8_t command)
+uint8_t cmd_generic(uint8_t const command)
 {
-	isp_serial_flush();
 	uint8_t cmd[2];
 	cmd[0] = command;
 	cmd[1] = command ^ 0xFF;
-	isp_serial_write(cmd, 2);
-	return wait_for_ack("cmd_generic");
+	isp_serial_flush_rx();
+	isp_serial_write(cmd, sizeof(cmd));
+	return (0 <= wait_for_ack("cmd_generic"));
 }
 
 uint8_t cmd_get()
@@ -192,11 +176,10 @@ uint8_t cmd_get()
 	return bootloader_ver;
 }
 
-uint8_t cmd_getID()
+int8_t cmd_getID(void)
 {
-	uint8_t retval = 0;
-	if (cmd_generic(0x02))
-	{
+	int8_t retval = -1;
+	if (cmd_generic(0x02)) {
 		uint8_t buffer[3] = {0, 0, 0};
 		isp_serial_read(buffer, 3);
 
@@ -221,28 +204,23 @@ uint8_t cmd_getID()
 	return retval;
 }
 
-void encode_address(uint32_t address, uint8_t *result)
+void encode_address_and_send(uint32_t const address)
 {
-	uint8_t b3 = (uint8_t)((address >> 0) & 0xFF);
-	uint8_t b2 = (uint8_t)((address >> 8) & 0xFF);
-	uint8_t b1 = (uint8_t)((address >> 16) & 0xFF);
-	uint8_t b0 = (uint8_t)((address >> 24) & 0xFF);
+	uint8_t const b3 = (uint8_t)((address >> 0) & 0xFF);
+	uint8_t const b2 = (uint8_t)((address >> 8) & 0xFF);
+	uint8_t const b1 = (uint8_t)((address >> 16) & 0xFF);
+	uint8_t const b0 = (uint8_t)((address >> 24) & 0xFF);
 
 	uint8_t crc = (uint8_t)(b0 ^ b1 ^ b2 ^ b3);
-	result[0] = b0;
-	result[1] = b1;
-	result[2] = b2;
-	result[3] = b3;
-	result[4] = crc;
+	uint8_t enc_address[5] = {b0, b1, b2, b3, crc};
+	isp_serial_write(enc_address, sizeof(enc_address));
 }
 
-uint8_t cmd_read_memory(uint32_t address, uint8_t length)
+uint8_t cmd_read_memory(uint32_t const address, uint8_t const length)
 {
-	if (cmd_generic(0x11) == 1)
+	if (cmd_generic(0x11))
 	{
-		uint8_t enc_address[5] = {0};
-		encode_address(address, enc_address);
-		isp_serial_write(enc_address, 5);
+		encode_address_and_send(address);
 		if (wait_for_ack("write_address") != 1)
 		{
 			return 0;
@@ -267,13 +245,11 @@ uint8_t cmd_read_memory(uint32_t address, uint8_t length)
 	return 0;
 }
 
-uint8_t cmd_write_memory(uint32_t address, uint8_t length)
+uint8_t cmd_write_memory(uint32_t const address, uint8_t const length)
 {
-	if (cmd_generic(0x31) == 1)
+	if (cmd_generic(0x31))
 	{
-		uint8_t enc_address[5] = {0};
-		encode_address(address, enc_address);
-		isp_serial_write(enc_address, 5);
+		encode_address_and_send(address);
 		if (wait_for_ack("write_address") != 1)
 		{
 			return 0;
@@ -297,9 +273,9 @@ uint8_t cmd_write_memory(uint32_t address, uint8_t length)
 
 // if bootversion < 0x30
 // pg 7 of https://www.st.com/resource/en/application_note/cd00264342-usart-protocol-used-in-the-stm32-bootloader-stmicroelectronics.pdf
-static uint8_t cmd_erase_memory(uint32_t const pages, uint8_t page_offset)
+static int8_t cmd_erase_memory(uint32_t const pages, uint8_t page_offset)
 {
-	if (cmd_generic(0x43) == 1) {
+	if (cmd_generic(0x43)) {
 #if 0 //(FLASH_OFFSET == 0)
 		DEBUG_PRINT("erasing all memory...");
 		// Global erase aka mass erase
@@ -310,23 +286,23 @@ static uint8_t cmd_erase_memory(uint32_t const pages, uint8_t page_offset)
 		return wait_for_ack("mass_erase");
 #else
 		uint8_t checksum = 0, page;
-		Serial.write((uint8_t)(pages-1));
+		isp_serial_write((uint8_t)(pages-1));
 		checksum ^= (pages-1);
 		for (page = page_offset; page < (page_offset + pages); page++) {
-			Serial.write(page);
+			isp_serial_write(page);
 			checksum ^= page;
 		}
-		Serial.write(checksum);
+		isp_serial_write(checksum);
 		return wait_for_ack("erase_pages");
 #endif
 	}
-	return 0;
+	return -1;
 }
 
 // else if bootversion >= 0x30
-static uint8_t cmd_erase_memory_extended(uint32_t const pages, uint8_t page_offset)
+static int8_t cmd_erase_memory_extended(uint32_t const pages, uint8_t page_offset)
 {
-	if (cmd_generic(0x44) == 1) {
+	if (cmd_generic(0x44)) {
 #if 0 //(FLASH_OFFSET == 0)
 		uint8_t cmd[3];
 		cmd[0] = 0xFF;
@@ -337,23 +313,23 @@ static uint8_t cmd_erase_memory_extended(uint32_t const pages, uint8_t page_offs
 #else
 		uint8_t checksum = 0, page;
 		// Send number of pages (16bit, MSB first)
-		Serial.write(0);
-		Serial.write((uint8_t)(pages-1));
+		isp_serial_write(0);
+		isp_serial_write((uint8_t)(pages-1));
 		checksum ^= (pages-1);
 		for (page = page_offset; page < (page_offset + pages); page++) {
 			// Send page number (16bit, MSB first)
-			Serial.write(0);
-			Serial.write(page);
+			isp_serial_write(0);
+			isp_serial_write(page);
 			checksum ^= page;
 		}
-		Serial.write(checksum);
+		isp_serial_write(checksum);
 		return wait_for_ack("erase_pages", 100);
 #endif
 	}
-	return 0;
+	return -1;
 }
 
-uint8_t cmd_erase(uint32_t const start_addr, uint32_t filesize, uint8_t bootloader_ver)
+int8_t cmd_erase(uint32_t const start_addr, uint32_t const filesize, uint8_t const bootloader_ver)
 {
 	// Erase only defined pages
 	uint8_t pages = (FLASH_SIZE / FLASH_PAGE_SIZE);
@@ -367,13 +343,10 @@ uint8_t cmd_erase(uint32_t const start_addr, uint32_t filesize, uint8_t bootload
 	return cmd_erase_memory_extended(pages, page_offset);
 }
 
-uint8_t cmd_go(uint32_t address)
+uint8_t cmd_go(uint32_t const address)
 {
-	if (cmd_generic(0x21) == 1)
-	{
-		uint8_t enc_address[5] = {0};
-		encode_address(address, enc_address);
-		isp_serial_write(enc_address, 5);
+	if (cmd_generic(0x21)) {
+		encode_address_and_send(address);
 		return wait_for_ack("cmd_go");
 	}
 	return 0;
@@ -403,24 +376,23 @@ uint8_t esp8266_spifs_write_file(const char *filename, uint32_t begin_addr)
 
 	stm32flasher_hardware_init();
 
-	if (init_chip() != 1) {
+	if (init_chip() < 0) {
 		fp.close();
 		return 0;
 	}
 
-	uint8_t bootloader_ver = cmd_get();
+	uint8_t const bootloader_ver = cmd_get();
 	if (bootloader_ver == 0) {
 		fp.close();
 		return 0;
 	}
 
-	if (cmd_getID() != 1) {
+	if (cmd_getID() < 0) {
 		fp.close();
 		return 0;
 	}
 
-	if (cmd_erase(begin_addr, filesize, bootloader_ver) != 1)
-	{
+	if (cmd_erase(begin_addr, filesize, bootloader_ver) < 0) {
 		DEBUG_PRINT("[ERROR] erase Failed!");
 		fp.close();
 		return 0;
@@ -431,11 +403,9 @@ uint8_t esp8266_spifs_write_file(const char *filename, uint32_t begin_addr)
 	uint32_t junks = (filesize + (BLOCK_SIZE - 1)) / BLOCK_SIZE;
 	uint32_t junk = 0;
 	uint8_t proc;
-	while (fp.position() < filesize)
-	{
+	while (fp.position() < filesize) {
 		uint8_t nread = BLOCK_SIZE;
-		if ((filesize - fp.position()) < BLOCK_SIZE)
-		{
+		if ((filesize - fp.position()) < BLOCK_SIZE) {
 			nread = filesize - fp.position();
 		}
 		nread = fp.readBytes((char *)memory_buffer, nread);
@@ -446,19 +416,18 @@ uint8_t esp8266_spifs_write_file(const char *filename, uint32_t begin_addr)
 			DEBUG_PRINT("Write %u%%", proc);
 
 		uint8_t result = cmd_write_memory(begin_addr + fp.position() - nread, nread);
-		if (result != 1)
-		{
+		if (result != 1) {
 			DEBUG_PRINT("[ERROR] file write failed.");
 			fp.close();
 			return 0;
 		}
 	}
 	DEBUG_PRINT("file write succeeded.");
+
 	DEBUG_PRINT("begin to verify file.");
 	fp.seek(0, SeekSet);
 	junk = 0;
-	while (fp.position() < filesize)
-	{
+	while (fp.position() < filesize) {
 		uint8_t nread = BLOCK_SIZE;
 		if ((filesize - fp.position()) < BLOCK_SIZE)
 		{
@@ -472,15 +441,13 @@ uint8_t esp8266_spifs_write_file(const char *filename, uint32_t begin_addr)
 			DEBUG_PRINT("Verify %u%%", proc);
 
 		uint8_t result = cmd_read_memory(begin_addr + fp.position() - nread, nread);
-		if (result != 1)
-		{
+		if (result != 1) {
 			DEBUG_PRINT("[ERROR] read memory failed: %d", fp.position());
 			fp.close();
 			return 0;
 		}
 		result = memcmp(file_buffer, memory_buffer, nread);
-		if (result != 0)
-		{
+		if (result != 0) {
 			DEBUG_PRINT("[ERROR] verify failed.");
 			fp.close();
 			return 0;
