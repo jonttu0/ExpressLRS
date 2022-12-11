@@ -41,11 +41,11 @@ void stm32_ota_handleFileUploadEnd()
   for (uint8_t i = 0; i < server.args(); i++) {
     String name = server.argName(i);
     String value = server.arg(i);
-      //message += " " + name + ": " + value + "\n";
-      if (name == "flash_address") {
-        flash_base = strtol(&value.c_str()[2], NULL, 16);
-        break;
-      }
+    //message += " " + name + ": " + value + "\n";
+    if (name == "flash_address") {
+      flash_base = strtol(&value.c_str()[2], NULL, 16);
+      break;
+    }
   }
   //websocket_send(message);
 
@@ -56,9 +56,8 @@ void stm32_ota_handleFileUploadEnd()
 
   server.sendHeader("Location", "/return");          // Redirect the client to the success page
   server.send(303);
-  websocket_send(
-    (success) ? "Update Successful!": "Update Failure!");
   server.send((success < 0) ? 400 : 200);
+  websocket_send((success) ? "Update Successful!": "Update Failure!");
 }
 
 
