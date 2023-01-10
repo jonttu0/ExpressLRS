@@ -45,6 +45,10 @@
 #endif
 #ifndef WIFI_AP_MAX_CONN
 #define WIFI_AP_MAX_CONN 2
+#elif WIFI_AP_MAX_CONN < 1
+#error "WIFI_AP_MAX_CONN min is 1"
+#elif 8 < WIFI_AP_MAX_CONN
+#error "WIFI_AP_MAX_CONN max is 8"
 #endif
 
 #if CONFIG_HANDSET
@@ -59,7 +63,11 @@
 #define WIFI_TIMEOUT 60 // default to 1min
 #endif
 
-#define WIFI_DBG 1
+#ifndef UART_DEBUG_EN
+#define UART_DEBUG_EN 0
+#endif
+#define WIFI_DBG (0 || UART_DEBUG_EN)
+
 
 
 #if (LED_BUILTIN != BOOT0_PIN) && (LED_BUILTIN != RESET_PIN) && (LED_BUILTIN != BUZZER_PIN) && (LED_BUILTIN != WS2812_PIN)
@@ -210,8 +218,10 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
             websocket_send(info_str, num);
 #endif // LATEST_COMMIT
 #if WIFI_DBG
-            websocket_send(wifi_log, num);
-            wifi_log = "";
+            if (wifi_log) {
+                websocket_send(wifi_log, num);
+                wifi_log = "";
+            }
 #endif
             if (boot_log)
                 websocket_send(boot_log, num);
@@ -315,7 +325,7 @@ void handleApInfo(void)
     message += "\n  - PSK: ";
     message += WIFI_AP_PSK;
     message += "\n  - Hidden: ";
-    message += WIFI_AP_HIDDEN;
+    message += !!WIFI_AP_HIDDEN;
     message += "\n  - Conn max: ";
     message += WIFI_AP_MAX_CONN;
     server.send(200, "text/plain", message);
@@ -400,23 +410,47 @@ static uint8_t wifi_connection_state;
 
 
 void onStationConnected(const WiFiEventStationModeConnected& evt) {
+    // Don't let AP to be triggered while still connecting to STA
+    wifi_connect_started = millis();
 #if WIFI_DBG
+#if UART_DEBUG_EN
+    wifi_log = "";
+#endif
     wifi_log += "Wifi_STA_connect() ";
     wifi_log += "RSSI=";
     wifi_log += WiFi.RSSI();
+#if !UART_DEBUG_EN
     wifi_log += "\n";
+#endif
+#if UART_DEBUG_EN
+    Serial.println(wifi_log);
+#endif
 #endif
 }
 
 void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
 #if WIFI_DBG
+#if UART_DEBUG_EN
+    wifi_log = "";
+#endif
     wifi_log += "Wifi_STA_diconnect() ";
     wifi_log += "reason:";
     wifi_log += evt.reason;
+#if !UART_DEBUG_EN
     wifi_log += "\n";
 #endif
-    wifi_connect_started = millis();
-    wifi_connection_state = WIFI_STATE_NA;
+#if UART_DEBUG_EN
+    Serial.println(wifi_log);
+#endif
+#endif
+    if (WIFI_STATE_NA != wifi_connection_state) {
+#if UART_DEBUG_EN
+        Serial.println("  CONNECTION LOST!");
+#endif
+        /* Start check again only after connection drop */
+        wifi_connect_started = millis();
+        wifi_connection_state = WIFI_STATE_NA;
+    }
     MDNS.end();
     WiFi.reconnect(); // Force reconnect
 
@@ -424,6 +458,9 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
 }
 
 void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
+#if UART_DEBUG_EN
+    Serial.println("WiFi STA got IP");
+#endif
 #if WIFI_DBG
     wifi_log += "Wifi_STA_GotIP();\n";
 #endif
@@ -466,8 +503,12 @@ void onStationDhcpTimeout(void)
 #if WIFI_DBG
     wifi_log += "Wifi_STA_DhcpTimeout();\n";
 #endif
+    wifi_connect_started = millis();
     wifi_connection_state = WIFI_STATE_NA;
     MDNS.end();
+#if UART_DEBUG_EN
+    Serial.println("WiFi STA DHCP timeout");
+#endif
 }
 
 void onSoftAPModeStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
@@ -475,12 +516,18 @@ void onSoftAPModeStationConnected(const WiFiEventSoftAPModeStationConnected& evt
 #if WIFI_DBG
     wifi_log += "Wifi_AP_connect();\n";
 #endif
+#if UART_DEBUG_EN
+    Serial.println("WiFi AP connected");
+#endif
 }
 
 void onSoftAPModeStationDisconnected(const WiFiEventSoftAPModeStationDisconnected& evt) {
     /* Client disconnected */
 #if WIFI_DBG
     wifi_log += "Wifi_AP_diconnect();\n";
+#endif
+#if UART_DEBUG_EN
+    Serial.println("WiFi AP disconnected");
 #endif
 }
 
@@ -491,13 +538,12 @@ static void wifi_config_ap(void)
     IPAddress subnet(255, 255, 255, 0);
 
     // WiFi not connected, Start access point
-    WiFi.setAutoReconnect(true);
     WiFi.disconnect(true);
     WiFi.forceSleepWake();
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(local_IP, gateway, subnet);
     if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL,
-                    WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN)) {
+                    !!WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN)) {
         wifi_connection_state = WIFI_STATE_AP;
 #if WIFI_DBG
         wifi_log += "WifiAP started\n";
@@ -505,9 +551,15 @@ static void wifi_config_ap(void)
         led_set(LED_WIFI_AP);
         buzzer_beep(400, 20);
         BUILTIN_LED_SET(1);
+#if UART_DEBUG_EN
+        Serial.println("WiFi AP ok");
+#endif
     } else {
-        wifi_connection_state = WIFI_STATE_NA;
-        wifi_connect_started = millis();
+        //wifi_connect_started = millis() - 100;
+        WiFi.mode(WIFI_OFF);
+#if UART_DEBUG_EN
+        Serial.println("WiFi AP start fail");
+#endif
     }
 }
 
@@ -521,6 +573,10 @@ static void wifi_config(void)
 #endif
 
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
+#if UART_DEBUG_EN
+    Serial.println("WiFi STA config");
+#endif
+
     /* Force WIFI off until it is realy needed */
     WiFi.mode(WIFI_OFF);
     WiFi.forceSleepBegin();
@@ -544,6 +600,9 @@ static void wifi_config(void)
     wifi_connect_started = millis();
 
 #elif WIFI_MANAGER
+#if UART_DEBUG_EN
+    Serial.println("WifiManager");
+#endif
     #warning "WiFi manager not supported anymore!"
     WiFiManager wifiManager;
     wifiManager.setConfigPortalTimeout(WIFI_TIMEOUT);
@@ -551,6 +610,9 @@ static void wifi_config(void)
         // AP found, connected
     }
 #else
+#if UART_DEBUG_EN
+    Serial.println("WiFi AP only");
+#endif
     wifi_config_ap();
 #endif /* WIFI_MANAGER */
 
@@ -565,6 +627,9 @@ static void wifi_check(void)
 
     uint32_t const now = millis();
     if (WIFI_LOOP_TIMEOUT < (now - wifi_connect_started)) {
+#if UART_DEBUG_EN
+        Serial.println("WIFI config timeout... start AP");
+#endif
         wifi_config_ap();
     } else if (500 <= (now - wifi_last_check)) {
         wifi_last_check = now;
@@ -657,6 +722,11 @@ void setup()
 
     FILESYSTEM.begin();
     //FILESYSTEM.format();
+
+#if UART_DEBUG_EN
+#warning "Serial debugging enabled!"
+    Serial.println("ELRS Logger started... starting up the wifi next");
+#endif
 
     wifi_config();
     wifi_config_server();

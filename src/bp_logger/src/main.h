@@ -13,6 +13,10 @@
 #ifndef SERIAL_BAUD
 #define SERIAL_BAUD 460800
 #endif
+#if UART_DEBUG_EN
+#undef SERIAL_BAUD
+#define SERIAL_BAUD 115200
+#endif
 
 
 void websocket_send(String & data, int num = -1);
