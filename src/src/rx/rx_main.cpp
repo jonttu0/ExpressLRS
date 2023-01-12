@@ -761,7 +761,7 @@ void radio_prepare(uint8_t const type)
     }
     Radio->RXdoneCallback1 = ProcessRFPacketCallback;
     Radio->TXdoneCallback1 = tx_done_cb;
-    Radio->SetOutputPower(0b1111); // default RX to max power for tlm
+    Radio->SetOutputPower(RECEIVER_TRANSMIT_POWER);
 }
 
 void setup()

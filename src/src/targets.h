@@ -222,3 +222,7 @@ extern const uint8_t target_name_len;
 #ifndef GPIO_PIN_ANT_CTRL_2
 #define GPIO_PIN_ANT_CTRL_2 UNDEF_PIN
 #endif
+
+#ifndef RECEIVER_TRANSMIT_POWER
+#define RECEIVER_TRANSMIT_POWER 0b1111 // default RX to max power for tlm
+#endif
