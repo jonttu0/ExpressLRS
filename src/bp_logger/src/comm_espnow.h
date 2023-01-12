@@ -3,12 +3,6 @@
 #include <Arduino.h>
 #include "msp.h"
 
-#ifdef ESP_NOW
-#ifndef ESP_NOW_PEERS
-#undef ESP_NOW
-#endif // ESP_NOW_PEERS
-#endif // ESP_NOW
-
 #if !ESP_NOW
 #define WIFI_CHANNEL 0 // Not defined
 #if defined(ESP_NOW_CHANNEL)
