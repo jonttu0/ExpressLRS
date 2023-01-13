@@ -67,7 +67,9 @@ private:
     void SetPacketParamsFLRC(uint8_t HeaderType,
                              uint8_t crc,
                              uint8_t PreambleLength,
-                             uint8_t PayloadLength);
+                             uint8_t PayloadLength,
+                             uint8_t cr,
+                             uint8_t vanilla);
     void SetPacketType(uint8_t type);
     void SetAutoFs(uint8_t enabled);
     void SetHighSensitivityMode(uint8_t enabled);

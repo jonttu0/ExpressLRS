@@ -10,6 +10,9 @@
 #if RADIO_SX128x
 #include "SX1280_Regs.h"
 #endif
+#if OTA_VANILLA_ENABLED
+#include "OTAvanilla.h"
+#endif
 
 //#define FHSS_TABLE_PRINT    1
 #define FHSS_SEQ_TABLE_SIZE 256
@@ -28,7 +31,7 @@ static int32_t  DRAM_ATTR FreqCorrection;
 static uint32_t DRAM_ATTR FHSS_frequencies[FHSS_SEQ_TABLE_SIZE];
 
 static uint32_t FHSSupdateFrequencies(uint8_t mode, uint32_t &rng_seed);
-static void FHSSrandomiseSequence(uint32_t nbr_fhss_freqs, uint32_t rng_seed);
+static void FHSSrandomiseSequence(uint32_t nbr_fhss_freqs, uint32_t rng_seed, uint8_t const mode);
 
 static void FHSSprintSequence(const uint8_t sequence_len)
 {
@@ -54,7 +57,7 @@ void FHSS_init(uint8_t const mode)
 {
     uint32_t rng_seed = 0;
     uint32_t band_count = FHSSupdateFrequencies(mode, rng_seed);
-    FHSSrandomiseSequence(band_count, rng_seed);
+    FHSSrandomiseSequence(band_count, rng_seed, mode);
     FHSSprintSequence(FHSS_sequence_len);
 }
 
@@ -111,7 +114,7 @@ uint32_t FAST_CODE_1 FHSSgetNextFreq()
     return FHSSgetCurrFreq();
 }
 
-static void CalculateFhssFrequencies(uint32_t base, uint32_t bw,
+static void CalculateFhssFrequencies(uint32_t base, uint32_t const bw,
                                      size_t const count, float const step)
 {
     size_t iter;
@@ -148,9 +151,9 @@ static uint32_t FHSSupdateFrequencies(uint8_t const mode, uint32_t &rng_seed)
             band_count = 3;
 #elif defined(Regulatory_Domain_EU_433)
             // Variable bandwidth, skip later calculation
-            FHSS_frequencies[0] = 433100000. / step;
-            FHSS_frequencies[1] = 433925000. / step;
-            FHSS_frequencies[2] = 434450000. / step;
+            FHSS_frequencies[0] = 433100000. / rf_step;
+            FHSS_frequencies[1] = 433925000. / rf_step;
+            FHSS_frequencies[2] = 434450000. / rf_step;
             band_count = 3;
 #elif defined(Regulatory_Domain_AU_915)
             freq_base = 915500000;
@@ -194,7 +197,7 @@ static uint32_t FHSSupdateFrequencies(uint8_t const mode, uint32_t &rng_seed)
             freq_base = 2400400000;
             bandwidth = 1000000;
             band_count = 80;
-            rng_seed = my_uid_to_u32();
+            rng_seed = my_uid_to_u32(OTA_VERSION_ID);
             break;
         }
 #endif
@@ -226,9 +229,9 @@ Approach:
   another random entry, excluding the sync channel.
 */
 static void
-FHSSrandomiseSequence(const uint32_t nbr_fhss_freqs, const uint32_t rng_seed)
+FHSSrandomiseSequence(const uint32_t nbr_fhss_freqs, const uint32_t rng_seed, uint8_t const mode)
 {
-    uint8_t const sync_channel = nbr_fhss_freqs / 2;
+    uint8_t const sync_channel = nbr_fhss_freqs / 2 + (mode == RADIO_TYPE_128x_VANILLA);
     // Number of hops in the FHSS_sequence_lut list before circling back around,
     // even multiple of the number of frequencies
     const uint32_t fhss_sequence_len =

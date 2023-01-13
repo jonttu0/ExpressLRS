@@ -28,6 +28,14 @@ enum module_types
     MODULE_COUNT,
 };
 
+enum
+{
+    RADIO_LORA = 0,
+    RADIO_FLRC,
+    RADIO_FLRC_VANILLA,
+};
+
+
 class RadioInterface : public RadioHalSpi
 {
 public:
@@ -55,6 +63,7 @@ public:
         _syncWord = syncWord;
     };
     void SetSyncWordLong(uint32_t const syncWord) {
+#if 0
         /* SX1280 Errata (see chapter 16.4.2 in datasheet v3.2):
          *   FLRC packets with synch word enabled will suffer from an increase
          *   in packet error rate if the synch word too-closely resembles
@@ -69,6 +78,7 @@ public:
             // Ignore also a LSB from 0x0000 to 0x3EFF
             _syncWordLong = (syncWord & 0x630E0000) + 0x10ACDC;
         else
+#endif
             // Syncword is ok
             _syncWordLong = syncWord;
     };

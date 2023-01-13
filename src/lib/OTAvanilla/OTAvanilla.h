@@ -17,13 +17,19 @@
 
 #if TARGET_HANDSET && OTA_VANILLA_ENABLED
 
-#define OTA_VANILLA_SIZE 8
+#define OTA4_PACKET_SIZE 8U
+#define OTA_VANILLA_SIZE OTA4_PACKET_SIZE
 
 #define CRSF_CHANNEL_VALUE_MIN  172
 #define CRSF_CHANNEL_VALUE_1000 191
 #define CRSF_CHANNEL_VALUE_MID  992
 #define CRSF_CHANNEL_VALUE_2000 1792
 #define CRSF_CHANNEL_VALUE_MAX  1811
+
+// Used to XOR with OtaCrcInitializer and macSeed to reduce compatibility with previous versions.
+// It should be incremented when the OTA packet structure is modified.
+#define OTA_VERSION_ID      3
+
 
 static inline uint32_t __attribute__((always_inline))
 OTA_vanilla_get_channelMinValue(void)

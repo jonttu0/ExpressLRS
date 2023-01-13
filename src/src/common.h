@@ -54,11 +54,6 @@ RadioInterface* common_config_radio(uint8_t type);
 extern RadioInterface DRAM_FORCE_ATTR *Radio;
 
 // *******************************************************************'
-enum
-{
-    RADIO_LORA = 0,
-    RADIO_FLRC,
-};
 
 enum
 {
@@ -85,7 +80,8 @@ enum
 enum
 {
     HWCRC_DIS = 0,
-    HWCRC_EN = 1,
+    HWCRC_EN,
+    HWCRC_IGNORE,
 };
 
 enum
@@ -153,6 +149,6 @@ void my_uid_print(void);
 uint8_t my_uid_crc8(void);
 uint16_t my_uid_crc16(void);
 uint32_t my_uid_crc32(void);
-uint32_t my_uid_to_u32(void);
+uint32_t my_uid_to_u32(uint8_t _xor = 0);
 
 int8_t validate_bl_indentifier(const uint8_t * id);

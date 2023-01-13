@@ -10,6 +10,8 @@
 #include "tx_common.h"
 #if OTA_VANILLA_ENABLED
 #include "OTAvanilla.h"
+#else
+#define OTA_VERSION_ID
 #endif
 #include <stdlib.h>
 
@@ -233,12 +235,12 @@ static uint8_t SetRadioType(uint8_t const type)
         }
         Radio = new_radio;
 
-        current_rate_config =
-            pl_config.rf[type].mode % get_elrs_airRateMax();
+        current_rate_config = pl_config.rf[type].mode % get_elrs_airRateMax();
         if (type == RADIO_TYPE_128x_VANILLA) {
-            CRCCaesarCipher = uid_u32 & 0xffff;
+            CRCCaesarCipher = (uid_u32 & 0xffff) ^ OTA_VERSION_ID;
             // Sync word must be set To make IQ inversion correct
             Radio->SetSyncWord(uid_u32 & 0xff);
+            Radio->SetSyncWordLong(my_uid_to_u32(OTA_VERSION_ID));
         } else {
             CRCCaesarCipher = my_uid_crc16();
             SyncCipher = (CRCCaesarCipher ^ uid_u32) & SYNC_CIPHER_MASK;
@@ -271,7 +273,7 @@ static uint8_t SetRadioType(uint8_t const type)
 void process_rx_buffer(uint8_t payloadSize)
 {
     const uint32_t ms = millis();
-    if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
+    if (ExpressLRS_currAirRate->hwCrc != HWCRC_EN) {
         payloadSize -= OTA_PACKET_CRC;
 
         const uint16_t crc = CalcCRC16((uint8_t*)rx_buffer, payloadSize, CRCCaesarCipher);
@@ -418,7 +420,7 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
 
     RcChannels_packetTypeSet(tx_buffer, payloadSize, crc_or_type);
 
-    if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
+    if (ExpressLRS_currAirRate->hwCrc != HWCRC_EN) {
         // Calculate the CRC
         crc_or_type = CalcCRC16(tx_buffer, payloadSize, CRCCaesarCipher);
         tx_buffer[payloadSize++] = (crc_or_type >> 8);
@@ -436,12 +438,14 @@ ota_packet_generate_vanilla(uint8_t * const tx_buffer,
                             uint_fast8_t const hopInterval)
 {
     uint_fast8_t payloadSize = OTA_VANILLA_SIZE;
+    const uint_fast8_t numOfTxPerRc = ExpressLRS_currAirRate->numOfTxPerRc;
     const uint_fast8_t arm_state = OTA_vanilla_getArmChannelState();
     const uint32_t sync_interval_us = SyncPacketInterval_us / (arm_state + 1);
 
     // only send sync when its time and only on sync channel;
-    if (!arm_state && FHSScurrSequenceIndexIsSyncChannel() &&
+    if ((!arm_state /*|| 1 < numOfTxPerRc*/) && FHSScurrSequenceIndexIsSyncChannel() &&
         ((rxtx_counter % hopInterval) == 0) &&
+        ((rxtx_counter % numOfTxPerRc) == 0) &&
         (sync_interval_us <= (uint32_t)(current_us - SyncPacketSent_us)))
     {
         OTA_vanilla_SyncPacketData(tx_buffer, rxtx_counter, TLMinterval);
@@ -689,7 +693,7 @@ uint8_t SetRFLinkRate(uint8_t const rate, uint8_t const init) // Set speed of RF
     Radio->SetPacketInterval(config->interval);
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
-                  config->PreambleLen, config->hwCrc,
+                  config->PreambleLen, (config->hwCrc == HWCRC_EN),
                   config->pkt_type);
 
     tx_handle_set_link_rate(config->interval * config->numOfTxPerRc);

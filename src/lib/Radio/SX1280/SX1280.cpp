@@ -103,10 +103,10 @@ int16_t SX1280Driver::MeasureNoiseFloor(uint32_t num_meas, uint32_t freq)
 
 void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
                           uint32_t freq, uint16_t PreambleLength,
-                          uint8_t crc, uint8_t flrc)
+                          uint8_t crc, uint8_t pkt_type)
 {
     uint16_t irqs = (SX1280_IRQ_TX_DONE | SX1280_IRQ_RX_DONE | SX1280_IRQ_RX_TX_TIMEOUT);
-    uint8_t const mode = flrc ? SX1280_PACKET_TYPE_FLRC : SX1280_PACKET_TYPE_LORA;
+    uint8_t const mode = (pkt_type == RADIO_LORA) ? SX1280_PACKET_TYPE_LORA : SX1280_PACKET_TYPE_FLRC;
     SetMode(SX1280_MODE_STDBY_RC);
     SetRegulatorMode(SX1280_REGULATOR_MODE_DCDC ? SX1280_USE_DCDC : SX1280_USE_LDO);
     SetPacketType(mode);
@@ -115,7 +115,7 @@ void SX1280Driver::Config(uint32_t bw, uint32_t sf, uint32_t cr,
         DEBUG_PRINTF("SX1280: config FLRC\n");
         ConfigModParamsFLRC(bw, cr, sf);
         SetPacketParamsFLRC(SX1280_FLRC_PACKET_FIXED_LENGTH, crc,
-                            PreambleLength, ota_pkt_size);
+                            PreambleLength, ota_pkt_size, cr, pkt_type);
         irqs |= SX1280_IRQ_CRC_ERROR;
     } else {
         DEBUG_PRINTF("SX1280: config LoRa\n");
@@ -316,11 +316,17 @@ void SX1280Driver::SetPacketParamsLoRa(uint8_t HeaderType,
 void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
                                        uint8_t crc,
                                        uint8_t PreambleLength,
-                                       uint8_t PayloadLength)
+                                       uint8_t PayloadLength,
+                                       uint8_t cr,
+                                       uint8_t pkt_type)
 {
     if (PreambleLength < 8) PreambleLength = 8;
     PreambleLength = ((PreambleLength / 4) - 1) << 4;
-    crc = (crc) ? SX1280_FLRC_CRC_2_BYTE : SX1280_FLRC_CRC_OFF;
+    crc = (crc) ?
+        ((pkt_type != RADIO_FLRC_VANILLA) ?
+            SX1280_FLRC_CRC_2_BYTE
+            : SX1280_FLRC_CRC_3_BYTE)
+        : SX1280_FLRC_CRC_OFF;
 
     uint8_t buf[8];
     buf[0] = SX1280_RADIO_SET_PACKETPARAMS;
@@ -343,12 +349,14 @@ void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
     buf[4] = (uint8_t)_cipher;
     TransferBuffer(buf, 5, 0);
 
-    // CRC POLY 0x3D65
-    buf[1] = 0x9; // MSB address = 0x9c6
-    buf[2] = 0xC6;
-    buf[3] = 0x3D;
-    buf[4] = 0x65;
-    TransferBuffer(buf, 5, 0);
+    if (pkt_type != RADIO_FLRC_VANILLA) {
+        // CRC POLY 0x3D65
+        buf[1] = 0x9; // MSB address = 0x9c6
+        buf[2] = 0xC6;
+        buf[3] = 0x3D;
+        buf[4] = 0x65;
+        TransferBuffer(buf, 5, 0);
+    }
 
     // Set SyncWord1
     buf[1] = 0x9; // MSB address = 0x09CF
@@ -357,6 +365,17 @@ void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
     buf[4] = (uint8_t)(_syncWordLong >> 16);
     buf[5] = (uint8_t)(_syncWordLong >> 8);
     buf[6] = (uint8_t)_syncWordLong;
+    // DS_SX1280-1_V3.2.pdf - 16.4 FLRC Modem: Increased PER in FLRC Packets with Synch Word
+    if (((cr == SX1280_FLRC_CR_1_2) || (cr == SX1280_FLRC_CR_3_4)) &&
+            ((buf[3] == 0x8C && buf[4] == 0x38) || (buf[3] == 0x63 && buf[4] == 0x0E))) {
+        uint8_t const temp = buf[3];
+        buf[3] = buf[4];
+        buf[4] = temp;
+        // For SX1280_FLRC_CR_3_4 the datasheet also says
+        // "In addition to this the two LSB values XX XX must not be in the range 0x0000 to 0x3EFF"
+        if (cr == SX1280_FLRC_CR_3_4 && buf[6] <= 0x3e)
+            buf[6] |= 0x80; // 0x80 or 0x40 would work
+    }
     TransferBuffer(buf, 7, 0);
 }
 

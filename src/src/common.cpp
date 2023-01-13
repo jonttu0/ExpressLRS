@@ -70,14 +70,13 @@ static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x[]
 
 #if TARGET_HANDSET && OTA_VANILLA_ENABLED
 static expresslrs_mod_settings_t DRAM_FORCE_ATTR ExpressLRS_AirRateConfig_128x_VANILLA[] = {
-    /* 500Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6,  2000, 250000u, 500, 12, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz, 8, 1, HWCRC_DIS}, // 1.51ms
-    /* 250Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF6, SX1280_LORA_CR_LI_4_7,  4000, 250000u, 250, 12, 1000, 1000, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_250Hz, 8, 1, HWCRC_DIS}, // 3.33ms
-    /* 150Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF7, SX1280_LORA_CR_LI_4_7,  6666, 500000u, 150, 12, 1000, 1500, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_125Hz, 8, 1, HWCRC_DIS}, // 6.82ms
-    /* 50Hz */
-    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF9, SX1280_LORA_CR_LI_4_6, 20000, 750000u,  50, 12, 1000, 2000, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_50Hz,  8, 1, HWCRC_DIS}, // 13.32ms
+    // Adjust \ref OTA_vanilla_SyncPacketData accordingly for index mapping
+    // FLRC - DVDA only
+    {RADIO_FLRC_VANILLA, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 1000, 20000u, 500, 32, 1000, 1200, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_500Hz_FLRC, OTA_VANILLA_SIZE, 2, HWCRC_EN},
+    {RADIO_FLRC_VANILLA, SX1280_FLRC_BR_0_650_BW_0_6, SX1280_FLRC_BT_1, SX1280_FLRC_CR_1_2, 1000, 20000u, 250, 32, 1000, 1200, TLM_RATIO_NO_TLM, FHSS_2, OSD_MODE_250Hz_FLRC, OTA_VANILLA_SIZE, 4, HWCRC_EN},
+    // LoRa
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF5, SX1280_LORA_CR_LI_4_6, 2000, 50000u, 500, 12, 1000, 1200, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_500Hz, OTA_VANILLA_SIZE, 1, HWCRC_IGNORE},
+    {RADIO_LORA, SX1280_LORA_BW_0800, SX1280_LORA_SF6, SX1280_LORA_CR_LI_4_7, 4000, 50000u, 250, 14, 1000, 1500, TLM_RATIO_NO_TLM, FHSS_4, OSD_MODE_250Hz, OTA_VANILLA_SIZE, 1, HWCRC_IGNORE},
 };
 #endif // OTA_VANILLA_ENABLED
 
@@ -197,7 +196,7 @@ void my_uid_print(void)
 {
 #if defined(DEBUG_SERIAL)
     uint8_t UID[6] = {MY_UID};
-    DEBUG_PRINTF("MY_ID: 0x%X,0x%X0x%X0x%X0x%X0x%X\n",
+    DEBUG_PRINTF("MY_ID: 0x%X,0x%X,0x%X,0x%X,0x%X,0x%X\n",
                  UID[0], UID[1], UID[2], UID[3], UID[4], UID[5]);
 #endif
 }
@@ -220,7 +219,7 @@ uint32_t my_uid_crc32(void)
     return CalcCRC32(UID, sizeof(UID));
 }
 
-uint32_t my_uid_to_u32(void)
+uint32_t my_uid_to_u32(uint8_t _xor)
 {
     uint32_t ret;
     uint8_t UID[6] = {MY_UID};
@@ -230,10 +229,7 @@ uint32_t my_uid_to_u32(void)
     ret <<= 8;
     ret += UID[4];
     ret <<= 8;
-    ret += UID[5];
-
-    //return ((uint32_t)UID[2] << 24) + ((uint32_t)UID[3] << 16) +
-    //       ((uint32_t)UID[4] << 8) + UID[5];
+    ret += (UID[5] ^ _xor);
     return ret;
 }
 
