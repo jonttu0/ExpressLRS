@@ -122,6 +122,11 @@ DataView.prototype.nextInt32 = function (little_endian=false) {
         return undefined;
     }
 };
+function bufferToHex (buffer) {
+    return [...new Uint8Array (buffer)]
+        .map (b => b.toString (16).padStart (2, "0"))
+        .join ("");
+}
 
 var websock = null;
 function start() {
