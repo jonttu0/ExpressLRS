@@ -118,7 +118,7 @@ static uint8_t loop_cnt;
 void platform_connection_state(int state)
 {
 #ifdef AUTO_WIFI_ON_BOOT
-    if (state == STATE_search_iteration_done && millis() < 30000 && 2 <= ++loop_cnt) {
+    if (state == STATE_search_iteration_done && 2 <= ++loop_cnt) {
 #if (GPIO_PIN_LED_RGB != UNDEF_PIN)
         ws2812_set_color_u32(0xe803fc /*purple*/);
 #endif
