@@ -254,21 +254,14 @@ void ExpresslrsMsp::handleHandsetAdjust(uint8_t const * const input)
     msp_out.type = MSP_PACKET_V1_ELRS;
     msp_out.flags = MSP_ELRS_INT;
 
-    if (control == 0)
-        msp_out.function = ELRS_HANDSET_ADJUST_MIN;
-    else if (control == 1)
-        msp_out.function = ELRS_HANDSET_ADJUST_MID;
-    else if (control == 2)
-        msp_out.function = ELRS_HANDSET_ADJUST_MAX;
-    else
-        /* not valid cmd */
-        return;
-
-    if (control_axis == 0)      msp_out.payload[0] |= GIMBAL_IDX_L1;
-    else if (control_axis == 1) msp_out.payload[0] |= GIMBAL_IDX_L2;
-    else if (control_axis == 2) msp_out.payload[0] |= GIMBAL_IDX_R1;
-    else if (control_axis == 3) msp_out.payload[0] |= GIMBAL_IDX_R2;
+    if (control == 1)      msp_out.function = ELRS_HANDSET_ADJUST_MIN;
+    else if (control == 2) msp_out.function = ELRS_HANDSET_ADJUST_MID;
+    else if (control == 3) msp_out.function = ELRS_HANDSET_ADJUST_MAX;
     else return;
+
+    if (4 <= control_axis) return;
+
+    msp_out.payload[0] = control_axis;
     msp_out.payload[1] = input[2];
     msp_out.payload[2] = input[1];
     // Send packet
