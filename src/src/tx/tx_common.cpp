@@ -440,10 +440,10 @@ ota_packet_generate_vanilla(uint8_t * const tx_buffer,
     uint_fast8_t payloadSize = OTA_VANILLA_SIZE;
     const uint_fast8_t numOfTxPerRc = ExpressLRS_currAirRate->numOfTxPerRc;
     const uint_fast8_t arm_state = OTA_vanilla_getArmChannelState();
-    const uint32_t sync_interval_us = SyncPacketInterval_us / (arm_state + 1);
+    const uint32_t sync_interval_us = SyncPacketInterval_us / ((!arm_state * 3) + 1);
 
     // only send sync when its time and only on sync channel;
-    if ((!arm_state /*|| 1 < numOfTxPerRc*/) && FHSScurrSequenceIndexIsSyncChannel() &&
+    if ((!arm_state || 1 < numOfTxPerRc) && FHSScurrSequenceIndexIsSyncChannel() &&
         ((rxtx_counter % hopInterval) == 0) &&
         ((rxtx_counter % numOfTxPerRc) == 0) &&
         (sync_interval_us <= (uint32_t)(current_us - SyncPacketSent_us)))
