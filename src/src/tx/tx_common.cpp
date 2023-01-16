@@ -11,7 +11,7 @@
 #if OTA_VANILLA_ENABLED
 #include "OTAvanilla.h"
 #else
-#define OTA_VERSION_ID
+#define OTA_VERSION_ID 0
 #endif
 #include <stdlib.h>
 
