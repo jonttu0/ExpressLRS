@@ -8,7 +8,7 @@
 #include "debug_elrs.h"
 #include "LowPassFilter.h"
 #include "tx_common.h"
-#if OTA_VANILLA_ENABLED
+#if TARGET_HANDSET && OTA_VANILLA_ENABLED
 #include "OTAvanilla.h"
 #else
 #define OTA_VERSION_ID 0
@@ -245,6 +245,7 @@ static uint8_t SetRadioType(uint8_t const type)
             CRCCaesarCipher = my_uid_crc16();
             SyncCipher = (CRCCaesarCipher ^ uid_u32) & SYNC_CIPHER_MASK;
             Radio->SetSyncWord(my_uid_crc8());
+            Radio->SetSyncWordLong(my_uid_crc32());
         }
 
         PowerLevels_e const power =

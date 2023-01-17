@@ -37,6 +37,7 @@ void FAST_CODE_1 LostConnection();
 #if PRINT_RATE && NO_DATA_TO_FC
 uint32_t print_rate_cnt;
 uint32_t print_rate_cnt_fail;
+uint32_t print_tlm_cnt;
 uint32_t print_Rate_cnt_time;
 #endif
 #if PRINT_TIMING && NO_DATA_TO_FC
@@ -53,7 +54,7 @@ connectionState_e DRAM_ATTR connectionState;
 static volatile uint8_t DRAM_ATTR NonceRXlocal; // nonce that we THINK we are up to.
 static uint8_t DRAM_ATTR TLMinterval;
 static uint32_t DRAM_ATTR tlm_check_ratio;
-static uint32_t DRAM_ATTR rx_last_valid_us; //Time the last valid packet was recv
+static uint32_t DRAM_ATTR rx_last_valid_us; // Time the last valid packet was recv
 static int32_t DRAM_ATTR rx_freqerror;
 static volatile int32_t DRAM_ATTR rx_hw_isr_running;
 
@@ -215,7 +216,10 @@ uint8_t FAST_CODE_1 HandleFHSS(uint_fast8_t & nonce)
 
 void FAST_CODE_1 HandleSendTelemetryResponse(void) // total ~79us
 {
-    DEBUG_PRINTF(" X");
+    //DEBUG_PRINTF("X");
+#if PRINT_RATE && NO_DATA_TO_FC
+    //print_tlm_cnt++;
+#endif
     // esp requires word aligned buffer
     uint32_t __tx_buffer[(OTA_PAYLOAD_MAX + sizeof(uint32_t) - 1) / sizeof(uint32_t)];
     uint8_t *tx_buffer = (uint8_t *)__tx_buffer;
@@ -252,6 +256,9 @@ void tx_done_cb(void)
     // Configure RX only next is not hopping time
     //if (((NonceRXlocal + 1) % ExpressLRS_currAirRate->FHSShopInterval) != 0)
     //    Radio->RXnb(FHSSgetCurrFreq());
+#if PRINT_RATE && NO_DATA_TO_FC
+    print_tlm_cnt++;
+#endif
 }
 
 
@@ -282,8 +289,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #endif
 
     /* do the timing adjustment based on last reception */
-    if (last_rx_us != 0)
-    {
+    if (0 != last_rx_us) {
         diff_us = (int32_t)((uint32_t)(us - last_rx_us));
 
         if (diff_us < -TIMER_OFFSET) diff_us = -TIMER_OFFSET;
@@ -295,9 +301,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
 #if PRINT_RATE && NO_DATA_TO_FC
         print_rate_cnt++;
 #endif
-    }
-    else
-    {
+    } else {
 #if PRINT_RATE && NO_DATA_TO_FC
         print_rate_cnt_fail++;
 #endif
@@ -356,7 +360,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     timer_last_call_us = us;
 #else
     if (!last_rx_us) {
-        DEBUG_PRINTF("-");
+        //DEBUG_PRINTF("-");  // RX and TX missed
     }
 #endif
 
@@ -471,7 +475,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
      * or  error in reception (CRC etc), kick hw timer
      */
     if (rx_hw_isr_running || !rx_buffer) {
-        DEBUG_PRINTF("_");
+        DEBUG_PRINTF("!");
 #if PRINT_TIMING_IN_CRSF_FRAME
         rcChannelsData.ch1 = 1;
 #endif
@@ -655,9 +659,10 @@ static void SetRFLinkRate(uint8_t rate) // Set speed of RF link (hz)
 
     RcChannels_initRcPacket(config->payloadSize);
     Radio->SetRxBufferSize(config->payloadSize + (config->hwCrc == HWCRC_DIS ? OTA_PACKET_CRC : 0));
+    //Radio->SetPacketInterval(config->interval);
     Radio->SetCaesarCipher(CRCCaesarCipher);
     Radio->Config(config->bw, config->sf, config->cr, FHSSgetCurrFreq(),
-                  config->PreambleLen, config->hwCrc,
+                  config->PreambleLen, (config->hwCrc == HWCRC_EN),
                   config->pkt_type);
 
     // Measure RF noise
@@ -798,6 +803,7 @@ void setup()
     msp_packet_rx.reset();
 
     DEBUG_PRINTF("ExpressLRS RX Module...\n");
+    my_uid_print();
     platform_setup();
 
     // Prepare radio
@@ -925,12 +931,13 @@ void loop()
 #if 1
         uint32_t const bad = read_u32(&print_rate_cnt_fail);
         uint32_t const good = read_u32(&print_rate_cnt);
+        uint32_t const tlmtx = read_u32(&print_tlm_cnt);
         write_u32(&print_rate_cnt_fail, 0);
         write_u32(&print_rate_cnt, 0);
-        DEBUG_PRINTF(" Rate: -%u +%u LQ:%u RSSI:%d SNR:%d - RC: %u|%u|%u|%u|*|%u|%u|%u|%u|\n",
-            bad,
-            good,
-            uplink_Link_quality, //read_u8(&uplink_Link_quality),
+        write_u32(&print_tlm_cnt, 0);
+        DEBUG_PRINTF(" Rate: +%u !%u t%u LQ:%u RSSI:%d SNR:%d - RC: %u|%u|%u|%u|*|%u|%u|%u|%u|\n",
+            good, abs(bad - tlmtx), tlmtx,
+            uplink_Link_quality,
             LPF_UplinkRSSI.value(),
             LPF_UplinkSNR.value(),
             rcChannelsData.ch0, rcChannelsData.ch1, rcChannelsData.ch2, rcChannelsData.ch3,

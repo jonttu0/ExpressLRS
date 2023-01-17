@@ -322,11 +322,10 @@ void SX1280Driver::SetPacketParamsFLRC(uint8_t HeaderType,
 {
     if (PreambleLength < 8) PreambleLength = 8;
     PreambleLength = ((PreambleLength / 4) - 1) << 4;
-    crc = (crc) ?
-        ((pkt_type != RADIO_FLRC_VANILLA) ?
-            SX1280_FLRC_CRC_2_BYTE
-            : SX1280_FLRC_CRC_3_BYTE)
-        : SX1280_FLRC_CRC_OFF;
+
+    if (!crc) crc = SX1280_FLRC_CRC_OFF;
+    else if (pkt_type == RADIO_FLRC) crc = SX1280_FLRC_CRC_2_BYTE;
+    else if (pkt_type == RADIO_FLRC_VANILLA) crc = SX1280_FLRC_CRC_3_BYTE;
 
     uint8_t buf[8];
     buf[0] = SX1280_RADIO_SET_PACKETPARAMS;
@@ -433,8 +432,8 @@ void FAST_CODE_1 SX1280Driver::SetPacketInterval(uint32_t const interval_us) {
     // period base is configured to 15.625us
     // periodBaseCount: 0xffff = Rx Continuous mode aka no timeout.
     rx_timeout = (interval_us) ? ((interval_us * 1000) / 15625) : 0xffff;
-    // periodBaseCount: 0 = no timeout. Use a 100us safe guard
-    tx_timeout = (interval_us) ? (((interval_us - 100) * 1000) / 15625) : 0;
+    // periodBaseCount: 0 = no timeout. Use a 80us safe guard
+    tx_timeout = (interval_us) ? (((interval_us - 80) * 1000) / 15625) : 0;
     DEBUG_PRINTF("timeout rx:%u, tx:%u\n", rx_timeout, tx_timeout);
 }
 
@@ -447,8 +446,8 @@ void FAST_CODE_1 SX1280Driver::TXnbISR(uint16_t irqs)
         (status & SX1280_STATUS_MODE_MASK) >> SX1280_STATUS_MODE_SHIFT);
 
     // Ignore if not a TX DONE ISR
-    //if (!(irqs & SX1280_IRQ_TX_DONE))
-    //    return;
+    if (!(irqs & SX1280_IRQ_TX_DONE) || (irqs & SX1280_IRQ_RX_TX_TIMEOUT))
+        return;
     TXdoneCallback1();
 }
 
