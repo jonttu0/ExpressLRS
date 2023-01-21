@@ -21,9 +21,9 @@
 #define OTA_VANILLA_SIZE OTA4_PACKET_SIZE
 
 #define CRSF_CHANNEL_VALUE_MIN  172
-#define CRSF_CHANNEL_VALUE_1000 191
-#define CRSF_CHANNEL_VALUE_MID  992
-#define CRSF_CHANNEL_VALUE_2000 1792
+#define CRSF_CHANNEL_VALUE_1000 0
+#define CRSF_CHANNEL_VALUE_MID  ((CRSF_CHANNEL_VALUE_2000 + CRSF_CHANNEL_VALUE_1000) / 2 - 1)
+#define CRSF_CHANNEL_VALUE_2000 1023 // 10bits
 #define CRSF_CHANNEL_VALUE_MAX  1811
 
 // Used to XOR with OtaCrcInitializer and macSeed to reduce compatibility with previous versions.
