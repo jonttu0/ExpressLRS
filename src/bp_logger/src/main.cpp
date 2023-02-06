@@ -4,9 +4,6 @@
 #include <Hash.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
-#if WIFI_MANAGER
-#include <WiFiManager.h>
-#endif /* WIFI_MANAGER */
 #include <ESP8266HTTPUpdateServer.h>
 #if USE_LITTLE_FS // Must be included here to make 6.1x pio happy
 #include <LittleFS.h>
@@ -59,6 +56,10 @@
 #define WIFI_AP_SUFFIX " MODULE"
 #endif
 
+#ifndef WIFI_SEARCH_RSSI_MIN
+#define WIFI_SEARCH_RSSI_MIN -100
+#endif
+
 #ifndef WIFI_TIMEOUT
 #define WIFI_TIMEOUT 60 // default to 1min
 #endif
@@ -101,6 +102,22 @@ enum {
     WSMSGID_STM32_RESET = WSMSGID_BASE_STM32,
 };
 
+uint8_t char_to_dec(uint8_t const chr)
+{
+    if ('0' <= chr && chr <= '9')
+        return chr - '0';
+    return 0;
+}
+
+uint8_t hex_char_to_dec(uint8_t const chr)
+{
+    if ('A' <= chr && chr <= 'F')
+        return (10 + (chr - 'A'));
+    if ('a' <= chr && chr <= 'f')
+        return (10 + (chr - 'a'));
+    return char_to_dec(chr);
+}
+
 
 /*************************************************************************/
 
@@ -138,6 +155,36 @@ int get_reset_reason(void)
     return reset_reason;
 }
 
+
+void wifi_networks_report(int wsnum)
+{
+    if (eeprom_storage.wifi_is_valid()) {
+        // CMD_WIFINETS</\/\IDXMACSSID>
+        String info_str = "CMD_WIFINETS";
+        for (size_t index = 0; index < ARRAY_SIZE(eeprom_storage.wifi_nets); index++) {
+            wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[index];
+            if (wifi_ptr->psk[0] && (wifi_ptr->ssid[0] || eeprom_storage.wifi_is_mac_valid(wifi_ptr))) {
+                info_str += "/\\/\\";
+                if (index < 10) info_str += '0';
+                info_str += index;
+                if (eeprom_storage.wifi_is_mac_valid(wifi_ptr)) {
+                    char macStr[18] = { 0 };
+                    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+                            wifi_ptr->mac[0], wifi_ptr->mac[1],
+                            wifi_ptr->mac[2], wifi_ptr->mac[3],
+                            wifi_ptr->mac[4], wifi_ptr->mac[5]);
+                    info_str += macStr;
+                } else {
+                    info_str += "00:00:00:00:00:00";
+                }
+                if (wifi_ptr->ssid[0]) {
+                    info_str += wifi_ptr->ssid;
+                }
+            }
+        }
+        websocket_send(info_str, wsnum);
+    }
+}
 
 /*************************************************************************/
 
@@ -235,11 +282,79 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
                 websocket_send(buffer, sizeof(buffer), num);
             }
 #endif
+            wifi_networks_report(num);
+
             msp_handler.syncSettings(num);
             break;
         }
 
         case WStype_TEXT: {
+            size_t index;
+            char const * temp = strstr((char*)payload, "WIFIADD/");
+            if (temp) { // WiFi network add
+                temp += 8;
+                wifi_networks_t * wifi_ptr = NULL;
+                for (index = 0; index < ARRAY_SIZE(eeprom_storage.wifi_nets); index++, wifi_ptr = NULL) {
+                    wifi_ptr = &eeprom_storage.wifi_nets[index];
+                    if (!wifi_ptr->ssid[0] && !wifi_ptr->psk[0] && !eeprom_storage.wifi_is_mac_valid(wifi_ptr)) {
+                        // Free slot found
+                        break;
+                    }
+                }
+                if (wifi_ptr) {
+                    size_t len;
+                    // Parse SSID
+                    len  = (10 * char_to_dec(*temp++));
+                    len += char_to_dec(*temp++);
+                    temp += 1; // Skip '/'
+                    memcpy(wifi_ptr->ssid, temp, len);
+                    wifi_ptr->ssid[len] = 0;
+                    temp += len + 1; // Skip SSID + '/'
+                    // Parse PSK
+                    len  = (10 * char_to_dec(*temp++));
+                    len += char_to_dec(*temp++);
+                    temp += 1; // Skip '/'
+                    memcpy(wifi_ptr->psk, temp, len);
+                    wifi_ptr->psk[len] = 0;
+                    temp += len; // Skip PSK
+                    // Parse MAC if included
+                    if ((((uintptr_t)temp - (uintptr_t)payload) + 1 + 12) <= length) {
+                        temp += 1; // Skip '/'
+                        wifi_ptr->mac[0] = (char_to_dec(temp[0]) << 4) + char_to_dec(temp[1]);
+                        wifi_ptr->mac[1] = (char_to_dec(temp[2]) << 4) + char_to_dec(temp[3]);
+                        wifi_ptr->mac[2] = (char_to_dec(temp[4]) << 4) + char_to_dec(temp[5]);
+                        wifi_ptr->mac[3] = (char_to_dec(temp[6]) << 4) + char_to_dec(temp[7]);
+                        wifi_ptr->mac[4] = (char_to_dec(temp[8]) << 4) + char_to_dec(temp[9]);
+                        wifi_ptr->mac[5] = (char_to_dec(temp[10]) << 4) + char_to_dec(temp[11]);
+                    }
+                    eeprom_storage.markDirty();
+                    wifi_networks_report(num);
+                } else {
+                    websocket_send("WIFIADD: No free slots!", num);
+                }
+                break;
+            }
+            temp = strstr((char*)payload, "WIFIDEL/");
+            if (temp) { // WiFi network remove
+                temp += 8;
+                if ((((uintptr_t)temp - (uintptr_t)payload) + 2) <= length) {
+                    // Parse index
+                    index = (10 * char_to_dec(*temp++));
+                    index += char_to_dec(*temp++);
+                    if (index < ARRAY_SIZE(eeprom_storage.wifi_nets)) {
+                        wifi_networks_t * const wifi_ptr = &eeprom_storage.wifi_nets[index];
+                        memset(wifi_ptr, 0, sizeof(*wifi_ptr));
+                        eeprom_storage.markDirty();
+                        wifi_networks_report(num);
+                    } else {
+                        websocket_send("WIFIDEL: Invalid index!", num);
+                    }
+                } else {
+                    websocket_send("WIFIDEL: Invalid msg len!", num);
+                }
+                break;
+            }
+
             msp_handler.parse_command((char*)payload, length, num);
             break;
         }
@@ -531,6 +646,7 @@ void onSoftAPModeStationDisconnected(const WiFiEventSoftAPModeStationDisconnecte
 #endif
 }
 
+
 static void wifi_config_ap(void)
 {
     IPAddress local_IP(192, 168, 4, 1);
@@ -563,6 +679,54 @@ static void wifi_config_ap(void)
     }
 }
 
+
+static int wifi_search_networks(void)
+{
+#if UART_DEBUG_EN
+    Serial.println("-------------------------");
+    Serial.println(" Available WiFi networks");
+    Serial.println("-------------------------");
+#endif
+    int const numberOfNetworks = WiFi.scanNetworks(false, true); // Show hidden
+    for (int iter = 0; iter < numberOfNetworks; iter++) {
+        String const ssid = WiFi.SSID(iter);
+        uint8_t const * const mac = WiFi.BSSID(iter);
+        int32_t const rssi = WiFi.RSSI(iter);
+        bool const hidden = WiFi.isHidden(iter);
+
+#if UART_DEBUG_EN
+        Serial.print("Name: ");
+        Serial.println(ssid);
+        Serial.print("  RSSI: ");
+        Serial.println(rssi);
+        Serial.print("  BSSID: ");
+        Serial.println(WiFi.BSSIDstr(iter));
+        Serial.print("  Channel: ");
+        Serial.println(WiFi.channel(iter));
+        Serial.println("-----------------------");
+#endif
+        if (rssi < WIFI_SEARCH_RSSI_MIN) continue;  // Ignore very bad networks
+
+        for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
+            wifi_networks_t * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
+            if ((hidden && eeprom_storage.wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac))) ||
+                    (wifi_ptr->ssid[0] && strncmp(wifi_ptr->ssid, ssid.c_str(), sizeof(wifi_ptr->ssid)) == 0)) {
+#if UART_DEBUG_EN
+                Serial.println("  Configured network found!");
+#endif
+#if WIFI_DBG
+                wifi_log += "Configured network found! ";
+                wifi_log += jter;
+                wifi_log += "\n";
+#endif
+                return jter; // found
+            }
+        }
+    }
+    return -1;
+}
+
+
 static void wifi_config(void)
 {
     wifi_station_set_hostname(hostname);
@@ -570,11 +734,6 @@ static void wifi_config(void)
     wifi_connection_state = WIFI_STATE_NA;
 #if WIFI_DBG
     wifi_log = "";
-#endif
-
-#if defined(WIFI_SSID) && defined(WIFI_PSK)
-#if UART_DEBUG_EN
-    Serial.println("WiFi STA config");
 #endif
 
     /* Force WIFI off until it is realy needed */
@@ -596,29 +755,28 @@ static void wifi_config(void)
     AP_DisconnectedHandler = WiFi.onSoftAPModeStationDisconnected(&onSoftAPModeStationDisconnected);
 
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PSK, WIFI_CHANNEL);
-    wifi_connect_started = millis();
 
-#elif WIFI_MANAGER
+    // Search for configure networks:
+    int const network_idx = wifi_search_networks();
+    WiFi.scanDelete();
+
+    if (network_idx < 0) {
+        wifi_config_ap();
+    } else {
+        wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[network_idx];
 #if UART_DEBUG_EN
-    Serial.println("WifiManager");
+        Serial.print("WiFi connecting: '");
+        Serial.print(wifi_ptr->ssid);
+        Serial.println("'");
 #endif
-    #warning "WiFi manager not supported anymore!"
-    WiFiManager wifiManager;
-    wifiManager.setConfigPortalTimeout(WIFI_TIMEOUT);
-    if (wifiManager.autoConnect(WIFI_AP_SSID WIFI_AP_SUFFIX)) {
-        // AP found, connected
+        WiFi.begin(wifi_ptr->ssid, wifi_ptr->psk, WIFI_CHANNEL);
+        wifi_connect_started = millis();
     }
-#else
-#if UART_DEBUG_EN
-    Serial.println("WiFi AP only");
-#endif
-    wifi_config_ap();
-#endif /* WIFI_MANAGER */
 
     ESP.wdtFeed();
     espnow_init(ESP_NOW_CHANNEL, esp_now_msp_rcvd, &ctrl_serial);
 }
+
 
 static void wifi_check(void)
 {
@@ -638,6 +796,7 @@ static void wifi_check(void)
         led_state ^= 1;
     }
 }
+
 
 static void wifi_config_server(void)
 {

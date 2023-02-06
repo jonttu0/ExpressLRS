@@ -482,6 +482,23 @@
           <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
         </div>
       </fieldset>
+      <fieldset>
+        <legend>WiFi Networs</legend>
+        <div>
+          <table class="wifinetworks" id="wifinetworks">
+            <tr><td class="ssid">My WiFi Network SSID</td><td>DEL</td></tr>
+          </table>
+        </div>
+        <div>
+          <hr/>
+          <table id="wifinetworks_new" class="wifinetworks"><tr>
+            <td><input id="wifi_new_ssid" type='text' style="width:250px;" placeholder="SSID" minlength="1" maxlength="32"></td>
+            <td><input id="wifi_new_psk" type='text' style="width:250px;" placeholder="PASSWORD" minlength="1" maxlength="32"></td>
+            <td><input id="wifi_new_mac" type='text' style="width:130px;" placeholder="MAC (optional)" minlength="17" maxlength="17"></td>
+          </table>
+          <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="wifinetworks_add()">ADD</button></div>
+        </div>
+      </fieldset>
     </div>
     <!-- ESP-NOW END -->
 

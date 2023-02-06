@@ -2,13 +2,19 @@
 
 #include <stdint.h>
 
-#define LOGGER_STORAGE_VERSION  0x11220001
-
-#define LOGGER_ESPNOW_INIT_KEY  0x4321
+#define LOGGER_STORAGE_VERSION   0x11220001
+#define LOGGER_ESPNOW_INIT_KEY   0x4321
+#define LOGGER_WIFINETS_INIT_KEY 0x4321
 
 typedef struct {
     uint8_t mac_addr[6];
 } espnow_clients_t;
+
+typedef struct {
+    char ssid[33];
+    char psk[33];
+    uint8_t mac[6];
+} wifi_networks_t;
 
 
 struct storage {
@@ -24,6 +30,10 @@ struct storage {
     uint32_t espnow_clients_count;
     espnow_clients_t espnow_clients[16];
 
+    /* configured wifi networks*/
+    uint32_t wifi_nets_initialized;
+    wifi_networks_t wifi_nets[5];
+
     void setup();
     void update();
 
@@ -32,6 +42,13 @@ struct storage {
     void markDirty();
 
     void initDefaults();
+
+    inline bool wifi_is_valid(void) {
+        return (wifi_nets_initialized == LOGGER_WIFINETS_INIT_KEY);
+    }
+    inline bool wifi_is_mac_valid(wifi_networks_t const * const net) {
+        return (net->mac[0] && net->mac[1]);
+    }
 };
 
 extern struct storage eeprom_storage;

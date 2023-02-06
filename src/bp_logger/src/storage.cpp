@@ -29,8 +29,19 @@ void storage::load()
 {
     EEPROM.get(0, *this);
 
-    if (this->versionNumber != LOGGER_STORAGE_VERSION)
-        this->initDefaults();
+    if (versionNumber != LOGGER_STORAGE_VERSION)
+        initDefaults();
+    if (!wifi_is_valid()) {
+        memset(wifi_nets, 0, sizeof(wifi_nets));
+        wifi_nets_initialized = LOGGER_WIFINETS_INIT_KEY;
+#if defined(WIFI_SSID) && defined(WIFI_PSK)
+        wifi_networks_t * const ptr = &wifi_nets[0];
+        const char ssid[] = WIFI_SSID;
+        strcpy(ptr->ssid, ssid);
+        const char psk[] = WIFI_PSK;
+        strcpy(ptr->psk, psk);
+#endif
+    }
     isDirty = false;
 }
 
@@ -58,6 +69,8 @@ void storage::initDefaults()
 
     espnow_initialized = 0;
     espnow_clients_count = 0;
+
+    wifi_nets_initialized = LOGGER_WIFINETS_INIT_KEY;
 
     this->save();
 }

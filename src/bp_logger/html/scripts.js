@@ -72,6 +72,9 @@ function datetime_current() {
     return dateobj.toLocaleTimeString([], {hour12: false}) + '.' +
             `00${dateobj.getMilliseconds()}`.slice(-3);
 }
+function int2str_pad(num, size=2, base=10) {
+    return num.toString(base).padStart(size,"0");
+}
 DataView.prototype.nextUint8 = function () {
     if (this.offset_next == undefined) this.offset_next = 0;
     const idx = this.offset_next; this.offset_next += 1;
@@ -183,6 +186,11 @@ function start() {
         }
         const text = evt.data;
         if (!text) return; // ignore empty messages
+
+        if (text.startsWith("CMD_WIFINETS")) {
+            wifinetworks_parse(text);
+            return;
+        }
 
         const scrollsize = parseInt($id("scrollsize").value, 10);
         var log_history = logger.value.split("\n");
@@ -760,4 +768,59 @@ function espnowclients_parse(value) {
 
 function espnowclients_autosize(el){
     el.rows = el.value.split('\n').length;
+}
+
+/********************* WiFi Nets *****************************/
+function wifinetworks_parse(value) {
+    var table = $id("wifinetworks");
+    /* Parse input message */
+    var networks = [];
+    const parts = value.replace("CMD_WIFINETS/\\/\\", "").split('/\\/\\');
+    for (const network_str of parts) {
+        networks.push({
+            "idx": network_str.substring(0, 2),
+            "mac": network_str.substring(2, 19),
+            "ssid": network_str.substring(19),
+        });
+    }
+    /* clean table */
+    while (table.rows.length) {
+        table.deleteRow(table.rows.length-1);
+    }
+    for (const network of networks) {
+        const row = table.insertRow();
+        row.esp_index = network["idx"];
+        // Show SSID
+        var cell = row.insertCell(0);
+        cell.style.width = "auto";
+        if (network["ssid"]) cell.innerHTML = network["ssid"];
+        else if (network["mac"] != "00:00:00:00:00:00") cell.innerHTML = network["mac"];
+        else cell.innerHTML = "ERROR - No SSID or MAC defined!";
+        // Add remove button
+        cell = row.insertCell(1);
+        cell.style = "width:50px;";
+        var btn = document.createElement('button');
+        btn.style = cell.style;
+        btn.innerHTML = "DEL";
+        btn.onclick = wifinetworks_del;
+        cell.appendChild(btn);
+    }
+}
+function wifinetworks_add(event) {
+    var command = "WIFIADD/";
+    const ssid = $id("wifi_new_ssid").value;
+    command += int2str_pad(ssid.length, 2) + "/" + ssid + "/";
+    const psk = $id("wifi_new_psk").value;
+    command += int2str_pad(psk.length, 2) + "/" + psk;
+    const mac = $id("wifi_new_mac").value;
+    if (!ssid && !mac && !psk) return;
+    if (!ssid && !mac) {console.error("SSID or MAC is mandatory!");}
+    if (mac) {command += "/" + mac.split(":").join("");}
+    if (websock) websock.send(command);
+}
+function wifinetworks_del(event) {
+    var row = event.target.parentElement.parentElement;
+    var command = "WIFIDEL/" + int2str_pad(row.esp_index, 2);
+    if (websock) websock.send(command);
+    event.target.disabled = true;
 }
