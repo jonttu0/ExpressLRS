@@ -115,6 +115,14 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
 
             if (init_state == STATE_GET_RECORDING)
                 init_state = STATE_READY;
+        } else if (msp_in.function == HDZ_MSP_FUNC_VRX_MODE_GET) {
+            websocket_send("HDZ_MSP_FUNC_VRX_MODE_GET");
+        } else if (msp_in.function == HDZ_MSP_FUNC_RSSI_GET) {
+            websocket_send("HDZ_MSP_FUNC_RSSI_GET");
+        } else if (msp_in.function == HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET) {
+            websocket_send("HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET");
+        } else if (msp_in.function == HDZ_MSP_FUNC_FIRMWARE_GET) {
+            websocket_send("HDZ_MSP_FUNC_FIRMWARE_GET");
         }
 
         if (info.length()) {
@@ -278,7 +286,7 @@ void HDZeroMsp::handleVtxFrequency(uint16_t const freq, int const num, bool cons
         eeprom_storage.vtx_freq = freq;
         eeprom_storage.markDirty();
     }
-#if 1
+#if 0
     // MAP freq to HDZ channel index
     uint8_t chan_index = 4*8;
     switch (freq) {
@@ -314,21 +322,23 @@ void HDZeroMsp::handleVtxFrequency(uint16_t const freq, int const num, bool cons
             break;
     }
     MspWrite(&chan_index, 1, HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_SET);
-    getChannelIndex();
 #else
     // Send to HDZero
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     //payload[2] = power;
     //payload[3] = (power == 0); // pit mode
     MspWrite(payload, sizeof(payload), HDZ_MSP_FUNC_FREQUENCY_SET);
-    MspWrite(payload, sizeof(payload), HDZ_MSP_FUNC_FREQUENCY_GET);
 #endif
 
     // Send to other esp-now clients
     if (espnow) {
         msp_out.function = MSP_VTX_SET_CONFIG;
         espnow_send_msp(msp_out);
+        dbg_info += " - ESPNOW sent";
     }
+
+    getChannelIndex();
+    getFrequency();
 
     websocket_send(dbg_info, num);
 }
