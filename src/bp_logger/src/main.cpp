@@ -881,6 +881,12 @@ void setup()
             break;
     }
 
+#if CONFIG_HDZERO
+    //delay(500);  // delay boot a bit
+#endif
+    Serial.setRxBufferSize(512);
+    Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, SERIAL_INVERTED);
+
     BUILTIN_LED_INIT();
     BUILTIN_LED_SET(0);
 
@@ -889,9 +895,6 @@ void setup()
     msp_handler.init();
 
     buzzer_init();
-
-    Serial.setRxBufferSize(512);
-    Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, SERIAL_INVERTED);
 
     led_init();
     led_set(LED_INIT);
@@ -954,7 +957,10 @@ void loop()
     ESP.wdtFeed();
 
     if (0 <= serialEvent(input_log_string)) {
-        websocket_send(input_log_string);
+#if CONFIG_HDZERO
+        if (!strstr(input_log_string.c_str(), "Resource\\_000.bmp") && !strstr(input_log_string.c_str(), "fc_variant:  ...")) // IGNORE dummy dbg print
+#endif
+            websocket_send(input_log_string);
         input_log_string = "";
     }
     ESP.wdtFeed();

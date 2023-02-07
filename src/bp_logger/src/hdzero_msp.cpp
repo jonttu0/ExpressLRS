@@ -6,6 +6,8 @@
 #include "buzzer.h"
 
 
+#define RETRY_INTERVAL_MS  1000
+
 /*
 *  Get band/channel index  0x0300
 *  Set band/channel index  0x0301
@@ -33,6 +35,7 @@
 #define HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET    0x0309
 #define HDZ_MSP_FUNC_FIRMWARE_GET           0x030A
 #define HDZ_MSP_FUNC_BUZZER_SET             0x030B
+//#define MSP_ELRS_BACKPACK_SET_OSD_ELEMENT       0x030C
 #define HDZ_MSP_FUNC_OSD_ELEMENT_SET        0x00B6
 
 
@@ -40,8 +43,8 @@ void HDZeroMsp::init(void)
 {
     _handler.markPacketFree();
     /* Reset values */
-    init_called_ms = millis();
-    init_state = STATE_GET_FREQ;
+    //init_called_ms = millis() + 2000; // Delay first query
+    init_state = STATE_GET_CH_INDEX;
 }
 
 
@@ -57,10 +60,37 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
         /* Handle the received MSP message */
         mspPacket_t &msp_in = _handler.getPacket();
         String info = "";
-        if (msp_in.type != MSP_PACKET_V2_COMMAND &&
+        if (msp_in.type != MSP_PACKET_V2_COMMAND ||
                 msp_in.type != MSP_PACKET_V2_RESPONSE) {
             info = "Invalid MSP received! func: ";
             info += msp_in.function;
+
+        } else if (msp_in.function == HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_GET) {
+            info = "Channel index received: ";
+            info += msp_in.payload[0];
+            uint16_t freq = 0;
+            uint8_t const band = msp_in.payload[0] >> 3;
+            uint8_t const channel = msp_in.payload[0] & 7;
+            if (band == 3) { // F
+                uint16_t const r_freqs[] = {0, 5760, 0, 5800, 0, 0, 0, 0};
+                freq = r_freqs[channel];
+            } else if (band == 4) { // R
+                uint16_t const r_freqs[] = {5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917};
+                freq = r_freqs[channel];
+            }
+
+            info += " -> ";
+            info += freq;
+
+            // TODO, FIXME: Do something with the current frequency!
+            if (freq && eeprom_storage.vtx_freq != freq) {
+                eeprom_storage.vtx_freq = freq;
+                eeprom_storage.markDirty();
+                sendVtxFrequencyToWebsocket(freq);
+            }
+
+            if (init_state == STATE_GET_CH_INDEX)
+                init_state = STATE_GET_FREQ;
 
         } else if (msp_in.function == HDZ_MSP_FUNC_FREQUENCY_GET) {
             uint16_t const freq = msp_in.payload[0] + ((uint16_t)msp_in.payload[1] << 8);
@@ -74,7 +104,7 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
                 sendVtxFrequencyToWebsocket(freq);
             }
 
-            if (init_state != STATE_READY)
+            if (init_state == STATE_GET_FREQ)
                 init_state = STATE_GET_RECORDING;
 
         } else if (msp_in.function == HDZ_MSP_FUNC_RECORDING_STATE_GET) {
@@ -83,7 +113,7 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
 
             sendVRecordingStateToWebsocket(msp_in.payload[0]);
 
-            if (init_state != STATE_READY)
+            if (init_state == STATE_GET_RECORDING)
                 init_state = STATE_READY;
         }
 
@@ -176,9 +206,12 @@ int HDZeroMsp::handle_received_msp(mspPacket_t &msp_in)
 void HDZeroMsp::loop(void)
 {
     uint32_t const now = millis();
-    if (init_state != STATE_READY && 500 <= (int32_t)(now - init_called_ms)) {
+    if (RETRY_INTERVAL_MS <= (int32_t)(now - init_called_ms)) {
         init_called_ms = now;
         switch (init_state) {
+            case STATE_GET_CH_INDEX:
+                getChannelIndex();
+                break;
             case STATE_GET_FREQ:
                 getFrequency();
                 break;
@@ -245,12 +278,51 @@ void HDZeroMsp::handleVtxFrequency(uint16_t const freq, int const num, bool cons
         eeprom_storage.vtx_freq = freq;
         eeprom_storage.markDirty();
     }
-
+#if 1
+    // MAP freq to HDZ channel index
+    uint8_t chan_index = 4*8;
+    switch (freq) {
+        case 5658: // R1
+            chan_index += 0;
+            break;
+        case 5695:
+            chan_index += 1;
+            break;
+        case 5732:
+            chan_index += 2;
+            break;
+        case 5769:
+            chan_index += 3;
+            break;
+        case 5806:
+            chan_index += 4;
+            break;
+        case 5843:
+            chan_index += 5;
+            break;
+        case 5880:
+            chan_index += 6;
+            break;
+        case 5917: // R8
+            chan_index += 7;
+            break;
+        case 5760: // F2
+            chan_index = 3*8 + 1;
+            break;
+        case 5800: // F4
+            chan_index = 3*8 + 3;
+            break;
+    }
+    MspWrite(&chan_index, 1, HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_SET);
+    getChannelIndex();
+#else
     // Send to HDZero
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     //payload[2] = power;
     //payload[3] = (power == 0); // pit mode
     MspWrite(payload, sizeof(payload), HDZ_MSP_FUNC_FREQUENCY_SET);
+    MspWrite(payload, sizeof(payload), HDZ_MSP_FUNC_FREQUENCY_GET);
+#endif
 
     // Send to other esp-now clients
     if (espnow) {
@@ -295,13 +367,22 @@ void HDZeroMsp::sendVRecordingStateToWebsocket(uint8_t const state)
 }
 
 
+void HDZeroMsp::getChannelIndex(void)
+{
+    //websocket_send("getChannelIndex()");
+    MspWrite(NULL, 0, HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_GET);
+}
+
+
 void HDZeroMsp::getFrequency(void)
 {
+    //websocket_send("getFrequency()");
     MspWrite(NULL, 0, HDZ_MSP_FUNC_FREQUENCY_GET);
 }
 
 
 void HDZeroMsp::getRecordingState(void)
 {
+    //websocket_send("getRecordingState()");
     MspWrite(NULL, 0, HDZ_MSP_FUNC_RECORDING_STATE_GET);
 }

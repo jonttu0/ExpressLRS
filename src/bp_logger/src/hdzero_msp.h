@@ -26,6 +26,7 @@ public:
 
 private:
     enum {
+        STATE_GET_CH_INDEX,
         STATE_GET_FREQ,
         STATE_GET_RECORDING,
         STATE_READY,
@@ -48,6 +49,7 @@ private:
     void sendVRecordingStateToWebsocket(uint8_t state);
 
     //
+    void getChannelIndex(void);
     void getFrequency(void);
     void getRecordingState(void);
 };
