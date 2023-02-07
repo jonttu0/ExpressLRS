@@ -163,11 +163,11 @@ void wifi_networks_report(int wsnum)
         String info_str = "CMD_WIFINETS";
         for (size_t index = 0; index < ARRAY_SIZE(eeprom_storage.wifi_nets); index++) {
             wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[index];
-            if (wifi_ptr->psk[0] && (wifi_ptr->ssid[0] || eeprom_storage.wifi_is_mac_valid(wifi_ptr))) {
+            if (wifi_is_psk_valid(wifi_ptr) && (wifi_is_ssid_valid(wifi_ptr) || wifi_is_mac_valid(wifi_ptr))) {
                 info_str += "/\\/\\";
                 if (index < 10) info_str += '0';
                 info_str += index;
-                if (eeprom_storage.wifi_is_mac_valid(wifi_ptr)) {
+                if (wifi_is_mac_valid(wifi_ptr)) {
                     char macStr[18] = { 0 };
                     sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
                             wifi_ptr->mac[0], wifi_ptr->mac[1],
@@ -177,7 +177,7 @@ void wifi_networks_report(int wsnum)
                 } else {
                     info_str += "00:00:00:00:00:00";
                 }
-                if (wifi_ptr->ssid[0]) {
+                if (wifi_is_ssid_valid(wifi_ptr)) {
                     info_str += wifi_ptr->ssid;
                 }
             }
@@ -251,7 +251,11 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 
             websocket_send(info_str, num);
             websocket_send(espnow_get_info(), num);
-
+#if ESP_NOW
+            info_str = "ESP-NOW channel: ";
+            info_str += espnow_channel();
+            websocket_send(info_str, num);
+#endif
             websocket_send(target_name, num);
 #if defined(LATEST_COMMIT)
             info_str = "Current version (SHA): ";
@@ -296,7 +300,7 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
                 wifi_networks_t * wifi_ptr = NULL;
                 for (index = 0; index < ARRAY_SIZE(eeprom_storage.wifi_nets); index++, wifi_ptr = NULL) {
                     wifi_ptr = &eeprom_storage.wifi_nets[index];
-                    if (!wifi_ptr->ssid[0] && !wifi_ptr->psk[0] && !eeprom_storage.wifi_is_mac_valid(wifi_ptr)) {
+                    if (!wifi_is_ssid_valid(wifi_ptr) && !wifi_is_psk_valid(wifi_ptr) && !wifi_is_mac_valid(wifi_ptr)) {
                         // Free slot found
                         break;
                     }
@@ -611,6 +615,9 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
     /*buzzer_beep(440, 30);
     delay(200);
     buzzer_beep(440, 30);*/
+
+    // Configure ESP-NOW
+    espnow_init(wifi_get_channel(), esp_now_msp_rcvd, &ctrl_serial);
 }
 
 void onStationDhcpTimeout(void)
@@ -677,11 +684,15 @@ static void wifi_config_ap(void)
         Serial.println("WiFi AP start fail");
 #endif
     }
+    // Configure ESP-NOW
+    espnow_init(ESP_NOW_CHANNEL, esp_now_msp_rcvd, &ctrl_serial);
 }
 
 
 static int wifi_search_networks(void)
 {
+    int selected = -1;
+    int rssi_best = WIFI_SEARCH_RSSI_MIN;
 #if UART_DEBUG_EN
     Serial.println("-------------------------");
     Serial.println(" Available WiFi networks");
@@ -689,41 +700,52 @@ static int wifi_search_networks(void)
 #endif
     int const numberOfNetworks = WiFi.scanNetworks(false, true); // Show hidden
     for (int iter = 0; iter < numberOfNetworks; iter++) {
-        String const ssid = WiFi.SSID(iter);
-        uint8_t const * const mac = WiFi.BSSID(iter);
-        int32_t const rssi = WiFi.RSSI(iter);
-        bool const hidden = WiFi.isHidden(iter);
+        String ssid;
+        uint8_t encryptionType;
+        int32_t rssi;
+        uint8_t* mac;
+        int32_t channel;
+        bool hidden;
+        WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel, hidden);
 
 #if UART_DEBUG_EN
-        Serial.print("Name: ");
-        Serial.println(ssid);
-        Serial.print("  RSSI: ");
-        Serial.println(rssi);
-        Serial.print("  BSSID: ");
-        Serial.println(WiFi.BSSIDstr(iter));
-        Serial.print("  Channel: ");
-        Serial.println(WiFi.channel(iter));
-        Serial.println("-----------------------");
+        Serial.printf("  %d: '%s', Ch:%d (%ddBm) BSSID:%s %s %s\n",
+                      (iter + 1), ssid.c_str(), channel, rssi,
+                      WiFi.BSSIDstr(iter).c_str(),
+                      encryptionType == ENC_TYPE_NONE ? "open" : "",
+                      hidden ? "hidden" : "");
 #endif
         if (rssi < WIFI_SEARCH_RSSI_MIN) continue;  // Ignore very bad networks
 
         for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
-            wifi_networks_t * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
-            if ((hidden && eeprom_storage.wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac))) ||
-                    (wifi_ptr->ssid[0] && strncmp(wifi_ptr->ssid, ssid.c_str(), sizeof(wifi_ptr->ssid)) == 0)) {
+            wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
+            if ((hidden && wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac))) ||
+                    (wifi_is_ssid_valid(wifi_ptr) && strncmp(wifi_ptr->ssid, ssid.c_str(), sizeof(wifi_ptr->ssid)) == 0)) {
 #if UART_DEBUG_EN
-                Serial.println("  Configured network found!");
+                Serial.print("    ** Configured network found! ");
 #endif
 #if WIFI_DBG
                 wifi_log += "Configured network found! ";
                 wifi_log += jter;
                 wifi_log += "\n";
 #endif
-                return jter; // found
+                // Select based on the best RSSI
+                if (rssi_best < rssi) {
+                    rssi_best = rssi;
+                    selected = jter; // selected
+#if UART_DEBUG_EN
+                    Serial.print(" << selected!");
+#endif
+                }
+#if UART_DEBUG_EN
+                Serial.println();
+#endif
+                break;
             }
         }
     }
-    return -1;
+    WiFi.scanDelete();  // Cleanup scan results
+    return selected;
 }
 
 
@@ -758,7 +780,6 @@ static void wifi_config(void)
 
     // Search for configure networks:
     int const network_idx = wifi_search_networks();
-    WiFi.scanDelete();
 
     if (network_idx < 0) {
         wifi_config_ap();
@@ -771,10 +792,10 @@ static void wifi_config(void)
 #endif
         WiFi.begin(wifi_ptr->ssid, wifi_ptr->psk, WIFI_CHANNEL);
         wifi_connect_started = millis();
-    }
 
-    ESP.wdtFeed();
-    espnow_init(ESP_NOW_CHANNEL, esp_now_msp_rcvd, &ctrl_serial);
+        // Initial ESP-NOW configuration
+        espnow_init(ESP_NOW_CHANNEL, esp_now_msp_rcvd, &ctrl_serial);
+    }
 }
 
 

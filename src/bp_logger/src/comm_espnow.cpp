@@ -95,14 +95,25 @@ static void add_peer(espnow_clients_t const * const mac_addr, uint32_t const cha
 #endif // ESP_NOW
 
 
-void espnow_init(uint32_t channel, esp_now_msp_rcvd_cb_t cb, CtrlSerial *serial_ptr)
+void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb, CtrlSerial *serial_ptr)
 {
+    ESP.wdtFeed();
 #if ESP_NOW
     uint8_t iter;
 
+    esp_now_channel = channel;
+
+    if (msp_handler) {
+        // Already initialized, just update wifi channel
+        iter = eeprom_storage.espnow_clients_count;
+        while (iter--) {
+            esp_now_set_peer_channel(eeprom_storage.espnow_clients[iter].mac_addr, channel);
+        }
+        return;
+    }
+
     msp_handler = cb;
     ctrl_serial_ptr = serial_ptr;
-    esp_now_channel = channel;
 
     espnow_init_info = "ESP NOW init: ";
 
@@ -142,6 +153,12 @@ void espnow_init(uint32_t channel, esp_now_msp_rcvd_cb_t cb, CtrlSerial *serial_
     (void)cb;
     (void)serial_ptr;
 #endif // ESP_NOW
+}
+
+
+uint8_t espnow_channel(void)
+{
+    return esp_now_channel;
 }
 
 

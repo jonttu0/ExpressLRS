@@ -46,9 +46,16 @@ struct storage {
     inline bool wifi_is_valid(void) {
         return (wifi_nets_initialized == LOGGER_WIFINETS_INIT_KEY);
     }
-    inline bool wifi_is_mac_valid(wifi_networks_t const * const net) {
-        return (net->mac[0] && net->mac[1]);
-    }
 };
 
 extern struct storage eeprom_storage;
+
+static inline bool wifi_is_mac_valid(wifi_networks_t const * const net) {
+    return (net->mac[0] && net->mac[1]);
+}
+static inline bool wifi_is_ssid_valid(wifi_networks_t const * const net) {
+    return (!!net->ssid[0]);
+}
+static inline bool wifi_is_psk_valid(wifi_networks_t const * const net) {
+    return (!!net->psk[0]);
+}
