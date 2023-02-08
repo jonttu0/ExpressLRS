@@ -236,7 +236,7 @@ function message_send(elem=null, bytesize=1)
         view[0] = WSMSGID_ELRS_SETTINGS & 0xFF;
         view[1] = (WSMSGID_ELRS_SETTINGS >> 8) & 0xFF;
     }
-    if (websock) websock.send(sendarray, { binary: true });
+    if (websock_validate()) websock.send(sendarray, { binary: true });
 }
 
 function rf_module_changed(elem)
@@ -576,7 +576,7 @@ function handset_mixer_send()
     view[0] = WSMSGID_HANDSET_MIXER & 0xFF;
     view[1] = (WSMSGID_HANDSET_MIXER >> 8) & 0xFF;
     for (var i = 0; i < output.length; i++) view[2+i] = output[i];
-    if (websock) websock.send(sendarray, { binary: true });
+    if (websock_validate()) websock.send(sendarray, { binary: true });
     console.log(view);
 }
 
@@ -601,7 +601,7 @@ function handset_calibrate_auto_send(btn, type)
     view[0] = WSMSGID_HANDSET_CALIBRATE & 0xFF;
     view[1] = (WSMSGID_HANDSET_CALIBRATE >> 8) & 0xFF;
     view[2] = mapping_calibrate[type];
-    if (websock) websock.send(sendarray, { binary: true });
+    if (websock_validate()) websock.send(sendarray, { binary: true });
 }
 
 function handset_calibrate_adjust_send(event)
@@ -620,7 +620,7 @@ function handset_calibrate_adjust_send(event)
     view[2] = mapping_calibrate[event.target.id];
     view[3] = event.target.value & 0xFF;
     view[4] = (event.target.value >> 8) & 0xFF;
-    if (websock) websock.send(sendarray, { binary: true });
+    if (websock_validate()) websock.send(sendarray, { binary: true });
 }
 
 function handset_calibrate_adjust(payload)
@@ -652,15 +652,14 @@ function handset_battery_value(payload)
     $id("battery_warning").value = payload.getUint8(5);
 }
 
-function handset_battery_adjust()
-{
+function handset_battery_adjust() {
     var sendarray = new ArrayBuffer(4);
     var view = new Uint8Array(sendarray);
     view[0] = WSMSGID_HANDSET_BATT_CONFIG & 0xFF;
     view[1] = (WSMSGID_HANDSET_BATT_CONFIG >> 8) & 0xFF;
     view[2] = parseInt($id("battery_scale").value, 10);
     view[3] = parseInt($id("battery_warning").value, 10);
-    if (websock) websock.send(sendarray, { binary: true });
+    if (websock_validate()) websock.send(sendarray, { binary: true });
 }
 
 /********************* TELEMETRY *****************************/
@@ -743,7 +742,7 @@ function espnowclients_send() {
     view[0] = WSMSGID_ESPNOW_ADDRS & 0xFF; // Little endian 0x1100
     view[1] = (WSMSGID_ESPNOW_ADDRS >> 8) & 0xFF;
     for (var i = 0; i < bytes.length; i++) view[2+i] = bytes[i];
-    if (websock) websock.send(sendarray, { binary: true });
+    if (websock_validate()) websock.send(sendarray, { binary: true });
 }
 
 function espnowclients_parse(value) {
@@ -807,20 +806,38 @@ function wifinetworks_parse(value) {
     }
 }
 function wifinetworks_add(event) {
-    var command = "WIFIADD/";
     const ssid = $id("wifi_new_ssid").value;
-    command += int2str_pad(ssid.length, 2) + "/" + ssid + "/";
-    const psk = $id("wifi_new_psk").value;
-    command += int2str_pad(psk.length, 2) + "/" + psk;
     const mac = $id("wifi_new_mac").value;
-    if (!ssid && !mac && !psk) return;
-    if (!ssid && !mac) {console.error("SSID or MAC is mandatory!");}
-    if (mac) {command += "/" + mac.split(":").join("");}
-    if (websock) websock.send(command);
+    if (!ssid && !mac) {
+        show_error("SSID or MAC is mandatory!");
+        return;
+    }
+    if (websock_validate()) {
+        const psk = $id("wifi_new_psk").value;
+        websock.send(
+            "WIFIADD/" +
+            int2str_pad(ssid.length, 2) + "/" + ssid + "/" +
+            int2str_pad(psk.length, 2) + "/" + psk +
+            (mac ? "/" + mac.split(":").join("") : "")
+        );
+    }
 }
 function wifinetworks_del(event) {
-    var row = event.target.parentElement.parentElement;
-    var command = "WIFIDEL/" + int2str_pad(row.esp_index, 2);
-    if (websock) websock.send(command);
-    event.target.disabled = true;
+    if (websock_validate()) {
+        websock.send("WIFIDEL/" + int2str_pad(event.target.parentElement.parentElement.esp_index, 2));
+        event.target.disabled = true;
+    }
+}
+
+function websock_validate() {
+    if (!websock || websock.readyState !== WebSocket.OPEN) {
+        show_error("Failed to communicate with handset, websocket connection is closed!");
+        return false;
+    }
+    return true;
+}
+
+function show_error(msg) {
+    console.log(msg);
+    alert(msg);
 }
