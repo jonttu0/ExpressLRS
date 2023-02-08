@@ -158,7 +158,11 @@ void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb, CtrlSer
 
 uint8_t espnow_channel(void)
 {
+#if ESP_NOW
     return esp_now_channel;
+#else
+    return 0;
+#endif
 }
 
 
