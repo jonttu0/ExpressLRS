@@ -1,9 +1,4 @@
 #include "hdzero_msp.h"
-#include "main.h"
-#include "storage.h"
-#include "comm_espnow.h"
-#include "led.h"
-#include "buzzer.h"
 
 #define RETRY_INTERVAL_MS 1000
 
@@ -62,7 +57,7 @@ void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
     async_event_send(m_version_info, "vrx_version", client);
 }
 
-int HDZeroMsp::parse_data(uint8_t const chr)
+int HDZeroMsp::parseSerialData(uint8_t const chr)
 {
     if (_handler.processReceivedByte(chr)) {
         /* Handle the received MSP message */
@@ -140,7 +135,7 @@ int HDZeroMsp::parse_data(uint8_t const chr)
     return 0;
 }
 
-int HDZeroMsp::parse_command(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
+int HDZeroMsp::parseCommand(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
 {
     char * temp;
     // ExLRS setting commands
@@ -152,7 +147,7 @@ int HDZeroMsp::parse_command(char const * cmd, size_t const len, AsyncWebSocketC
     return -1;
 }
 
-int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client)
+int HDZeroMsp::parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client)
 {
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
@@ -177,7 +172,7 @@ int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const le
 }
 
 // This is received from outside (ESP-NOW)
-int HDZeroMsp::handle_received_msp(mspPacket_t & msp_in)
+int HDZeroMsp::parseCommand(mspPacket_t & msp_in)
 {
     /* Just validate the packet and let the espnow handler to forward it */
 
@@ -299,16 +294,8 @@ void HDZeroMsp::handleUserTextCommand(const char * input, size_t const len)
 
 void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client, bool const espnow)
 {
-    String dbg_info = "Setting vtx freq to: ";
-    dbg_info += freq;
-    dbg_info += "MHz";
-
-    if (freq == 0)
+    if (storeVtxFreq(client, freq) == 0) {
         return;
-
-    if (eeprom_storage.vtx_freq != freq) {
-        eeprom_storage.vtx_freq = freq;
-        eeprom_storage.markDirty();
     }
 
     // Send to HDZero
@@ -324,13 +311,10 @@ void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketCli
     if (espnow) {
         msp_out.function = MSP_VTX_SET_CONFIG;
         espnow_send_msp(msp_out);
-        dbg_info += " - ESPNOW sent";
     }
 
     getChannelIndex();
     getFrequency();
-
-    websocket_send_txt(dbg_info, client);
 }
 
 void HDZeroMsp::handleRecordingStateCommand(uint8_t const start)

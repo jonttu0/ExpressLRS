@@ -18,11 +18,10 @@ public:
     void syncSettings(AsyncWebSocketClient * const client);
     void syncSettings(AsyncEventSourceClient * const client);
 
-    int parse_data(uint8_t chr);
-    int parse_command(char const * cmd, size_t len, AsyncWebSocketClient * const client);
-    int parse_command(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
-
-    int handle_received_msp(mspPacket_t & msp_in);
+    int parseSerialData(uint8_t chr);
+    int parseCommand(char const * cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommand(mspPacket_t & msp_in);
 
     void loop(void);
 

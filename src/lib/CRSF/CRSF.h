@@ -1,13 +1,9 @@
 #ifndef H_CRSF
 #define H_CRSF
 
-#include "HwSerial.h"
-#include "helpers.h"
-#include "crc.h"
-#include "platform.h"
-#include "utils.h"
 #include "msp.h"
 #include "rc_channels.h"
+
 
 #if PROTOCOL_ELRS_TO_FC
     #if PROTOCOL_ELRS_RX_BAUDRATE
@@ -69,6 +65,7 @@ enum crsf_frame_type_e
     CRSF_FRAMETYPE_PARAMETER_READ = 0x2C,
     CRSF_FRAMETYPE_PARAMETER_WRITE = 0x2D,
     CRSF_FRAMETYPE_COMMAND = 0x32,
+    CRSF_FRAMETYPE_SET_FREQ = 0x40,
     // MSP commands
     CRSF_FRAMETYPE_MSP_REQ = 0x7A,   // response request using msp sequence as command
     CRSF_FRAMETYPE_MSP_RESP = 0x7B,  // reply with 58 byte chunked binary
@@ -406,6 +403,8 @@ typedef struct crsf_device_info_ping_msg_s
 /////inline and utility functions//////
 
 
+class HwSerial;
+
 class CRSF
 {
 public:
@@ -424,9 +423,14 @@ public:
     GpsCallback_t GpsCallback;
     DevInfoCallback_t DevInfoCallback;
 
+#if !BACKPACK_LOGGER_BUILD
 protected:
+#endif
     uint8_t CalcCRC(uint8_t const * data, uint8_t size) const;
     uint8_t *ParseInByte(uint8_t inChar);
+    bool IsFrameActive(void) const {
+        return CRSFframeActive;
+    }
 
     HwSerial * const _dev;
 

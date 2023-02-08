@@ -1,6 +1,10 @@
 #include "CRSF_RX.h"
+
+#if !BACKPACK_LOGGER_BUILD
+
 #include "utils.h"
 #include "debug_elrs.h"
+#include "platform.h"
 #include <string.h>
 
 crsf_channels_msg_t DMA_ATTR p_crsf_channels;
@@ -303,3 +307,5 @@ void CRSF_RX::handleUartIn(void)
             processPacket((crsf_buffer_t*)ptr);
     }
 }
+
+#endif // BACKPACK_LOGGER_BUILD

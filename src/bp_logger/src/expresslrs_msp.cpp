@@ -1,7 +1,4 @@
 #include "expresslrs_msp.h"
-#include "main.h"
-#include "storage.h"
-#include "comm_espnow.h"
 #include "handset.h"
 #include "led.h"
 #include "buzzer.h"
@@ -153,19 +150,8 @@ void ExpresslrsMsp::handleVtxFrequencySetCommand(uint16_t const freq, AsyncWebSo
 
 void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, AsyncWebSocketClient * const client)
 {
-    String dbg_info = "Invalid VTX freq received!";
-    if (freq == 0) {
-        websocket_send_txt(dbg_info, client);
+    if (storeVtxFreq(client, freq) == 0) {
         return;
-    }
-    dbg_info = "Setting vtx freq to: ";
-    dbg_info += freq;
-    dbg_info += "MHz";
-    websocket_send_txt(dbg_info, client);
-
-    if (eeprom_storage.vtx_freq != freq) {
-        eeprom_storage.vtx_freq = freq;
-        eeprom_storage.markDirty();
     }
 
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
@@ -571,7 +557,7 @@ void ExpresslrsMsp::syncSettings(AsyncEventSourceClient * const client)
     async_event_send(m_version_info, "elrs_version", client);
 }
 
-int ExpresslrsMsp::parse_data(uint8_t const chr)
+int ExpresslrsMsp::parseSerialData(uint8_t const chr)
 {
     if (_handler.processReceivedByte(chr)) {
         /* Process the received MSP message */
@@ -662,12 +648,12 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
     return 0;
 }
 
-int ExpresslrsMsp::parse_command(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
+int ExpresslrsMsp::parseCommand(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
 {
     return -1;
 }
 
-int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd,
+int ExpresslrsMsp::parseCommand(websoc_bin_hdr_t const * const cmd,
                                  size_t const len,
                                  AsyncWebSocketClient * const client)
 {
@@ -748,7 +734,7 @@ int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd,
     return 0;
 }
 
-int ExpresslrsMsp::handle_received_msp(mspPacket_t & msp_in)
+int ExpresslrsMsp::parseCommand(mspPacket_t & msp_in)
 {
     uint16_t const freq = checkInputMspVtxSet(msp_in);
     if (freq) {

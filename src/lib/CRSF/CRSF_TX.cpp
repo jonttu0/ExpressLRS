@@ -1,4 +1,8 @@
 #include "CRSF_TX.h"
+
+#if !BACKPACK_LOGGER_BUILD
+
+#include "platform.h"
 #include "debug_elrs.h"
 #include <string.h>
 
@@ -340,3 +344,5 @@ void CRSF_TX::uart_wdt(void)
         GoodPktsCount = 0;
     }
 }
+
+#endif // BACKPACK_LOGGER_BUILD

@@ -334,7 +334,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
             wifi_search_results.channel = update->channel;
             current_state = STATE_WIFI_START_AP;
         }
-    } else if (msp_handler.handle_received_msp(msp_pkt) < 0) {
+    } else if (msp_handler.parseCommand(msp_pkt) < 0) {
         // Not handler internally, pass to serial
         MSP::sendPacket(&msp_pkt, &ctrl_serial);
     }
@@ -503,7 +503,7 @@ void webSocketEvent(AsyncWebSocket * server,
                         break;
                     }
 
-                    msp_handler.parse_command((char *)payload, length, client);
+                    msp_handler.parseCommand((char *)payload, length, client);
 
                 } else if (info->opcode == WS_BINARY) {
                     websoc_bin_hdr_t const * const header = (websoc_bin_hdr_t *)payload;
@@ -523,7 +523,7 @@ void webSocketEvent(AsyncWebSocket * server,
 #endif // CONFIG_STM_UPDATER
 
                         // ====================== DEFAULT =======================
-                    } else if (msp_handler.parse_command(header, length, client) < 0) {
+                    } else if (msp_handler.parseCommand(header, length, client) < 0) {
                         String error = "Invalid message: 0x";
                         error += String(header->msg_id, HEX);
                         client->text(error);
@@ -1390,7 +1390,7 @@ int serialEvent(String & log_string)
 
         inChar = (uint8_t)temp;
 
-        if (msp_handler.parse_data(inChar) < 0) {
+        if (msp_handler.parseSerialData(inChar) < 0) {
             if (inChar == '\r')
                 continue;
             else if (inChar == '\n')

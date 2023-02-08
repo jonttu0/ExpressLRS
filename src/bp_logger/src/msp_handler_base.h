@@ -4,6 +4,7 @@
 #include "msp.h"
 #include "main.h"
 #include "comm_espnow.h"
+#include "storage.h"
 #include <stdint.h>
 
 class MspHandlerBase
@@ -37,21 +38,21 @@ public:
     }
 
     // Byte stream input to be checked for incoming MSP
-    virtual int parse_data(uint8_t chr)
+    virtual int parseSerialData(uint8_t chr)
     {
         return -1;
     }
     // Message inputs
-    virtual int parse_command(char const * cmd, size_t len, AsyncWebSocketClient * const client)
+    virtual int parseCommand(char const * cmd, size_t len, AsyncWebSocketClient * const client)
     {
         return -1;
     }
-    virtual int parse_command(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client)
+    virtual int parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client)
     {
         return -1;
     }
     // Handle received MSP packet
-    virtual int handle_received_msp(mspPacket_t & msp_in)
+    virtual int parseCommand(mspPacket_t & msp_in)
     {
         return -1;
     }
@@ -115,6 +116,25 @@ protected:
             return frequency_table[_band][_index];
         }
         return freq;
+    }
+
+    bool storeVtxFreq(AsyncWebSocketClient * const client, uint16_t const freq)
+    {
+        String dbg_info = "Invalid VTX freq received!";
+        if (freq == 0) {
+            websocket_send_txt(dbg_info, client);
+            return false;
+        }
+        dbg_info = "Setting vtx freq to: ";
+        dbg_info += freq;
+        dbg_info += "MHz";
+        websocket_send_txt(dbg_info, client);
+
+        if (eeprom_storage.vtx_freq != freq) {
+            eeprom_storage.vtx_freq = freq;
+            eeprom_storage.markDirty();
+        }
+        return true;
     }
 
 private:
