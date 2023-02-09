@@ -107,8 +107,9 @@ def compress_files(source, target, env):
     print('   packing done!')
 
 def compress_fs_bin(source, target, env):
-    build_dir = env.subst("$BUILD_DIR")
-    image_name = env.get('ESP8266_FS_IMAGE_NAME')
-    src_file = os.path.join(build_dir, image_name + ".bin")
+    #build_dir = env.subst("$BUILD_DIR")
+    #image_name = env.get('ESP8266_FS_IMAGE_NAME')
+    #src_file = os.path.join(build_dir, image_name + ".bin")
+    src_file = str(target[0])
     target_file = src_file + ".gz"
     binary_compress(target_file, src_file)
