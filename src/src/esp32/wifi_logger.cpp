@@ -107,6 +107,13 @@ CtrlSerialPrivate DRAM_ATTR ctrl_msp_receive;
 CtrlSerial& ctrl_serial = ctrl_msp_send;
 
 /******************* ESP-NOW *********************/
+uint8_t wifi_ap_channel_get(void)
+{
+  // Calculate WiFi channel (1...12) according to UID
+  uint8_t const my_uid[] = {MY_UID};
+  return ((my_uid[3] + my_uid[4] + my_uid[5]) % 12) + 1;
+}
+
 #if ESP_NOW
 #include <esp_now.h>
 
@@ -116,7 +123,7 @@ void esp_now_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
   if (!data_len || !esp_now_is_peer_exist(mac_addr))
     return;
 
-  Serial.println("ESP NOW CB called!");
+  //Serial.println("ESP NOW CB called!");
 
   // Push data into ctrl queue, ERLS task will process it
   // Note: accept only correctly formatted MSP packets
@@ -127,51 +134,43 @@ void init_esp_now(void)
 {
   Serial.print("Initialize ESP-NOW... ");
 
+  uint8_t channel = 0;
+  wifi_second_chan_t secondChan;
+  esp_wifi_get_channel(&channel, &secondChan);
+  (void)secondChan;
+
   wifi_mode_t mode = WiFi.getMode();
   if (mode == WIFI_MODE_NULL) {
     Serial.println("(WiFi not enabled, set APSTA mode) ");
-    WiFi.mode(WIFI_MODE_APSTA); // Start wifi
+    WiFi.mode(WIFI_AP); // Start wifi
+    mode = WIFI_AP;
   }
 
   esp_now_init();
   esp_now_register_recv_cb(esp_now_recv_cb);
 
-#ifdef ESP_NOW_PEERS
-  //wifi_interface_t ifidx =
-  //  (mode == WIFI_MODE_STA) ? ESP_IF_WIFI_STA : ESP_IF_WIFI_AP;
   esp_now_peer_info_t peer_info = {
     .peer_addr = {0},
     .lmk = {0},
-    .channel = (uint8_t)((mode != WIFI_MODE_STA) ? ESP_NOW_CHANNEL : 0),
-    //.ifidx = ifidx,
-    .ifidx = ESP_IF_WIFI_STA,
+    .channel = (uint8_t)((mode == WIFI_AP) ? wifi_ap_channel_get() : channel),
+    .ifidx = ESP_IF_WIFI_AP, //ESP_IF_WIFI_STA,
     .encrypt = false,
     .priv = NULL
   };
-  uint8_t peers[][ESP_NOW_ETH_ALEN] = ESP_NOW_PEERS;
-  uint8_t num_peers = sizeof(peers) / ESP_NOW_ETH_ALEN;
-  for (uint8_t iter = 0; iter < num_peers; iter++) {
-    memcpy(peer_info.peer_addr, peers[iter], ESP_NOW_ETH_ALEN);
-    esp_now_del_peer(peers[iter]);
-    esp_now_add_peer(&peer_info);
-  }
-#endif // ESP_NOW_PEERS
+  WiFi.softAPmacAddress(peer_info.peer_addr);
+  esp_now_del_peer(peer_info.peer_addr);
+  esp_now_add_peer(&peer_info);
 
   Serial.println("DONE");
 }
 
 void deinit_esp_now(void)
 {
+  uint8_t mac_addr[6];
   Serial.print("Stop ESP-NOW... ");
 
-#ifdef ESP_NOW_PEERS
-  uint8_t peers[][ESP_NOW_ETH_ALEN] = ESP_NOW_PEERS;
-  uint8_t const num_peers = sizeof(peers) / ESP_NOW_ETH_ALEN;
-  for (uint8_t iter = 0; iter < num_peers; iter++) {
-    esp_now_del_peer(peers[iter]);
-  }
-#endif // ESP_NOW_PEERS
-
+  WiFi.softAPmacAddress(mac_addr);
+  esp_now_del_peer(mac_addr);
   esp_now_deinit();
   Serial.println("DONE");
 }
@@ -863,6 +862,10 @@ void wifi_setup(void)
 
   wifi_setup_ok = true;
 
+  uint8_t ap_mac[] = {MY_UID};
+  if (ap_mac[0] & 0x1) ap_mac[0] &= ~0x1;
+  esp_wifi_set_mac(WIFI_IF_AP, &ap_mac[0]);
+
   WiFi.setTxPower(WIFI_POWER_13dBm);
   WiFi.setHostname(host);
 
@@ -877,7 +880,7 @@ void wifi_setup(void)
       WiFi.persistent(false);
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
-      WiFi.mode(WIFI_STA);
+      WiFi.mode(WIFI_AP_STA);
       WiFi.begin(WIFI_SSID, WIFI_PSK);
 
       jter = 0;
@@ -908,7 +911,7 @@ void wifi_setup(void)
     Serial.println(" FAILED! Starting AP...");
     // No WiFi found, start access point
     WiFi.mode(WIFI_AP);
-    WiFi.softAP(WIFI_AP_SSID" ESP32 TX", WIFI_AP_PSK);
+    WiFi.softAP(WIFI_AP_SSID" ESP32 TX", WIFI_AP_PSK, wifi_ap_channel_get());
     my_ip = WiFi.softAPIP();
   }
 

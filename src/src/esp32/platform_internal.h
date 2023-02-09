@@ -65,10 +65,4 @@ private:
 extern DebugSerial wifi_logger_serial;
 #endif
 
-#ifdef ESP_NOW
-#ifndef ESP_NOW_PEERS
-#undef ESP_NOW
-#endif // ESP_NOW_PEERS
-#endif // ESP_NOW
-
 #endif /* __PLATFORM_H_ */
