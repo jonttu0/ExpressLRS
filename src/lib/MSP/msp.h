@@ -111,15 +111,24 @@ typedef struct
         crc = 0;
     }
 
-    inline void addByte(uint8_t b)
+    inline void addByte(uint8_t const b)
     {
-        if (payloadIterator >= sizeof(payload))
-        {
+        if (payloadIterator >= sizeof(payload)) {
             error = true;
             return;
         }
         crc = CalcCRCxor(b, crc);
         payload[payloadIterator++] = b;
+    }
+
+    inline void add(uint8_t b)
+    {
+        addByte(b);
+    }
+
+    inline void add(uint8_t const * data, size_t len)
+    {
+        while(len--) addByte(*data++);
     }
 
     inline void FAST_CODE_2 setIteratorToSize()
@@ -130,8 +139,7 @@ typedef struct
 
     uint8_t FAST_CODE_2 readByte()
     {
-        if (iterated())
-        {
+        if (iterated()) {
             // We are trying to read beyond the length of the payload
             error = true;
             return 0;
@@ -164,10 +172,15 @@ public:
     }
     void markPacketFree();
 
-    static bool sendPacket(mspPacket_t *packet, CtrlSerial *port);
+    static size_t bufferPacket(uint8_t *output_ptr, mspPacketType_e type,
+                             uint16_t function, uint8_t flags,
+                             uint8_t len, uint8_t const * payload);
+    static size_t bufferPacket(uint8_t *output_ptr, mspPacket_t *packet);
     static bool sendPacket(CtrlSerial *port, mspPacketType_e type,
                            uint16_t function, uint8_t flags,
                            uint8_t len, uint8_t const * payload);
+    static bool sendPacket(mspPacket_t *packet, CtrlSerial *port);
+
 private:
     mspPacket_t m_packet;
     mspState_e m_inputState = MSP_IDLE;
