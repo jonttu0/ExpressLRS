@@ -19,6 +19,8 @@
 #endif
 
 
+String mac_addr_print(uint8_t const * const mac_addr);
+
 void websocket_send(String & data, int num = -1);
 void websocket_send(char const * data, int num = -1);
 void websocket_send(uint8_t const * data, uint8_t len, int num = -1);

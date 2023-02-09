@@ -118,6 +118,12 @@ uint8_t hex_char_to_dec(uint8_t const chr)
     return char_to_dec(chr);
 }
 
+uint8_t wifi_ap_channel_get(void)
+{
+    // Calculate WiFi channel (1...12) according to UID
+    uint8_t const my_uid[] = {MY_UID};
+    return ((my_uid[3] + my_uid[4] + my_uid[5]) % 12) + 1;
+}
 
 /*************************************************************************/
 
@@ -168,12 +174,7 @@ void wifi_networks_report(int wsnum)
                 if (index < 10) info_str += '0';
                 info_str += index;
                 if (wifi_is_mac_valid(wifi_ptr)) {
-                    char macStr[18] = { 0 };
-                    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
-                            wifi_ptr->mac[0], wifi_ptr->mac[1],
-                            wifi_ptr->mac[2], wifi_ptr->mac[3],
-                            wifi_ptr->mac[4], wifi_ptr->mac[5]);
-                    info_str += macStr;
+                    info_str += mac_addr_print(wifi_ptr->mac);
                 } else {
                     info_str += "00:00:00:00:00:00";
                 }
@@ -190,11 +191,24 @@ void wifi_networks_report(int wsnum)
 
 int esp_now_msp_rcvd(mspPacket_t &msp_pkt)
 {
-    return msp_handler.handle_received_msp(msp_pkt);
+    if (msp_handler.handle_received_msp(msp_pkt) < 0) {
+        // Not handler internally, pass to serial
+        MSP::sendPacket(&msp_pkt, &ctrl_serial);
+    }
+    return 0;
 }
 
 
 /*************************************************************************/
+String mac_addr_print(uint8_t const * const mac_addr)
+{
+    char macStr[18] = {0};
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
+            mac_addr[0], mac_addr[1], mac_addr[2],
+            mac_addr[3], mac_addr[4], mac_addr[5]);
+    return String(macStr);
+}
+
 
 void websocket_send(char const * data, int num)
 {
@@ -279,11 +293,13 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
 #if ESP_NOW
             if (eeprom_storage.espnow_initialized == LOGGER_ESPNOW_INIT_KEY) {
                 uint8_t const size = eeprom_storage.espnow_clients_count * 6;
-                uint8_t buffer[size + 2];
-                buffer[0] = (uint8_t)(WSMSGID_ESPNOW_ADDRS >> 8);
-                buffer[1] = (uint8_t)(WSMSGID_ESPNOW_ADDRS);
-                memcpy(&buffer[2], eeprom_storage.espnow_clients, size);
-                websocket_send(buffer, sizeof(buffer), num);
+                if (size) {
+                    uint8_t buffer[size + 2];
+                    buffer[0] = (uint8_t)(WSMSGID_ESPNOW_ADDRS >> 8);
+                    buffer[1] = (uint8_t)(WSMSGID_ESPNOW_ADDRS);
+                    memcpy(&buffer[2], eeprom_storage.espnow_clients, size);
+                    websocket_send(buffer, sizeof(buffer), num);
+                }
             }
 #endif
             wifi_networks_report(num);
@@ -364,10 +380,6 @@ void webSocketEvent(uint8_t num, WStype_t type, uint8_t *payload, size_t length)
         }
 
         case WStype_BIN: {
-            //Serial.printf("[%u] get binary length: %u\r\n", num, length);
-            //hexdump(payload, length);
-            // echo data back to browser
-            //webSocket.sendBIN(num, payload, length);
             websoc_bin_hdr_t const * const header = (websoc_bin_hdr_t*)payload;
             length -= sizeof(header->msg_id);
 
@@ -437,7 +449,7 @@ void handleApInfo(void)
     message += WiFi.softAPmacAddress();
     message += "\n  - IP: 192.168.4.1 / 24";
     message += "\n  - AP channel: ";
-    message += ESP_NOW_CHANNEL;
+    message += wifi_ap_channel_get();
     message += "\n  - SSID: ";
     message += WIFI_AP_SSID;
     message +=  WIFI_AP_SUFFIX;
@@ -617,7 +629,7 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
     buzzer_beep(440, 30);*/
 
     // Configure ESP-NOW
-    espnow_init(wifi_get_channel(), esp_now_msp_rcvd, &ctrl_serial);
+    espnow_init(wifi_get_channel(), esp_now_msp_rcvd);
 }
 
 void onStationDhcpTimeout(void)
@@ -659,13 +671,14 @@ static void wifi_config_ap(void)
     IPAddress local_IP(192, 168, 4, 1);
     IPAddress gateway(192, 168, 4, 1);
     IPAddress subnet(255, 255, 255, 0);
+    uint8_t const channel = wifi_ap_channel_get();
 
     // WiFi not connected, Start access point
     WiFi.disconnect(true);
     WiFi.forceSleepWake();
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(local_IP, gateway, subnet);
-    if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, ESP_NOW_CHANNEL,
+    if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, channel,
                     !!WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN)) {
         wifi_connection_state = WIFI_STATE_AP;
 #if WIFI_DBG
@@ -685,13 +698,19 @@ static void wifi_config_ap(void)
 #endif
     }
     // Configure ESP-NOW
-    espnow_init(ESP_NOW_CHANNEL, esp_now_msp_rcvd, &ctrl_serial);
+    espnow_init(channel, esp_now_msp_rcvd);
 }
 
 
-static int wifi_search_networks(void)
+typedef struct {
+    uint8_t network_index;
+    uint8_t channel;
+} wifi_info_t;
+
+
+static bool wifi_search_networks(wifi_info_t &output)
 {
-    int selected = -1;
+    output.network_index = 0xff;
     int rssi_best = WIFI_SEARCH_RSSI_MIN;
 #if UART_DEBUG_EN
     Serial.println("-------------------------");
@@ -732,7 +751,8 @@ static int wifi_search_networks(void)
                 // Select based on the best RSSI
                 if (rssi_best < rssi) {
                     rssi_best = rssi;
-                    selected = jter; // selected
+                    output.network_index = jter; // selected
+                    output.channel = channel;
 #if UART_DEBUG_EN
                     Serial.print(" << selected!");
 #endif
@@ -745,9 +765,8 @@ static int wifi_search_networks(void)
         }
     }
     WiFi.scanDelete();  // Cleanup scan results
-    return selected;
+    return (output.network_index != 0xff);
 }
-
 
 static void wifi_config(void)
 {
@@ -757,6 +776,11 @@ static void wifi_config(void)
 #if WIFI_DBG
     wifi_log = "";
 #endif
+
+    /* Set AP MAC to UID for ESP-NOW messaging */
+    uint8_t ap_mac[] = {MY_UID};
+    if (ap_mac[0] & 0x1) ap_mac[0] &= ~0x1;
+    wifi_set_macaddr(SOFTAP_IF, &ap_mac[0]);
 
     /* Force WIFI off until it is realy needed */
     WiFi.mode(WIFI_OFF);
@@ -776,25 +800,25 @@ static void wifi_config(void)
     AP_ConnectedHandler = WiFi.onSoftAPModeStationConnected(&onSoftAPModeStationConnected);
     AP_DisconnectedHandler = WiFi.onSoftAPModeStationDisconnected(&onSoftAPModeStationDisconnected);
 
-    WiFi.mode(WIFI_STA);
+    WiFi.mode(WIFI_AP_STA);  // WIFI_AP_STA
 
     // Search for configure networks:
-    int const network_idx = wifi_search_networks();
-
-    if (network_idx < 0) {
-        wifi_config_ap();
-    } else {
-        wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[network_idx];
+    wifi_info_t scan_result;
+    if (wifi_search_networks(scan_result)) {
+        wifi_networks_t const * const wifi_ptr =
+            &eeprom_storage.wifi_nets[scan_result.network_index];
 #if UART_DEBUG_EN
         Serial.print("WiFi connecting: '");
         Serial.print(wifi_ptr->ssid);
         Serial.println("'");
 #endif
-        WiFi.begin(wifi_ptr->ssid, wifi_ptr->psk, WIFI_CHANNEL);
+        WiFi.begin(wifi_ptr->ssid, wifi_ptr->psk, scan_result.channel);
         wifi_connect_started = millis();
 
         // Initial ESP-NOW configuration
-        espnow_init(ESP_NOW_CHANNEL, esp_now_msp_rcvd, &ctrl_serial);
+        espnow_init(scan_result.channel, esp_now_msp_rcvd);
+    } else {
+        wifi_config_ap();
     }
 }
 

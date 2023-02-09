@@ -213,6 +213,7 @@ int HDZeroMsp::handle_received_msp(mspPacket_t &msp_in)
 
 void HDZeroMsp::loop(void)
 {
+#if !UART_DEBUG_EN
     uint32_t const now = millis();
     if (RETRY_INTERVAL_MS <= (int32_t)(now - init_called_ms)) {
         init_called_ms = now;
@@ -231,7 +232,9 @@ void HDZeroMsp::loop(void)
                 break;
         };
     }
+#endif // !UART_DEBUG_EN
 }
+
 
 void HDZeroMsp::MspWrite(uint8_t const * const buff, uint16_t const len, uint16_t const function)
 {

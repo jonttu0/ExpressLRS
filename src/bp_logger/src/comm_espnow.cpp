@@ -6,56 +6,54 @@
 #include <espnow.h>
 
 
-#define ESP_NOW_ETH_ALEN    6
+#define MAC_ADDR_LEN        6
 #define DEBUG_TX_CALLBACK   0
+#define DEBUG_LOG           0
 
-String espnow_init_info = "ESP NOW is not configured!";
-
+static String espnow_init_info = "";
+#if DEBUG_LOG
+  #define LOG_SET(...) espnow_init_info  = __VA_ARGS__
+  #define LOG_ADD(...) espnow_init_info += __VA_ARGS__
+#else
+  #define LOG_SET(...)
+  #define LOG_ADD(...)
+#endif
 
 #if ESP_NOW
 
-class CtrlSerialEspNow: public CtrlSerial
-{
-public:
-    size_t available(void) {
-        return 0; // not used
-    }
-    uint8_t read(void) {
-        return 0; // not used
-    }
-    void write(uint8_t * buffer, size_t size) {
-        esp_now_send(NULL, buffer, size);
-        //websocket_send("MSP sent!");
-    }
-};
-
-static CtrlSerialEspNow esp_now_sender;
-static MSP esp_now_msp_rx;
-static esp_now_msp_rcvd_cb_t msp_handler;
-static CtrlSerial * ctrl_serial_ptr;
+static uint8_t msp_tx_buffer[128];
+//static uint8_t broadcast_addr[] = {0xff,0xff,0xff,0xff,0xff,0xff};
 static uint32_t esp_now_channel;
+static esp_now_msp_rcvd_cb_t msp_handler;
+static bool esp_now_initialized = false;
 
 
 static void esp_now_recv_cb(uint8_t *mac_addr, uint8_t *data, uint8_t const data_len)
 {
+    static MSP esp_now_msp_rx;
     uint8_t iter;
-    /* No data or peer is unknown => ignore */
-    if (!data_len || !esp_now_is_peer_exist(mac_addr))
+
+    if (!data_len)
         return;
-
-    //websocket_send("ESP NOW message received!");
-
+#if 0
+    String temp = "ESPNOW received: ";
+    temp += mac_addr_print(mac_addr);
+    websocket_send(temp);
+#endif
     esp_now_msp_rx.markPacketFree();
 
     for (iter = 0; iter < data_len; iter++) {
         if (esp_now_msp_rx.processReceivedByte(data[iter])) {
             //  MSP received, check content
             mspPacket_t &packet = esp_now_msp_rx.getPacket();
-
-            if (!msp_handler || 0 > msp_handler(packet)) {
-                // Not handler internally, pass to serial
-                MSP::sendPacket(&packet, ctrl_serial_ptr);
-                //Serial.write((uint8_t*)packet.payload, packet.payloadSize);
+            if (esp_now_is_peer_exist(mac_addr)) {
+                if (msp_handler)
+                    msp_handler(packet);
+            } else {
+                /* Handle broadcast messages */
+                if (packet.type == MSP_PACKET_V2_COMMAND /*||
+                    packet.type == MSP_PACKET_V2_RESPONSE*/) {
+                }
             }
             /* Done, clear the packet and proceed */
             esp_now_msp_rx.markPacketFree();
@@ -67,74 +65,65 @@ static void esp_now_recv_cb(uint8_t *mac_addr, uint8_t *data, uint8_t const data
 #if DEBUG_TX_CALLBACK
 static void esp_now_send_cb(uint8_t *mac_addr, u8 status) {
     String temp = "ESPNOW Sent: ";
-    for (uint8_t iter = 0; iter < 6; iter++) {
-        if (iter) temp += ":";
-        temp += String(mac_addr[iter], HEX);
-    }
+    temp += mac_addr_print(mac_addr);
     temp += (status ? " FAIL" : " SUCCESS");
     websocket_send(temp);
 }
 #endif
 
 
-static void add_peer(espnow_clients_t const * const mac_addr, uint32_t const channel)
+static void add_peer(uint8_t const * const mac_addr, uint32_t const channel)
 {
-    char macStr[18] = { 0 };
-    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
-            mac_addr->mac_addr[0], mac_addr->mac_addr[1], mac_addr->mac_addr[2],
-            mac_addr->mac_addr[3], mac_addr->mac_addr[4], mac_addr->mac_addr[5]);
-    espnow_init_info += "[PEER ";
-    espnow_init_info += String(macStr);
-    if (esp_now_add_peer((u8 *)mac_addr->mac_addr,
-                ESP_NOW_ROLE_COMBO, channel, NULL, 0) != 0) {
-        espnow_init_info += " !FAILED!";
+    LOG_ADD("[PEER ");
+    LOG_ADD(mac_addr_print(mac_addr));
+    if (esp_now_add_peer((u8 *)mac_addr, ESP_NOW_ROLE_COMBO, channel, NULL, 0) != 0) {
+        LOG_ADD(" !FAILED!");
     }
-    espnow_init_info += "] ";
+    LOG_ADD("] ");
     ESP.wdtFeed();
 }
 #endif // ESP_NOW
 
 
-void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb, CtrlSerial *serial_ptr)
+void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb)
 {
     ESP.wdtFeed();
 #if ESP_NOW
+
+    uint8_t my_uid[MAC_ADDR_LEN];
     uint8_t iter;
 
-    esp_now_channel = channel;
+    WiFi.softAPmacAddress(&my_uid[0]);
 
-    if (msp_handler) {
-        // Already initialized, just update wifi channel
-        iter = eeprom_storage.espnow_clients_count;
-        while (iter--) {
-            esp_now_set_peer_channel(eeprom_storage.espnow_clients[iter].mac_addr, channel);
+    if (esp_now_initialized) {
+        if (channel != esp_now_channel) {
+            // Already initialized, just update wifi channel
+            esp_now_set_peer_channel(my_uid, channel);
+            iter = eeprom_storage.espnow_clients_count;
+            while (iter--) {
+                esp_now_set_peer_channel(eeprom_storage.espnow_clients[iter].mac_addr, channel);
+            }
         }
+        esp_now_channel = channel;
         return;
     }
 
+    esp_now_initialized = true;
     msp_handler = cb;
-    ctrl_serial_ptr = serial_ptr;
+    esp_now_channel = channel;
 
-    espnow_init_info = "ESP NOW init: ";
+    LOG_SET("ESP NOW init: ");
 
     if (eeprom_storage.espnow_initialized != LOGGER_ESPNOW_INIT_KEY) {
         eeprom_storage.espnow_clients_count = 0;
         eeprom_storage.espnow_initialized = LOGGER_ESPNOW_INIT_KEY;
         // init storage
         memset(eeprom_storage.espnow_clients, 0, sizeof(eeprom_storage.espnow_clients));
-#ifdef ESP_NOW_PEERS
-        uint8_t peers[][ESP_NOW_ETH_ALEN] = ESP_NOW_PEERS;
-        uint8_t const num_peers = sizeof(peers) / ESP_NOW_ETH_ALEN;
-        for (iter = 0; iter < num_peers; iter++) {
-            memcpy(eeprom_storage.espnow_clients[iter].mac_addr, peers[iter], ESP_NOW_ETH_ALEN);
-        }
-        eeprom_storage.espnow_clients_count = num_peers;
-#endif
         eeprom_storage.markDirty();
     }
 
     if (esp_now_init() != 0) {
-        espnow_init_info += "esp_now_init() failed!";
+        LOG_ADD("esp_now_init() failed!");
         return;
     }
     esp_now_set_self_role(ESP_NOW_ROLE_COMBO);
@@ -143,15 +132,15 @@ void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb, CtrlSer
 #endif
     esp_now_register_recv_cb(esp_now_recv_cb);
 
+    add_peer(my_uid, channel);
     for (iter = 0; iter < eeprom_storage.espnow_clients_count; iter++) {
-        add_peer(&eeprom_storage.espnow_clients[iter], channel);
+        add_peer(eeprom_storage.espnow_clients[iter].mac_addr, channel);
     }
 
-    espnow_init_info += " - DONE!";
+    LOG_ADD(" - DONE!");
 #else
     (void)channel;
     (void)cb;
-    (void)serial_ptr;
 #endif // ESP_NOW
 }
 
@@ -170,16 +159,18 @@ void espnow_update_clients(uint8_t const * const data, uint8_t const len, int co
 {
 #if ESP_NOW
     espnow_clients_t const * const client = (espnow_clients_t*)data;
-    uint8_t const count_new = (len / ESP_NOW_ETH_ALEN);
+    uint8_t const count_new = (len / MAC_ADDR_LEN);
     uint8_t iter;
 
-    espnow_init_info = "ESP NOW update: ";
+    LOG_SET("ESP NOW update: ");
 
-    if (!count_new || !data || !ctrl_serial_ptr)
+    if (!data) {
         // No valid data or not initilized yet
+        LOG_ADD(" - FAILED!");
         return;
+    }
 
-    // Remove all existing peers
+    // Remove existing peers
     iter = eeprom_storage.espnow_clients_count;
     while (iter--) {
         esp_now_del_peer(eeprom_storage.espnow_clients[iter].mac_addr);
@@ -189,12 +180,13 @@ void espnow_update_clients(uint8_t const * const data, uint8_t const len, int co
     eeprom_storage.espnow_clients_count = count_new;
     for (iter = 0; iter < count_new; iter++) {
         memcpy(eeprom_storage.espnow_clients[iter].mac_addr,
-               client[iter].mac_addr, ESP_NOW_ETH_ALEN);
-        add_peer(&client[iter], esp_now_channel);
+               client[iter].mac_addr, MAC_ADDR_LEN);
+        add_peer(client[iter].mac_addr, esp_now_channel);
     }
-    espnow_init_info += " - DONE!";
+    LOG_ADD(" - DONE!");
     eeprom_storage.markDirty();
 #else
+    espnow_init_info = "ESP NOW is not configured!";
     (void)data;
     (void)len;
     (void)wsnum;
@@ -202,7 +194,7 @@ void espnow_update_clients(uint8_t const * const data, uint8_t const len, int co
 }
 
 
-String & espnow_get_info()
+String & espnow_get_info(void)
 {
     return espnow_init_info;
 }
@@ -211,7 +203,10 @@ String & espnow_get_info()
 void espnow_send_msp(mspPacket_t &msp)
 {
 #if ESP_NOW
-    MSP::sendPacket(&msp, &esp_now_sender);
+    size_t const len = MSP::bufferPacket(msp_tx_buffer, &msp);
+    if (len) {
+        esp_now_send(NULL, msp_tx_buffer, len);
+    }
 #else
     (void)msp;
 #endif // ESP_NOW
