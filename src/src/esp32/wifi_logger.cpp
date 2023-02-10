@@ -31,10 +31,6 @@
 #define WIFI_TIMEOUT 60 // default to 1min
 #endif
 
-#ifndef ESP_NOW_CHANNEL
-#define ESP_NOW_CHANNEL 1
-#endif
-
 #define SERVER_PORT    80
 #define SERVER_WS_PORT 81
 
@@ -117,7 +113,7 @@ uint8_t wifi_ap_channel_get(void)
 #if ESP_NOW
 #include <esp_now.h>
 
-void esp_now_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
+void IRAM_ATTR esp_now_recv_cb(const uint8_t *mac_addr, const uint8_t *data, int data_len)
 {
   /* No data or peer is unknown => ignore */
   if (!data_len || !esp_now_is_peer_exist(mac_addr))
