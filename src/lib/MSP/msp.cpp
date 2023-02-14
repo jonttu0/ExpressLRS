@@ -218,13 +218,6 @@ bool MSP::processReceivedByte(uint8_t c)
     return (m_inputState == MSP_COMMAND_RECEIVED);
 }
 
-void MSP::markPacketFree()
-{
-    // Set input state to idle, ready to receive the next packet
-    // The current packet data will be discarded internally
-    m_inputState = MSP_IDLE;
-}
-
 
 size_t MSP::bufferPacket(uint8_t *output_ptr, mspPacketType_e type,
                          uint16_t function, uint8_t flags,

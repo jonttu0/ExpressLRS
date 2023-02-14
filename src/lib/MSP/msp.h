@@ -61,12 +61,20 @@ typedef enum
     MSP_PACKET_V2_RESPONSE
 } mspPacketType_e;
 
-enum
+enum /* MSPv1 functions */
 {
-    MSP_VTX_ONFIG = 0x58,      // read
+    MSP_VTX_CONFIG = 0x58,     // read
     MSP_VTX_SET_CONFIG = 0x59, // write
-
     MSP_EEPROM_WRITE = 250,
+};
+
+enum /* MSPv2 functions */
+{
+    MSP_ELRS_FUNC = 0x4578, // ['E','x']
+
+    MSP_ESPNOW_BIND_FUNC = 0x454E, // ['E', 'N']
+
+    MSP_CHORUS32_LAP_TIME = 0x4c54, // ['L', 'T']
 };
 
 typedef struct
@@ -94,7 +102,7 @@ typedef struct
                 ((0 < payloadSize && payloadSize <= payloadIterator) || (payloadSize == 0)));
     }
 
-    uint8_t free(void) const
+    uint8_t is_free(void) const
     {
         return (type == MSP_PACKET_UNKNOWN);
     }
@@ -170,8 +178,11 @@ public:
     uint8_t error() {
         return m_packet.error;
     }
-    void markPacketFree();
-
+    void markPacketFree() {
+        // Set input state to idle, ready to receive the next packet
+        // The current packet data will be discarded internally
+        m_inputState = MSP_IDLE;
+    }
     static size_t bufferPacket(uint8_t *output_ptr, mspPacketType_e type,
                              uint16_t function, uint8_t flags,
                              uint8_t len, uint8_t const * payload);

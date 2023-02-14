@@ -1,12 +1,22 @@
 #include <Arduino.h>
-#include <ESP8266WiFi.h>
 #include <WebSocketsServer.h>
+#ifdef ARDUINO_ARCH_ESP32
+#include <WebSocketsServer.h>
+#include <WebServer.h>
+#include <HTTPUpdate.h>
+#include <esp_wifi.h>
+#include <ESPmDNS.h>
+#else
 #include <Hash.h>
+#include <ESP8266WiFi.h>
 #include <ESP8266WebServer.h>
 #include <ESP8266mDNS.h>
 #include <ESP8266HTTPUpdateServer.h>
+#endif
 #if USE_LITTLE_FS // Must be included here to make 6.1x pio happy
 #include <LittleFS.h>
+#else
+#include <SPIFFS.h>
 #endif
 
 #include "storage.h"
@@ -80,9 +90,14 @@
 #endif
 
 
+#ifdef ARDUINO_ARCH_ESP32
+WebServer server(80);
+WebSocketsServer webSocket = WebSocketsServer(81);
+#else
 ESP8266WebServer server(80);
 WebSocketsServer webSocket = WebSocketsServer(81);
 ESP8266HTTPUpdateServer httpUpdater;
+#endif
 
 #ifndef LOGGER_HOST_NAME
 #define LOGGER_HOST_NAME "elrs_logger"
@@ -153,13 +168,74 @@ ExpresslrsMsp msp_handler(&my_ctrl_serial);
 
 /*************************************************************************/
 
-int get_reset_reason(void)
+#ifdef ARDUINO_ARCH_ESP32
+#include <rom/rtc.h>
+String get_reset_reason(RESET_REASON const reason)
+{
+    switch (reason) {
+        case  1 : return "POWERON_RESET";         /**<1, Vbat power on reset*/
+        case  3 : return "SW_RESET";              /**<3, Software reset digital core*/
+        case  4 : return "OWDT_RESET";            /**<4, Legacy watch dog reset digital core*/
+        case  5 : return "DEEPSLEEP_RESET";       /**<5, Deep Sleep reset digital core*/
+        case  6 : return "SDIO_RESET";            /**<6, Reset by SLC module, reset digital core*/
+        case  7 : return "TG0WDT_SYS_RESET";      /**<7, Timer Group0 Watch dog reset digital core*/
+        case  8 : return "TG1WDT_SYS_RESET";      /**<8, Timer Group1 Watch dog reset digital core*/
+        case  9 : return "RTCWDT_SYS_RESET";      /**<9, RTC Watch dog Reset digital core*/
+        case 10 : return "INTRUSION_RESET";       /**<10, Instrusion tested to reset CPU*/
+        case 11 : return "TGWDT_CPU_RESET";       /**<11, Time Group reset CPU*/
+        case 12 : return "SW_CPU_RESET";          /**<12, Software reset CPU*/
+        case 13 : return "RTCWDT_CPU_RESET";      /**<13, RTC Watch dog Reset CPU*/
+        case 14 : return "EXT_CPU_RESET";         /**<14, for APP CPU, reseted by PRO CPU*/
+        case 15 : return "RTCWDT_BROWN_OUT_RESET";/**<15, Reset when the vdd voltage is not stable*/
+        case 16 : return "RTCWDT_RTC_RESET";      /**<16, RTC Watch dog reset digital core and rtc module*/
+        default : return "NO_MEAN";
+    }
+}
+void print_reset_reason(void)
+{
+    boot_log += "CPU0: ";
+    boot_log += get_reset_reason(rtc_get_reset_reason(0));
+    boot_log += "CPU1: ";
+    boot_log += get_reset_reason(rtc_get_reset_reason(1));
+}
+#else
+void print_reset_reason(void)
 {
     rst_info *resetInfo;
     resetInfo = ESP.getResetInfoPtr();
-    int reset_reason = resetInfo->reason;
-    return reset_reason;
+
+    switch (resetInfo->reason) {
+        case REASON_WDT_RST:
+            /* 1 = hardware watch dog reset */
+            boot_log += "Reset: HW WD";
+            break;
+        case REASON_EXCEPTION_RST:
+            /* 2 = exception reset, GPIO status won’t change */
+            boot_log += "Reset: Exception";
+            break;
+        case REASON_SOFT_WDT_RST:
+            /* 3 = software watch dog reset, GPIO status won’t change */
+            boot_log += "Reset: SW WD";
+            break;
+        case REASON_SOFT_RESTART:
+            /* 4 = software restart ,system_restart , GPIO status won’t change */
+            boot_log += "Reset: SW restart";
+            break;
+        case REASON_DEEP_SLEEP_AWAKE:
+            /* 5 = wake up from deep-sleep */
+            boot_log += "Reset: deep sleep wakeup";
+            break;
+        case REASON_EXT_SYS_RST:
+            /* 6 = external system reset */
+            boot_log += "Reset: External";
+            break;
+        case REASON_DEFAULT_RST:
+        default:
+            /* 0 = normal startup by power on */
+            break;
+    }
 }
+#endif
 
 
 void wifi_networks_report(int wsnum)
@@ -429,10 +505,19 @@ void handle_recover()
 
 void handleMacAddress(void)
 {
+    uint8_t channel;
+#ifdef ARDUINO_ARCH_ESP32
+    wifi_second_chan_t secondChan;
+    esp_wifi_get_channel(&channel, &secondChan);
+    (void)secondChan;
+#else
+    channel = wifi_get_channel();
+#endif
+
     String message = "WiFi STA MAC: ";
     message += WiFi.macAddress();
     message += "\n  - channel in use: ";
-    message += wifi_get_channel();
+    message += channel;
     message += "\n  - mode: ";
     message += (uint8_t)WiFi.getMode();
     message += "\n\nWiFi SoftAP MAC: ";
@@ -464,9 +549,12 @@ void handleApInfo(void)
 
 void handle_fs(void)
 {
+    String message = "FS info: used ";
+#ifdef ARDUINO_ARCH_ESP32
+    message += " [ESP32 not implemented!]";
+#else
     FSInfo fs_info;
     FILESYSTEM.info(fs_info);
-    String message = "FS ino: used ";
     message += fs_info.usedBytes;
     message += "/";
     message += fs_info.totalBytes;
@@ -483,7 +571,7 @@ void handle_fs(void)
         }
         message += "\n";
     }
-
+#endif
     server.send(200, "text/plain", message);
 }
 
@@ -530,17 +618,22 @@ enum {
     WIFI_STATE_AP,
 };
 
+#ifdef ARDUINO_ARCH_ESP8266
 static WiFiEventHandler stationConnectedHandler;
 static WiFiEventHandler stationDisconnectedHandler;
 static WiFiEventHandler stationGotIpAddress;
 static WiFiEventHandler stationDhcpTimeout;
-static WiFiEventHandler AP_ConnectedHandler;
-static WiFiEventHandler AP_DisconnectedHandler;
+#endif
 static uint32_t wifi_connect_started;
 static uint8_t wifi_connection_state;
 
 
-void onStationConnected(const WiFiEventStationModeConnected& evt) {
+#ifdef ARDUINO_ARCH_ESP32
+void onStationConnected(WiFiEvent_t event, WiFiEventInfo_t info)
+#else
+void onStationConnected(const WiFiEventStationModeConnected& evt)
+#endif
+{
     // Don't let AP to be triggered while still connecting to STA
     wifi_connect_started = millis();
 #if WIFI_DBG
@@ -559,7 +652,12 @@ void onStationConnected(const WiFiEventStationModeConnected& evt) {
 #endif
 }
 
-void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
+#ifdef ARDUINO_ARCH_ESP32
+void onStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
+#else
+void onStationDisconnected(const WiFiEventStationModeDisconnected& evt)
+#endif
+{
 #if WIFI_DBG
 #if UART_DEBUG_EN
     wifi_log = "";
@@ -588,7 +686,12 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected& evt) {
     BUILTIN_LED_SET(0);
 }
 
-void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
+#ifdef ARDUINO_ARCH_ESP32
+void onStationGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
+#else
+void onStationGotIP(const WiFiEventStationModeGotIP& evt)
+#endif
+{
 #if UART_DEBUG_EN
     Serial.println("WiFi STA got IP");
 #endif
@@ -597,18 +700,29 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
 #endif
     wifi_connection_state = WIFI_STATE_STA;
 
+    String instance = String(hostname) + "_" + WiFi.macAddress();
+    instance.replace(":", "");
+
     MDNS.end();
+#ifdef ARDUINO_ARCH_ESP32
+    if (MDNS.begin(hostname)) {
+        MDNS.setInstanceName(instance);
+        MDNS.addService("http", "tcp", 80);
+        MDNS.addServiceTxt("http", "tcp", "vendor", "elrs");
+        MDNS.addServiceTxt("http", "tcp", "target", (const char *)target_name);
+        MDNS.addServiceTxt("http", "tcp", "version", LATEST_COMMIT_STR);
+        MDNS.addServiceTxt("http", "tcp", "type", "bp_logger");
+    }
+#else
     MDNS.setHostname(hostname);
     if (MDNS.begin(hostname, WiFi.localIP()))
     {
-        String instance = String(hostname) + "_" + WiFi.macAddress();
-        instance.replace(":", "");
         MDNS.setInstanceName(hostname);
         MDNSResponder::hMDNSService service = MDNS.addService(instance.c_str(), "http", "tcp", 80);
         MDNS.addServiceTxt(service, "vendor", "elrs");
         MDNS.addServiceTxt(service, "target", target_name);
         MDNS.addServiceTxt(service, "version", LATEST_COMMIT_STR);
-        MDNS.addServiceTxt(service, "type", "rx");
+        MDNS.addServiceTxt(service, "type", "bp_logger");
 
         MDNS.addService(instance.c_str(), "ws", "tcp", 81);
 
@@ -622,6 +736,8 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
             }
         });
     }
+#endif
+
     led_set(LED_WIFI_STA);
     BUILTIN_LED_SET(1);
     /*buzzer_beep(440, 30);
@@ -629,7 +745,15 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt) {
     buzzer_beep(440, 30);*/
 
     // Configure ESP-NOW
-    espnow_init(wifi_get_channel(), esp_now_msp_rcvd);
+    uint8_t channel;
+#ifdef ARDUINO_ARCH_ESP32
+    wifi_second_chan_t secondChan;
+    esp_wifi_get_channel(&channel, &secondChan);
+    (void)secondChan;
+#else
+    channel = wifi_get_channel();
+#endif
+    espnow_init(channel, esp_now_msp_rcvd);
 }
 
 void onStationDhcpTimeout(void)
@@ -645,25 +769,6 @@ void onStationDhcpTimeout(void)
 #endif
 }
 
-void onSoftAPModeStationConnected(const WiFiEventSoftAPModeStationConnected& evt) {
-    /* Client connected */
-#if WIFI_DBG
-    wifi_log += "Wifi_AP_connect();\n";
-#endif
-#if UART_DEBUG_EN
-    Serial.println("WiFi AP connected");
-#endif
-}
-
-void onSoftAPModeStationDisconnected(const WiFiEventSoftAPModeStationDisconnected& evt) {
-    /* Client disconnected */
-#if WIFI_DBG
-    wifi_log += "Wifi_AP_diconnect();\n";
-#endif
-#if UART_DEBUG_EN
-    Serial.println("WiFi AP disconnected");
-#endif
-}
 
 
 static void wifi_config_ap(void)
@@ -673,9 +778,13 @@ static void wifi_config_ap(void)
     IPAddress subnet(255, 255, 255, 0);
     uint8_t const channel = wifi_ap_channel_get();
 
+    //esp_wifi_set_channel(chan,WIFI_SECOND_CHAN_NONE);
+
     // WiFi not connected, Start access point
     WiFi.disconnect(true);
+#ifdef ARDUINO_ARCH_ESP8266
     WiFi.forceSleepWake();
+#endif
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(local_IP, gateway, subnet);
     if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, channel,
@@ -707,6 +816,9 @@ typedef struct {
     uint8_t channel;
 } wifi_info_t;
 
+#if PLATFORM_ESP32
+#define ENC_TYPE_NONE WIFI_AUTH_OPEN
+#endif
 
 static bool wifi_search_networks(wifi_info_t &output)
 {
@@ -724,21 +836,27 @@ static bool wifi_search_networks(wifi_info_t &output)
         int32_t rssi;
         uint8_t* mac;
         int32_t channel;
-        bool hidden;
+        bool hidden = false;
+#ifdef ARDUINO_ARCH_ESP32
+        WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel);
+#else
         WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel, hidden);
+#endif
 
 #if UART_DEBUG_EN
         Serial.printf("  %d: '%s', Ch:%d (%ddBm) BSSID:%s %s %s\n",
                       (iter + 1), ssid.c_str(), channel, rssi,
                       WiFi.BSSIDstr(iter).c_str(),
                       encryptionType == ENC_TYPE_NONE ? "open" : "",
-                      hidden ? "hidden" : "");
+                      hidden ? "hidden": "");
 #endif
+        (void)hidden;
+
         if (rssi < WIFI_SEARCH_RSSI_MIN) continue;  // Ignore very bad networks
 
         for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
             wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
-            if ((hidden && wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac))) ||
+            if ((wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac))) ||
                     (wifi_is_ssid_valid(wifi_ptr) && strncmp(wifi_ptr->ssid, ssid.c_str(), sizeof(wifi_ptr->ssid)) == 0)) {
 #if UART_DEBUG_EN
                 Serial.print("    ** Configured network found! ");
@@ -770,7 +888,11 @@ static bool wifi_search_networks(wifi_info_t &output)
 
 static void wifi_config(void)
 {
+#ifdef ARDUINO_ARCH_ESP32
+    WiFi.setHostname(hostname);
+#else
     wifi_station_set_hostname(hostname);
+#endif
 
     wifi_connection_state = WIFI_STATE_NA;
 #if WIFI_DBG
@@ -780,11 +902,18 @@ static void wifi_config(void)
     /* Set AP MAC to UID for ESP-NOW messaging */
     uint8_t ap_mac[] = {MY_UID};
     if (ap_mac[0] & 0x1) ap_mac[0] &= ~0x1;
+
+#ifdef ARDUINO_ARCH_ESP32
+    esp_wifi_set_mac(WIFI_IF_AP, &ap_mac[0]);
+#else
     wifi_set_macaddr(SOFTAP_IF, &ap_mac[0]);
+#endif
 
     /* Force WIFI off until it is realy needed */
     WiFi.mode(WIFI_OFF);
+#ifdef ARDUINO_ARCH_ESP8266
     WiFi.forceSleepBegin();
+#endif
     delay(10);
     WiFi.setAutoConnect(true);
     WiFi.setAutoReconnect(true);
@@ -792,13 +921,17 @@ static void wifi_config(void)
     WiFi.disconnect(true);
 
     /* STA mode callbacks */
+#ifdef ARDUINO_ARCH_ESP32
+    WiFi.onEvent(onStationConnected, SYSTEM_EVENT_STA_CONNECTED);
+    WiFi.onEvent(onStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
+    WiFi.onEvent(onStationGotIP, SYSTEM_EVENT_STA_GOT_IP);
+    //WiFi.onEvent(onStationDhcpTimeout, SYSTEM_EVENT_STA_LOST_IP);
+#else
     stationConnectedHandler = WiFi.onStationModeConnected(&onStationConnected);
     stationDisconnectedHandler = WiFi.onStationModeDisconnected(&onStationDisconnected);
     stationGotIpAddress = WiFi.onStationModeGotIP(&onStationGotIP);
     stationDhcpTimeout = WiFi.onStationModeDHCPTimeout(&onStationDhcpTimeout);
-    /* AP mode callbacks */
-    AP_ConnectedHandler = WiFi.onSoftAPModeStationConnected(&onSoftAPModeStationConnected);
-    AP_DisconnectedHandler = WiFi.onSoftAPModeStationDisconnected(&onSoftAPModeStationDisconnected);
+#endif
 
     WiFi.mode(WIFI_AP_STA);  // WIFI_AP_STA
 
@@ -861,7 +994,10 @@ static void wifi_config_server(void)
         }
     });
 
+#ifdef ARDUINO_ARCH_ESP32
+#else
     httpUpdater.setup(&server);
+#endif
     server.begin();
 
     webSocket.begin();
@@ -874,42 +1010,17 @@ void setup()
     //ESP.eraseConfig();
 
     boot_log = "";
-    switch (get_reset_reason()) {
-        case REASON_WDT_RST:
-            /* 1 = hardware watch dog reset */
-            boot_log += "Reset: HW WD";
-            break;
-        case REASON_EXCEPTION_RST:
-            /* 2 = exception reset, GPIO status won’t change */
-            boot_log += "Reset: Exception";
-            break;
-        case REASON_SOFT_WDT_RST:
-            /* 3 = software watch dog reset, GPIO status won’t change */
-            boot_log += "Reset: SW WD";
-            break;
-        case REASON_SOFT_RESTART:
-            /* 4 = software restart ,system_restart , GPIO status won’t change */
-            boot_log += "Reset: SW restart";
-            break;
-        case REASON_DEEP_SLEEP_AWAKE:
-            /* 5 = wake up from deep-sleep */
-            boot_log += "Reset: deep sleep wakeup";
-            break;
-        case REASON_EXT_SYS_RST:
-            /* 6 = external system reset */
-            boot_log += "Reset: External";
-            break;
-        case REASON_DEFAULT_RST:
-        default:
-            /* 0 = normal startup by power on */
-            break;
-    }
+    print_reset_reason();
 
 #if CONFIG_HDZERO
     //delay(500);  // delay boot a bit
 #endif
     Serial.setRxBufferSize(512);
+#ifdef ARDUINO_ARCH_ESP32
+    Serial.begin(SERIAL_BAUD, SERIAL_8N1, -1, -1, SERIAL_INVERTED);
+#else
     Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, SERIAL_INVERTED);
+#endif
 
     BUILTIN_LED_INIT();
     BUILTIN_LED_SET(0);
@@ -978,7 +1089,9 @@ void loop()
     if (wifi_connection_state == WIFI_STATE_NA)
         wifi_check();
 
+#ifdef ARDUINO_ARCH_ESP8266
     ESP.wdtFeed();
+#endif
 
     if (0 <= serialEvent(input_log_string)) {
 #if CONFIG_HDZERO
@@ -987,11 +1100,15 @@ void loop()
             websocket_send(input_log_string);
         input_log_string = "";
     }
+#ifdef ARDUINO_ARCH_ESP8266
     ESP.wdtFeed();
+#endif
 
     server.handleClient();
     webSocket.loop();
-    MDNS.update();
+#ifdef ARDUINO_ARCH_ESP8266
+    ESP.wdtFeed();
+#endif
 
     msp_handler.loop();
 

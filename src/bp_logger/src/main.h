@@ -2,7 +2,9 @@
 
 #include <Arduino.h>
 
+#ifdef ARDUINO_ARCH_ESP8266
 #include <FS.h>
+#endif
 #if USE_LITTLE_FS
 #include <LittleFS.h>
 #define FILESYSTEM LittleFS // TODO: make LittleFS to default

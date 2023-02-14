@@ -123,6 +123,14 @@ elif platform in ['espressif8266']:
             title="Upload via FC Passthrough", description="")
 
 elif platform in ['espressif32']:
+    env.AddPostAction("buildprog", esp_compress.compressFirmware)
+    env.AddPreAction("${BUILD_DIR}/spiffs.bin",
+                     [esp_compress.compress_files])
+    env.AddPreAction("${BUILD_DIR}/${ESP32_FS_IMAGE_NAME}.bin",
+                     [esp_compress.compress_files])
+    env.AddPostAction("${BUILD_DIR}/${ESP32_FS_IMAGE_NAME}.bin",
+                     [esp_compress.compress_fs_bin])
+
     env.AddCustomTarget(tgt_WIFI,
         ["$BUILD_DIR/${PROGNAME}.bin"],
         [esp_compress.compressFirmware, upload_via_wifi.on_upload],

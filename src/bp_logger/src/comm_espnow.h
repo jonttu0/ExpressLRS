@@ -12,3 +12,4 @@ uint8_t espnow_channel(void);
 void espnow_update_clients(uint8_t const * const data, uint8_t len, int wsnum = -1);
 String & espnow_get_info(void);
 void espnow_send_msp(mspPacket_t &msp);
+void espnow_loop(void);
