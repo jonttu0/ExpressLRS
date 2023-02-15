@@ -1,59 +1,3 @@
-<!DOCTYPE html>
-<html lang="en"><head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width = device-width, initial-scale = 1.0">
-  <title>HDZero Backpack</title>
-  <style>
-body {
-  width: 100%; height: 100%; margin: 0px; padding: 0px;
-  background-color: #1E1E1E; Color: #69cbf7;
-  font-family: Arial, Helvetica, Sans-Serif;
-}
-.content {max-width: 700px; margin: auto; text-align: center;}
-.hide {display: none;}
-.center {margin-left: auto; margin-right: auto;}
-.valigntop {display: inline-block; vertical-align: top;}
-#logField {
-  font-size: 12px;
-  background-color: #252525; Color: #C5C5C5;
-  border-radius: 5px; border: none;
-  width: 100%; min-width: 650px;
-  height: auto; min-height: 621px;
-  margin: 0px; overflow: auto;
-}
-#espnowclients {
-  font-size: 12px;
-  background-color: #252525; Color: #C5C5C5;
-  border-radius: 5px; border: none;
-  width: 100%; min-width: 160px; max-width: 160px;
-  height: auto; min-height: 50px;
-  margin: 0px; overflow: auto; resize: none;
-}
-#validationMessage {color: red;}
-table {
-  width: 500px; max-width: 100%;
-  table-layout: auto;
-  text-align: left;
-}
-td {padding: 1px 1px 1px 1px;}
-fieldset {
-  margin: 10px;
-  border: 1px solid #666; border-radius: 8px;
-  display: block;
-}
-legend {
-  text-align: left;
-  color: #6692a8;
-  font-size: 18px; font-weight: bold;
-  padding: 2px 4px;
-}
-.green{background-color: green;}
-.red{background-color: red;}
-.wifinetworks {width: 100%; padding: 0px; border-collapse: collapse;}
-.wifinetworks td {height: 30px; padding-top: 2px; padding-bottom: 2px; vertical-align: middle;}
-.ssid {width: 250px;}
-  </style>
-  <script>
 const WSMSGID_ESPNOW_ADDRS = 0x1100;
 const WSMSGID_VIDEO_FREQ = 0x2400;
 const WSMSGID_RECORDING_CTRL = 0x2401;
@@ -74,7 +18,7 @@ function start() {
   }
   $id("logField").scrollTop = $id("logField").scrollHeight;
   if (!window.location.hostname) { console.log("No hostname!"); return; }
-  websock = new WebSocket('ws://' + window.location.hostname + ':81/');
+  websock = new WebSocket('ws://' + window.location.hostname + '/ws');
   websock.binaryType = "arraybuffer";
   websock.onopen = function (evt) {console.log('websock open');};
   websock.onclose = function (e) {
@@ -291,79 +235,3 @@ function wifinetworks_del(event) {
   if (websock) websock.send(command);
   event.target.disabled = true;
 }
-  </script>
-</head>
-<body onload="javascript:start();"><div class="content">
-  <fieldset><legend>Log Messages</legend>
-    <textarea id="logField" readonly></textarea><br>
-    <input type="checkbox" id="autoscroll" checked><label for="autoscroll"> Auto scroll</label> |
-    <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;">
-    <label for="scrollsize"> Scroll len</label>
-  </fieldset>
-  <fieldset><legend>Settings</legend>
-    <table class="center" style="width: 100%;">
-      <tr>
-        <td style="width:200px;">
-          <label for="btx_band">Band:</label>
-          <select id="vtx_band" name="btx_band" onchange="vtx_band_changed(this.value)">
-            <option value="" selected disabled hidden>Select band</option>
-          </select>
-        </td>
-        <td style="width:200px;">
-          <label for="btx_ch">Channel:</label>
-          <select id="vtx_channel" name="btx_ch" onchange="vtx_show_freq()">
-            <option value="" selected disabled hidden>Select channel</option>
-          </select>
-        </td>
-        <td style="width:100px;">
-          <div id="vtx_freq" style="width: 100px;"></div>
-        </td>
-        <td style="width:60px;"><button onclick="msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button></td>
-      </tr>
-    </table>
-  </fieldset>
-  <fieldset><legend>Recording</legend>
-    <button id="recording_state" class="green" onclick="recording_control_send(this)">START</button>
-  </fieldset>
-  <fieldset><legend>Debug</legend>
-    <label for="osdtext">OSD text[32]:</label>
-    <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32"
-      style="width: 320px;"><br>
-  </fieldset>
-  <fieldset><legend>ESP-NOW Clients</legend><div>
-    <label for="espnowclients" class="valigntop">Add one per line</label>
-    <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
-    <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
-  </div></fieldset>
-  <fieldset><legend>WiFi Networs</legend><div>
-    <table class="wifinetworks" id="wifinetworks"><tr><td class="ssid">My WiFi Network SSID</td><td>DEL</td></tr></table>
-    </div><div><hr/>
-    <table id="wifinetworks_new" class="wifinetworks"><tr>
-      <td><input id="wifi_new_ssid" type='text' style="width:250px;" placeholder="SSID" minlength="1" maxlength="32"></td>
-      <td><input id="wifi_new_psk" type='text' style="width:250px;" placeholder="PASSWORD" minlength="1" maxlength="32"></td>
-      <td><input id="wifi_new_mac" type='text' style="width:130px;" placeholder="MAC (optional)" minlength="17" maxlength="17"></td>
-    </table>
-    <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="wifinetworks_add()">ADD</button></div></div>
-  </fieldset>
-  <fieldset><legend>Upgrade Own Firmware</legend>
-    <div><form method='POST' action='/update' enctype='multipart/form-data'>
-        <input type='file' accept='.bin,.bin.gz' name='backpack_fw' id="esp_fw" style="width:350px;">
-        <input type='submit' value='FLASH' id='esp_submit' disabled='disabled'>
-    </form></div>
-    <p><span id="validationMessage" class="hide">Please, select correct firmware file!</span></p>
-  </fieldset>
-  <script>
-    const message = $id('validationMessage');
-    $id('esp_fw').onchange = function (ev) {
-      const FIRMWARE_PATTERN = /backpack\.(bin|bin.gz)$/g;
-      const uploadButton = $id('esp_submit');
-      if (FIRMWARE_PATTERN.test(ev.target.value)) {
-        uploadButton.removeAttribute('disabled');
-        message.classList.add('hide');
-      } else {
-        uploadButton.setAttribute('disabled', 'disabled');
-        message.classList.remove('hide');
-      }
-    };
-  </script>
-</div></body></html>

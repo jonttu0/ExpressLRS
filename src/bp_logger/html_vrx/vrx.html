@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width = device-width, initial-scale = 1.0">
+  <title>HDZero Backpack</title>
+  <!-- there are mapped in final firmware -->
+  <link rel="stylesheet" type="text/css" href="style.css">
+  <script type="text/javascript" src="scripts.js"></script>
+  <!-- there are here for development -->
+  <link rel="stylesheet" type="text/css" href="vrx.css">
+  <script type="text/javascript" src="vrx.js"></script>
+</head>
+<body onload="javascript:start();"><div class="content">
+  <fieldset><legend>Log Messages</legend>
+    <textarea id="logField" readonly></textarea><br>
+    <input type="checkbox" id="autoscroll" checked><label for="autoscroll"> Auto scroll</label> |
+    <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;">
+    <label for="scrollsize"> Scroll len</label>
+  </fieldset>
+  <fieldset><legend>Settings</legend>
+    <table class="center" style="width: 100%;">
+      <tr>
+        <td style="width:200px;">
+          <label for="btx_band">Band:</label>
+          <select id="vtx_band" name="btx_band" onchange="vtx_band_changed(this.value)">
+            <option value="" selected disabled hidden>Select band</option>
+          </select>
+        </td>
+        <td style="width:200px;">
+          <label for="btx_ch">Channel:</label>
+          <select id="vtx_channel" name="btx_ch" onchange="vtx_show_freq()">
+            <option value="" selected disabled hidden>Select channel</option>
+          </select>
+        </td>
+        <td style="width:100px;">
+          <div id="vtx_freq" style="width: 100px;"></div>
+        </td>
+        <td style="width:60px;"><button onclick="msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button></td>
+      </tr>
+    </table>
+  </fieldset>
+  <fieldset><legend>Recording</legend>
+    <button id="recording_state" class="green" onclick="recording_control_send(this)">START</button>
+  </fieldset>
+  <fieldset><legend>Debug</legend>
+    <label for="osdtext">OSD text[32]:</label>
+    <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32"
+      style="width: 320px;"><br>
+  </fieldset>
+  <fieldset><legend>ESP-NOW Clients</legend><div>
+    <label for="espnowclients" class="valigntop">Add one per line</label>
+    <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
+    <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
+  </div></fieldset>
+  <fieldset><legend>WiFi Networs</legend><div>
+    <table class="wifinetworks" id="wifinetworks"><tr><td class="ssid">My WiFi Network SSID</td><td>DEL</td></tr></table>
+    </div><div><hr/>
+    <table id="wifinetworks_new" class="wifinetworks"><tr>
+      <td><input id="wifi_new_ssid" type='text' style="width:250px;" placeholder="SSID" minlength="1" maxlength="32"></td>
+      <td><input id="wifi_new_psk" type='text' style="width:250px;" placeholder="PASSWORD" minlength="1" maxlength="32"></td>
+      <td><input id="wifi_new_mac" type='text' style="width:130px;" placeholder="MAC (optional)" minlength="17" maxlength="17"></td>
+    </table>
+    <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="wifinetworks_add()">ADD</button></div></div>
+  </fieldset>
+  <fieldset>
+    <legend>Lap Timer</legend>
+    <div>
+      <form method='POST' action='/laptimer_config' enctype='multipart/form-data'>
+        <table style="width:100%;">
+          <tr>
+            <td><input type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
+            <td><input type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
+            <td style="width: 80px;"><input type='submit' value='Submit' id='laptimer_submit' style="width:80px;"></td>
+          </tr>
+        </table>
+      </form>
+    </div>
+  </fieldset>
+  <fieldset><legend>Upgrade Own Firmware</legend>
+    <div><form method='POST' action='/doUpdate' enctype='multipart/form-data'>
+        <input type='file' accept='.bin,.bin.gz' name='backpack_fw' id="esp_fw" style="width:350px;">
+        <input type='submit' value='FLASH' id='esp_submit' disabled='disabled'>
+    </form></div>
+    <p><span id="validationMessage" class="hide">Please, select correct firmware file!</span></p>
+  </fieldset>
+  <script>
+    const message = $id('validationMessage');
+    $id('esp_fw').onchange = function (ev) {
+      const FIRMWARE_PATTERN = /(backpack|backpack_fs_data)\.(bin|bin.gz)$/g;
+      const uploadButton = $id('esp_submit');
+      if (FIRMWARE_PATTERN.test(ev.target.value)) {
+        uploadButton.removeAttribute('disabled');
+        message.classList.add('hide');
+      } else {
+        uploadButton.setAttribute('disabled', 'disabled');
+        message.classList.remove('hide');
+      }
+    };
+  </script>
+</div></body></html>

@@ -14,11 +14,11 @@ public:
 
     void init(void);
 
-    void syncSettings(int num);
+    void syncSettings(void * client);
 
     int parse_data(uint8_t const chr);
-    int parse_command(char * cmd, size_t len, int num);
-    int parse_command(websoc_bin_hdr_t const * const cmd, size_t len, int num);
+    int parse_command(char * cmd, size_t len, void * client);
+    int parse_command(websoc_bin_hdr_t const * const cmd, size_t len, void * client);
 
     int handle_received_msp(mspPacket_t &msp_in);
 
@@ -42,7 +42,7 @@ private:
     void MspWrite(uint8_t const * const buff, uint16_t const len, uint16_t const function);
 
     void handleUserText(const char * input, size_t len);
-    void handleVtxFrequency(uint16_t freq, int num = -1, bool espnow = true);
+    void handleVtxFrequency(uint16_t freq, void * client = NULL, bool espnow = true);
     void handleRecordingState(uint8_t start);
 
     void sendVtxFrequencyToWebsocket(uint16_t freq);

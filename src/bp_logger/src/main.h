@@ -20,13 +20,14 @@
 #define SERIAL_BAUD 115200
 #endif
 
+class AsyncWebSocketClient;
 
 String mac_addr_print(uint8_t const * const mac_addr);
 
-void websocket_send(String & data, int num = -1);
-void websocket_send(char const * data, int num = -1);
-void websocket_send(uint8_t const * data, uint8_t len, int num = -1);
-void websocket_send_bin(uint8_t const * data, uint8_t len, int num = -1);
+void websocket_send(String & data, AsyncWebSocketClient * client = NULL);
+void websocket_send(char const * data, AsyncWebSocketClient * client = NULL);
+void websocket_send(uint8_t const * data, uint8_t len, AsyncWebSocketClient * client = NULL);
+void websocket_send_bin(uint8_t const * data, uint8_t len, AsyncWebSocketClient * client = NULL);
 
 typedef struct {
     uint16_t msg_id;

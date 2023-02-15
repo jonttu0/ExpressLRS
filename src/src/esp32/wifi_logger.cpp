@@ -804,7 +804,7 @@ void web_services_start(void)
   server.on("/mac", handleMacAddress);
 
   /* handling uploading firmware file (OTA update) */
-  server.on("/update", HTTP_POST, []() {
+  server.on("/doUpdate", HTTP_POST, []() {
     server.sendHeader("Connection", "close");
     //server.send(200, "text/plain", (Update.hasError()) ? "FAIL" : "OK");
     if (Update.hasError()) {

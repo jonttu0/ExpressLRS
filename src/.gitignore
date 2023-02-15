@@ -16,3 +16,4 @@ user_defines_private.txt
 *.map
 
 utils/data
+include/backpack*.h

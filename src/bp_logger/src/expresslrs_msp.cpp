@@ -38,7 +38,7 @@ enum {
 };
 
 
-int ExpresslrsMsp::send_current_values(int const ws_num)
+int ExpresslrsMsp::send_current_values(void * client)
 {
     if (!settings_valid) {
         // Not valid, get latest first
@@ -57,7 +57,7 @@ int ExpresslrsMsp::send_current_values(int const ws_num)
         (uint8_t)(eeprom_storage.vtx_freq >> 8),
         (uint8_t)eeprom_storage.vtx_freq,
     };
-    websocket_send(response, sizeof(response), ws_num);
+    websocket_send(response, sizeof(response), (AsyncWebSocketClient*)client);
     return 0;
 }
 
@@ -87,13 +87,13 @@ void ExpresslrsMsp::MspWrite(uint8_t * buff, uint8_t const len, uint8_t const fu
     MSP::sendPacket(&msp_out, _serial);
 }
 
-void ExpresslrsMsp::handleVtxFrequency(uint16_t const freq, int const num)
+void ExpresslrsMsp::handleVtxFrequency(uint16_t const freq, void * client)
 {
     if (freq == 0)
         return;
 
     // Send to ELRS
-    sendVtxFrequencyToSerial(freq, num);
+    sendVtxFrequencyToSerial(freq, client);
 
     // Send to other esp-now clients
     msp_out.reset();
@@ -106,12 +106,12 @@ void ExpresslrsMsp::handleVtxFrequency(uint16_t const freq, int const num)
     espnow_send_msp(msp_out);
 }
 
-void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, int const num)
+void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, void * client)
 {
     String dbg_info = "Setting vtx freq to: ";
     dbg_info += freq;
     dbg_info += "MHz (0=ignored)";
-    websocket_send(dbg_info, num);
+    websocket_send(dbg_info, (AsyncWebSocketClient*)client);
 
     if (freq == 0)
         return;
@@ -173,7 +173,7 @@ void ExpresslrsMsp::handleHandsetCalibrate(uint8_t const * const input)
 }
 
 
-void ExpresslrsMsp::handleHandsetCalibrateResp(uint8_t * data, int num)
+void ExpresslrsMsp::handleHandsetCalibrateResp(uint8_t * data, void * client)
 {
     uint8_t response[] = {
         (uint8_t)(WSMSGID_HANDSET_CALIBRATE >> 8),
@@ -211,7 +211,7 @@ void ExpresslrsMsp::handleHandsetMixer(uint8_t const * const input, size_t const
 }
 
 
-void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, int num)
+void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, void * client)
 {
     uint8_t * outptr;
     uint8_t response[2 + 2 + 4 * ARRAY_SIZE(mixer)];
@@ -240,7 +240,7 @@ void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, int num)
         outptr[3] = mixer[iter].scale;
         outptr += 4;
     }
-    websocket_send(response, sizeof(response), num);
+    websocket_send(response, sizeof(response), (AsyncWebSocketClient*)client);
 }
 
 
@@ -269,7 +269,7 @@ void ExpresslrsMsp::handleHandsetAdjust(uint8_t const * const input)
     MSP::sendPacket(&msp_out, _serial);
 }
 
-void ExpresslrsMsp::handleHandsetAdjustResp(uint8_t * data, int num)
+void ExpresslrsMsp::handleHandsetAdjustResp(uint8_t * data, void * client)
 {
     if (data) {
         // update the local values
@@ -280,10 +280,10 @@ void ExpresslrsMsp::handleHandsetAdjustResp(uint8_t * data, int num)
     info[0] = (uint8_t)(WSMSGID_HANDSET_ADJUST >> 8);
     info[1] = (uint8_t)WSMSGID_HANDSET_ADJUST;
     memcpy(&info[2], gimbals, sizeof(gimbals));
-    websocket_send(info, sizeof(info), num);
+    websocket_send(info, sizeof(info), (AsyncWebSocketClient*)client);
 }
 
-void ExpresslrsMsp::HandsetConfigGet(uint8_t wsnum, uint8_t force)
+void ExpresslrsMsp::HandsetConfigGet(void * client, uint8_t force)
 {
     if (!handset_mixer_ok || !handset_adjust_ok || force) {
         // Fill MSP packet
@@ -300,12 +300,12 @@ void ExpresslrsMsp::HandsetConfigGet(uint8_t wsnum, uint8_t force)
     }
 
     //delay(5);
-    handleHandsetMixerResp(NULL, wsnum);
+    handleHandsetMixerResp(NULL, client);
     //delay(5);
-    handleHandsetAdjustResp(NULL, wsnum);
+    handleHandsetAdjustResp(NULL, client);
 }
 
-void ExpresslrsMsp::HandsetConfigSave(uint8_t wsnum)
+void ExpresslrsMsp::HandsetConfigSave(void * client)
 {
     // Fill MSP packet
     msp_out.reset();
@@ -380,7 +380,7 @@ static uint32_t batt_voltage_warning_timeout = 5000;
 static uint8_t batt_voltage_last_bright;
 #endif
 
-void ExpresslrsMsp::battery_voltage_report(int num)
+void ExpresslrsMsp::battery_voltage_report(void * client)
 {
     uint8_t info[] = {
         (uint8_t)(WSMSGID_HANDSET_BATT_INFO >> 8),
@@ -392,10 +392,10 @@ void ExpresslrsMsp::battery_voltage_report(int num)
         (uint8_t)eeprom_storage.batt_voltage_scale,
         (uint8_t)eeprom_storage.batt_voltage_warning
     };
-    websocket_send(info, sizeof(info), num);
+    websocket_send(info, sizeof(info), (AsyncWebSocketClient*)client);
 }
 
-void ExpresslrsMsp::battery_voltage_parse(uint8_t const scale, uint8_t const warning, int num)
+void ExpresslrsMsp::battery_voltage_parse(uint8_t const scale, uint8_t const warning, void * client)
 {
     if (50 <= scale && scale <= 150 && eeprom_storage.batt_voltage_scale != scale) {
         eeprom_storage.batt_voltage_scale = scale;
@@ -495,14 +495,14 @@ void ExpresslrsMsp::init(void)
 }
 
 
-void ExpresslrsMsp::syncSettings(int const num)
+void ExpresslrsMsp::syncSettings(void * client)
 {
     // Send settings
-    send_current_values(num);;
+    send_current_values(client);;
 #if CONFIG_HANDSET
-    HandsetConfigGet(num);
+    HandsetConfigGet(client);
     delay(5);
-    battery_voltage_report(num);
+    battery_voltage_report(client);
 #endif
 }
 
@@ -590,22 +590,22 @@ int ExpresslrsMsp::parse_data(uint8_t const chr) {
 }
 
 
-int ExpresslrsMsp::parse_command(char * cmd, size_t len, int const num)
+int ExpresslrsMsp::parse_command(char * cmd, size_t len, void * client)
 {
     return -1;
 }
 
 
-int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, int const num)
+int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, void * client)
 {
     /* No payload */
     if (WSMSGID_ELRS_SETTINGS == cmd->msg_id) {
-        return send_current_values(num);
+        return send_current_values(client);
     }
 
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
-        websocket_send(settings_out, num);
+        websocket_send(settings_out, (AsyncWebSocketClient*)client);
     }
 
     switch (cmd->msg_id) {
@@ -649,22 +649,22 @@ int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t cons
             break;
         }
         case WSMSGID_HANDSET_RELOAD: {
-            HandsetConfigGet(num, 1);
+            HandsetConfigGet(client, 1);
             break;
         }
         case WSMSGID_HANDSET_SAVE: {
-            HandsetConfigSave(num);
+            HandsetConfigSave(client);
             break;
         }
         case WSMSGID_HANDSET_BATT_CONFIG: {
-            battery_voltage_parse(cmd->payload[0], cmd->payload[1], num);
+            battery_voltage_parse(cmd->payload[0], cmd->payload[1], client);
             break;
         }
 #endif
 
         case WSMSGID_VIDEO_FREQ: {
             uint16_t const freq = ((uint16_t)cmd->payload[1] << 8) + cmd->payload[0];
-            handleVtxFrequency(freq, num);
+            handleVtxFrequency(freq, client);
             break;
         }
 

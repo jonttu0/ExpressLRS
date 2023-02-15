@@ -1,5 +1,4 @@
 Import("env")
-from audioop import reverse
 import os, re
 #import fhss_random
 import hashlib
@@ -215,3 +214,4 @@ if stm:
         # print(f"Ignored, LL: {name}")
         return None
     env.AddBuildMiddleware(filter_stm_ll_files, "*stm32*_ll_*.c*")
+

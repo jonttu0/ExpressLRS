@@ -48,7 +48,7 @@ void HDZeroMsp::init(void)
 }
 
 
-void HDZeroMsp::syncSettings(int const num)
+void HDZeroMsp::syncSettings(void * client)
 {
     // Send settings
     sendVtxFrequencyToWebsocket(eeprom_storage.vtx_freq);
@@ -139,7 +139,7 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
 }
 
 
-int HDZeroMsp::parse_command(char * cmd, size_t len, int const num)
+int HDZeroMsp::parse_command(char * cmd, size_t len, void * client)
 {
     char * temp;
     // ExLRS setting commands
@@ -152,18 +152,18 @@ int HDZeroMsp::parse_command(char * cmd, size_t len, int const num)
 }
 
 
-int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, int const num)
+int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, void * client)
 {
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
-        websocket_send(settings_out, num);
+        websocket_send(settings_out, (AsyncWebSocketClient*)client);
         return -1;
     }
 
     switch (cmd->msg_id) {
         case WSMSGID_VIDEO_FREQ: {
             uint16_t const freq = ((uint16_t)cmd->payload[1] << 8) + cmd->payload[0];
-            handleVtxFrequency(freq, num);
+            handleVtxFrequency(freq, client);
             break;
         }
         case WSMSGID_RECORDING_CTRL: {
@@ -201,7 +201,7 @@ int HDZeroMsp::handle_received_msp(mspPacket_t &msp_in)
                 // pitmode
             }
             /* Pass command to HDZero */
-            handleVtxFrequency(freq, -1, false);
+            handleVtxFrequency(freq, NULL, false);
             /* Infrom web clients */
             sendVtxFrequencyToWebsocket(freq);
         }
@@ -276,7 +276,7 @@ void HDZeroMsp::handleUserText(const char * input, size_t const len)
 }
 
 
-void HDZeroMsp::handleVtxFrequency(uint16_t const freq, int const num, bool const espnow)
+void HDZeroMsp::handleVtxFrequency(uint16_t const freq, void * client, bool const espnow)
 {
     String dbg_info = "Setting vtx freq to: ";
     dbg_info += freq;
@@ -343,7 +343,7 @@ void HDZeroMsp::handleVtxFrequency(uint16_t const freq, int const num, bool cons
     getChannelIndex();
     getFrequency();
 
-    websocket_send(dbg_info, num);
+    websocket_send(dbg_info, (AsyncWebSocketClient*)client);
 }
 
 

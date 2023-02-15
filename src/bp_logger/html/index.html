@@ -235,7 +235,7 @@
       <p>
         <fieldset>
           <legend>Self Firmware</legend>
-          <form method='POST' action='/update' enctype='multipart/form-data'>
+          <form method='POST' action='/doUpdate' enctype='multipart/form-data'>
             <table style="width: 100%;">
               <tr>
                 <td><input type='file' accept='.bin,.bin.gz' name='backpack_fw' id='esp_fw'></td>
@@ -272,7 +272,7 @@
       <script type="text/javascript">
         const message = document.getElementById('validationMessage');
         document.getElementById('esp_fw').onchange = function (ev) {
-          const FIRMWARE_PATTERN = /backpack\.(bin|bin.gz)$/g;
+          const FIRMWARE_PATTERN = /(backpack|backpack_fs_data)\.(bin|bin.gz)$/g;
           const uploadButton = document.getElementById('esp_submit');
           const value = ev.target.value;
           if (FIRMWARE_PATTERN.test(value)) {

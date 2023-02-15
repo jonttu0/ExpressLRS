@@ -60,7 +60,7 @@ def on_upload(source, target, env):
         upload_addr = [upload_port]
 
     for addr in upload_addr:
-        addr = "http://%s/%s" % (addr, ['update', 'upload'][isstm])
+        addr = "http://%s/%s" % (addr, ['doUpdate', 'upload'][isstm])
         print_header("  == UPLOADING TO: %s ==" % addr)
         try:
             subprocess.check_call(cmd + [addr])

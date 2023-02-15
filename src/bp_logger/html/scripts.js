@@ -146,11 +146,11 @@ function start() {
 
     logger.scrollTop = logger.scrollHeight;
     if (false) {
-        websock = new WebSocket('ws://elrs_handset.local:81/');
+        websock = new WebSocket('ws://elrs_handset.local:/ws');
     } else {
         if (!window.location.hostname)
           return;
-        websock = new WebSocket('ws://' + window.location.hostname + ':81/');
+        websock = new WebSocket('ws://' + window.location.hostname + '/ws');
     }
     websock.binaryType = "arraybuffer";
     websock.onopen = function (evt) {console.log('websock open');};
