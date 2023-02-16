@@ -4,7 +4,7 @@
 
 #define LOGGER_STORAGE_VERSION   0x11220001
 #define LOGGER_ESPNOW_INIT_KEY   0x4321
-#define LOGGER_WIFINETS_INIT_KEY 0x4322
+#define LOGGER_WIFINETS_INIT_KEY 0x4321
 
 typedef struct {
     uint8_t mac_addr[6];
@@ -33,6 +33,8 @@ struct storage {
     /* configured wifi networks*/
     uint32_t wifi_nets_initialized;
     wifi_networks_t wifi_nets[5];
+
+    wifi_networks_t laptimer;
 
     void setup();
     void update();

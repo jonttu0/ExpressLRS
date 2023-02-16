@@ -7,8 +7,7 @@
 #include "buzzer.h"
 #include "rc_channels.h"
 
-
-#define MSP_SAVE_DELAY_MS   100
+#define MSP_SAVE_DELAY_MS 100
 
 enum {
     // ELRS messages
@@ -37,7 +36,6 @@ enum {
 #endif
 };
 
-
 int ExpresslrsMsp::send_current_values(void * client)
 {
     if (!settings_valid) {
@@ -57,7 +55,7 @@ int ExpresslrsMsp::send_current_values(void * client)
         (uint8_t)(eeprom_storage.vtx_freq >> 8),
         (uint8_t)eeprom_storage.vtx_freq,
     };
-    websocket_send(response, sizeof(response), (AsyncWebSocketClient*)client);
+    websocket_send(response, sizeof(response), (AsyncWebSocketClient *)client);
     return 0;
 }
 
@@ -68,7 +66,7 @@ void ExpresslrsMsp::SettingsWrite(uint8_t * buff, uint8_t len)
     msp_out.flags = MSP_ELRS_INT;
     msp_out.function = ELRS_INT_MSP_PARAMS;
     msp_out.payloadSize = len;
-    memcpy((void*)msp_out.payload, buff, len);
+    memcpy((void *)msp_out.payload, buff, len);
     // Send packet
     MSP::sendPacket(&msp_out, _serial);
 }
@@ -82,7 +80,7 @@ void ExpresslrsMsp::MspWrite(uint8_t * buff, uint8_t const len, uint8_t const fu
     msp_out.function = function;
     msp_out.payloadSize = (!buff) ? 0 : len;
     if (buff && len)
-        memcpy((void*)msp_out.payload, buff, len);
+        memcpy((void *)msp_out.payload, buff, len);
     // Send packet to ELRS
     MSP::sendPacket(&msp_out, _serial);
 }
@@ -111,7 +109,7 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, void * client)
     String dbg_info = "Setting vtx freq to: ";
     dbg_info += freq;
     dbg_info += "MHz (0=ignored)";
-    websocket_send(dbg_info, (AsyncWebSocketClient*)client);
+    websocket_send(dbg_info, (AsyncWebSocketClient *)client);
 
     if (freq == 0)
         return;
@@ -122,8 +120,8 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, void * client)
     }
 
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
-    //payload[2] = power;
-    //payload[3] = (power == 0); // pit mode
+    // payload[2] = power;
+    // payload[3] = (power == 0); // pit mode
     MspWrite(payload, sizeof(payload), MSP_VTX_SET_CONFIG);
 
     // Request save to make set permanent
@@ -141,7 +139,6 @@ void ExpresslrsMsp::sendVtxFrequencyToWebsocket(uint16_t const freq)
     websocket_send(response, sizeof(response));
 }
 
-
 #if CONFIG_HANDSET
 void ExpresslrsMsp::handleHandsetCalibrate(uint8_t const * const input)
 {
@@ -149,16 +146,25 @@ void ExpresslrsMsp::handleHandsetCalibrate(uint8_t const * const input)
     uint_fast8_t const control_axis = (input[0] >> 4) & 0xF;
     uint8_t value = 0;
 
-    if (control_dir == 1)       value = GIMBAL_CALIB_LOW;
-    else if (control_dir == 2)  value = GIMBAL_CALIB_MID;
-    else if (control_dir == 3)  value = GIMBAL_CALIB_HIGH;
-    else return;
+    if (control_dir == 1)
+        value = GIMBAL_CALIB_LOW;
+    else if (control_dir == 2)
+        value = GIMBAL_CALIB_MID;
+    else if (control_dir == 3)
+        value = GIMBAL_CALIB_HIGH;
+    else
+        return;
 
-    if (control_axis == 0)      value |= GIMBAL_CALIB_L_V;
-    else if (control_axis == 1) value |= GIMBAL_CALIB_L_H;
-    else if (control_axis == 2) value |= GIMBAL_CALIB_R_V;
-    else if (control_axis == 3) value |= GIMBAL_CALIB_R_H;
-    else return;
+    if (control_axis == 0)
+        value |= GIMBAL_CALIB_L_V;
+    else if (control_axis == 1)
+        value |= GIMBAL_CALIB_L_H;
+    else if (control_axis == 2)
+        value |= GIMBAL_CALIB_R_V;
+    else if (control_axis == 3)
+        value |= GIMBAL_CALIB_R_H;
+    else
+        return;
 
     // Fill MSP packet
     msp_out.reset();
@@ -172,7 +178,6 @@ void ExpresslrsMsp::handleHandsetCalibrate(uint8_t const * const input)
     MSP::sendPacket(&msp_out, _serial);
 }
 
-
 void ExpresslrsMsp::handleHandsetCalibrateResp(uint8_t * data, void * client)
 {
     uint8_t response[] = {
@@ -181,7 +186,6 @@ void ExpresslrsMsp::handleHandsetCalibrateResp(uint8_t * data, void * client)
     };
     websocket_send(response, sizeof(response));
 }
-
 
 void ExpresslrsMsp::handleHandsetMixer(uint8_t const * const input, size_t const length)
 {
@@ -210,7 +214,6 @@ void ExpresslrsMsp::handleHandsetMixer(uint8_t const * const input, size_t const
     MSP::sendPacket(&msp_out, _serial);
 }
 
-
 void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, void * client)
 {
     uint8_t * outptr;
@@ -219,8 +222,7 @@ void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, void * client)
     if (data) {
         for (iter = 0; iter < ARRAY_SIZE(mixer); iter++) {
             if (data[0] < ARRAY_SIZE(mixer)) {
-                mixer[data[0]] = (struct mixer){
-                    .index=data[1], .inv=data[2], .scale=data[3]};
+                mixer[data[0]] = (struct mixer){.index = data[1], .inv = data[2], .scale = data[3]};
             }
             data += 4;
         }
@@ -240,9 +242,8 @@ void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, void * client)
         outptr[3] = mixer[iter].scale;
         outptr += 4;
     }
-    websocket_send(response, sizeof(response), (AsyncWebSocketClient*)client);
+    websocket_send(response, sizeof(response), (AsyncWebSocketClient *)client);
 }
-
 
 void ExpresslrsMsp::handleHandsetAdjust(uint8_t const * const input)
 {
@@ -254,12 +255,17 @@ void ExpresslrsMsp::handleHandsetAdjust(uint8_t const * const input)
     msp_out.type = MSP_PACKET_V1_ELRS;
     msp_out.flags = MSP_ELRS_INT;
 
-    if (control == 1)      msp_out.function = ELRS_HANDSET_ADJUST_MIN;
-    else if (control == 2) msp_out.function = ELRS_HANDSET_ADJUST_MID;
-    else if (control == 3) msp_out.function = ELRS_HANDSET_ADJUST_MAX;
-    else return;
+    if (control == 1)
+        msp_out.function = ELRS_HANDSET_ADJUST_MIN;
+    else if (control == 2)
+        msp_out.function = ELRS_HANDSET_ADJUST_MID;
+    else if (control == 3)
+        msp_out.function = ELRS_HANDSET_ADJUST_MAX;
+    else
+        return;
 
-    if (4 <= control_axis) return;
+    if (4 <= control_axis)
+        return;
 
     msp_out.payload[0] = control_axis;
     msp_out.payload[1] = input[2];
@@ -280,7 +286,7 @@ void ExpresslrsMsp::handleHandsetAdjustResp(uint8_t * data, void * client)
     info[0] = (uint8_t)(WSMSGID_HANDSET_ADJUST >> 8);
     info[1] = (uint8_t)WSMSGID_HANDSET_ADJUST;
     memcpy(&info[2], gimbals, sizeof(gimbals));
-    websocket_send(info, sizeof(info), (AsyncWebSocketClient*)client);
+    websocket_send(info, sizeof(info), (AsyncWebSocketClient *)client);
 }
 
 void ExpresslrsMsp::HandsetConfigGet(void * client, uint8_t force)
@@ -299,9 +305,9 @@ void ExpresslrsMsp::HandsetConfigGet(void * client, uint8_t force)
         return;
     }
 
-    //delay(5);
+    // delay(5);
     handleHandsetMixerResp(NULL, client);
-    //delay(5);
+    // delay(5);
     handleHandsetAdjustResp(NULL, client);
 }
 
@@ -321,7 +327,7 @@ void ExpresslrsMsp::HandsetConfigSave(void * client)
 
 void ExpresslrsMsp::handleHandsetTlmLnkStatsAndBatt(uint8_t * data)
 {
-    LinkStats_t * stats = (LinkStats_t*)data;
+    LinkStats_t * stats = (LinkStats_t *)data;
 
     uint8_t info[2 + sizeof(LinkStatsLink_t) + sizeof(LinkStatsBatt_t)];
     uint8_t * outptr = info;
@@ -349,7 +355,7 @@ void ExpresslrsMsp::handleHandsetTlmLnkStatsAndBatt(uint8_t * data)
 
 void ExpresslrsMsp::handleHandsetTlmGps(uint8_t * data)
 {
-    GpsOta_t * stats = (GpsOta_t*)data;
+    GpsOta_t * stats = (GpsOta_t *)data;
     uint8_t info[2 + sizeof(GpsOta_t)];
     // Convert data
     stats->heading /= 10;
@@ -361,13 +367,11 @@ void ExpresslrsMsp::handleHandsetTlmGps(uint8_t * data)
     websocket_send_bin(info, sizeof(info));
 }
 
-
-//#define ADC_VOLT(X) (((X) * ADC_R2) / (ADC_R1 + ADC_R2))
-#define ADC_SCALE (ADC_R1 / ADC_R2)
-
+// #define ADC_VOLT(X) (((X) * ADC_R2) / (ADC_R1 + ADC_R2))
+#define ADC_SCALE   (ADC_R1 / ADC_R2)
 #define ADC_REF_mV  (1075U * ADC_SCALE)
 #define ADC_MAX     1023U
-#define ADC_VOLT(X) (((uint32_t)(X) * ADC_REF_mV) / ADC_MAX)
+#define ADC_VOLT(X) (((uint32_t)(X)*ADC_REF_mV) / ADC_MAX)
 
 static uint32_t batt_voltage;
 static uint32_t batt_voltage_warning_limit;
@@ -382,17 +386,15 @@ static uint8_t batt_voltage_last_bright;
 
 void ExpresslrsMsp::battery_voltage_report(void * client)
 {
-    uint8_t info[] = {
-        (uint8_t)(WSMSGID_HANDSET_BATT_INFO >> 8),
-        (uint8_t)WSMSGID_HANDSET_BATT_INFO,
-        (uint8_t)(batt_voltage >> 24),
-        (uint8_t)(batt_voltage >> 16),
-        (uint8_t)(batt_voltage >> 8),
-        (uint8_t)(batt_voltage >> 0),
-        (uint8_t)eeprom_storage.batt_voltage_scale,
-        (uint8_t)eeprom_storage.batt_voltage_warning
-    };
-    websocket_send(info, sizeof(info), (AsyncWebSocketClient*)client);
+    uint8_t info[] = {(uint8_t)(WSMSGID_HANDSET_BATT_INFO >> 8),
+                      (uint8_t)WSMSGID_HANDSET_BATT_INFO,
+                      (uint8_t)(batt_voltage >> 24),
+                      (uint8_t)(batt_voltage >> 16),
+                      (uint8_t)(batt_voltage >> 8),
+                      (uint8_t)(batt_voltage >> 0),
+                      (uint8_t)eeprom_storage.batt_voltage_scale,
+                      (uint8_t)eeprom_storage.batt_voltage_warning};
+    websocket_send(info, sizeof(info), (AsyncWebSocketClient *)client);
 }
 
 void ExpresslrsMsp::battery_voltage_parse(uint8_t const scale, uint8_t const warning, void * client)
@@ -411,10 +413,8 @@ void ExpresslrsMsp::battery_voltage_parse(uint8_t const scale, uint8_t const war
 
 void ExpresslrsMsp::batt_voltage_init(void)
 {
-    batt_voltage_warning_limit =
-        ((eeprom_storage.batt_voltage_warning * BATT_NOMINAL_mV) / 100);
-    batt_voltage_dead_limit =
-        ((BATT_DEAD_DEFAULT * BATT_NOMINAL_mV) / 100);
+    batt_voltage_warning_limit = ((eeprom_storage.batt_voltage_warning * BATT_NOMINAL_mV) / 100);
+    batt_voltage_dead_limit = ((BATT_DEAD_DEFAULT * BATT_NOMINAL_mV) / 100);
 }
 
 void ExpresslrsMsp::batt_voltage_measure(void)
@@ -435,8 +435,7 @@ void ExpresslrsMsp::batt_voltage_measure(void)
             batt_voltage_warning_timeout = 500;
             brightness = 0;
         } else if (batt_voltage <= batt_voltage_warning_limit) {
-            batt_voltage_warning_timeout = 500 +
-                5 * (int32_t)(batt_voltage - batt_voltage_warning_limit);
+            batt_voltage_warning_timeout = 500 + 5 * (int32_t)(batt_voltage - batt_voltage_warning_limit);
             if ((int32_t)batt_voltage_warning_timeout < 500) {
                 batt_voltage_warning_timeout = 500;
             }
@@ -471,7 +470,6 @@ void ExpresslrsMsp::batt_voltage_measure(void)
 #define batt_voltage_measure()
 #endif
 
-
 void ExpresslrsMsp::init(void)
 {
     _handler.markPacketFree();
@@ -494,11 +492,11 @@ void ExpresslrsMsp::init(void)
     batt_voltage_init();
 }
 
-
 void ExpresslrsMsp::syncSettings(void * client)
 {
     // Send settings
-    send_current_values(client);;
+    send_current_values(client);
+    ;
 #if CONFIG_HANDSET
     HandsetConfigGet(client);
     delay(5);
@@ -506,15 +504,15 @@ void ExpresslrsMsp::syncSettings(void * client)
 #endif
 }
 
-
-int ExpresslrsMsp::parse_data(uint8_t const chr) {
+int ExpresslrsMsp::parse_data(uint8_t const chr)
+{
     if (_handler.processReceivedByte(chr)) {
         /* Process the received MSP message */
         uint8_t forward = true;
         String info = "MSP received: ";
-        mspPacket_t &msp_in = _handler.getPacket();
+        mspPacket_t & msp_in = _handler.getPacket();
         if (msp_in.type == MSP_PACKET_V1_ELRS /*&& msp_in.type & MSP_ELRS_INT*/) {
-            uint8_t * payload = (uint8_t*)msp_in.payload;
+            uint8_t * payload = (uint8_t *)msp_in.payload;
             forward = false;
             switch (msp_in.function) {
                 case ELRS_INT_MSP_PARAMS: {
@@ -589,12 +587,7 @@ int ExpresslrsMsp::parse_data(uint8_t const chr) {
     return 0;
 }
 
-
-int ExpresslrsMsp::parse_command(char * cmd, size_t len, void * client)
-{
-    return -1;
-}
-
+int ExpresslrsMsp::parse_command(char * cmd, size_t len, void * client) { return -1; }
 
 int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, void * client)
 {
@@ -605,7 +598,7 @@ int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t cons
 
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
-        websocket_send(settings_out, (AsyncWebSocketClient*)client);
+        websocket_send(settings_out, (AsyncWebSocketClient *)client);
     }
 
     switch (cmd->msg_id) {
@@ -674,8 +667,7 @@ int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t cons
     return 0;
 }
 
-
-int ExpresslrsMsp::handle_received_msp(mspPacket_t &msp_in)
+int ExpresslrsMsp::handle_received_msp(mspPacket_t & msp_in)
 {
     if (msp_in.type == MSP_PACKET_V2_COMMAND) {
         if (msp_in.function == MSP_VTX_SET_CONFIG) {
@@ -700,13 +692,11 @@ int ExpresslrsMsp::handle_received_msp(mspPacket_t &msp_in)
     return -1;
 }
 
-
 void ExpresslrsMsp::loop(void)
 {
     batt_voltage_measure();
 
-    if (msp_send_save_requested_ms &&
-        (MSP_SAVE_DELAY_MS <= (millis() - msp_send_save_requested_ms))) {
+    if (msp_send_save_requested_ms && (MSP_SAVE_DELAY_MS <= (millis() - msp_send_save_requested_ms))) {
         /* send write command and clear the flag */
         MspWrite(NULL, 0, MSP_EEPROM_WRITE);
         msp_send_save_requested_ms = 0;

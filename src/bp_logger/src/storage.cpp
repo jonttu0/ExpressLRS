@@ -70,7 +70,9 @@ void storage::initDefaults()
     espnow_initialized = 0;
     espnow_clients_count = 0;
 
-    wifi_nets_initialized = LOGGER_WIFINETS_INIT_KEY;
+    wifi_nets_initialized = 0;
+
+    memset(&laptimer, 0, sizeof(laptimer));
 
     this->save();
 }

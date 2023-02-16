@@ -6,7 +6,7 @@
 #include <Update.h>
 #define U_PART U_SPIFFS
 #else
-//#include <Hash.h>
+// #include <Hash.h>
 #include <ESP8266WiFi.h>
 #include <ESP8266mDNS.h>
 #include <Updater.h>
@@ -37,7 +37,6 @@
 #else
 #include "backpack_tx.h"
 #endif
-
 
 #ifndef SERIAL_INVERTED
 #define SERIAL_INVERTED 0
@@ -80,16 +79,27 @@
 #define UART_DEBUG_EN 0
 #endif
 
-
-static enum {
+static enum state {
     STATE_RUNNING = 0,
-    STATE_UPGRADE,
+    STATE_WIFI_SCAN_START,
+    STATE_WIFI_SCANNING,
+    STATE_WIFI_SCAN_LAPTIMER,
+    STATE_WIFI_CONNECT,
+    STATE_WIFI_WAIT,
+    STATE_WIFI_START_AP,
     STATE_REBOOT,
 } current_state;
 static uint32_t reboot_req_ms;
 
+typedef struct {
+    uint8_t network_index;
+    uint8_t channel;
+} wifi_info_t;
+static wifi_info_t wifi_search_results;
+static uint32_t wifi_connect_started;
 
-#if (LED_BUILTIN != BOOT0_PIN) && (LED_BUILTIN != RESET_PIN) && (LED_BUILTIN != BUZZER_PIN) && (LED_BUILTIN != WS2812_PIN)
+#if (LED_BUILTIN != BOOT0_PIN) && (LED_BUILTIN != RESET_PIN) && (LED_BUILTIN != BUZZER_PIN) &&                         \
+    (LED_BUILTIN != WS2812_PIN)
 #define BUILTIN_LED_INIT()      pinMode((LED_BUILTIN), OUTPUT)
 #define BUILTIN_LED_SET(_state) digitalWrite((LED_BUILTIN), !(_state))
 #else
@@ -140,23 +150,26 @@ uint8_t wifi_ap_channel_get(void)
 
 /*************************************************************************/
 
-class CtrlSerialPrivate: public CtrlSerial
+class CtrlSerialPrivate : public CtrlSerial
 {
 public:
-    size_t available(void) {
+    size_t available(void)
+    {
         return Serial.available();
     }
-    uint8_t read(void) {
+    uint8_t read(void)
+    {
         return Serial.read();
     }
 
-    void write(uint8_t * buffer, size_t size) {
+    void write(uint8_t * buffer, size_t size)
+    {
         Serial.write(buffer, size);
     }
 };
 
 CtrlSerialPrivate my_ctrl_serial;
-CtrlSerial& ctrl_serial = my_ctrl_serial;
+CtrlSerial & ctrl_serial = my_ctrl_serial;
 
 #if CONFIG_HDZERO
 HDZeroMsp msp_handler(&my_ctrl_serial);
@@ -171,22 +184,38 @@ ExpresslrsMsp msp_handler(&my_ctrl_serial);
 String get_reset_reason(RESET_REASON const reason)
 {
     switch (reason) {
-        case  1 : return "POWERON_RESET";         /**<1, Vbat power on reset*/
-        case  3 : return "SW_RESET";              /**<3, Software reset digital core*/
-        case  4 : return "OWDT_RESET";            /**<4, Legacy watch dog reset digital core*/
-        case  5 : return "DEEPSLEEP_RESET";       /**<5, Deep Sleep reset digital core*/
-        case  6 : return "SDIO_RESET";            /**<6, Reset by SLC module, reset digital core*/
-        case  7 : return "TG0WDT_SYS_RESET";      /**<7, Timer Group0 Watch dog reset digital core*/
-        case  8 : return "TG1WDT_SYS_RESET";      /**<8, Timer Group1 Watch dog reset digital core*/
-        case  9 : return "RTCWDT_SYS_RESET";      /**<9, RTC Watch dog Reset digital core*/
-        case 10 : return "INTRUSION_RESET";       /**<10, Instrusion tested to reset CPU*/
-        case 11 : return "TGWDT_CPU_RESET";       /**<11, Time Group reset CPU*/
-        case 12 : return "SW_CPU_RESET";          /**<12, Software reset CPU*/
-        case 13 : return "RTCWDT_CPU_RESET";      /**<13, RTC Watch dog Reset CPU*/
-        case 14 : return "EXT_CPU_RESET";         /**<14, for APP CPU, reseted by PRO CPU*/
-        case 15 : return "RTCWDT_BROWN_OUT_RESET";/**<15, Reset when the vdd voltage is not stable*/
-        case 16 : return "RTCWDT_RTC_RESET";      /**<16, RTC Watch dog reset digital core and rtc module*/
-        default : return "NO_MEAN";
+        case 1:
+            return "POWERON_RESET"; /**<1, Vbat power on reset*/
+        case 3:
+            return "SW_RESET"; /**<3, Software reset digital core*/
+        case 4:
+            return "OWDT_RESET"; /**<4, Legacy watch dog reset digital core*/
+        case 5:
+            return "DEEPSLEEP_RESET"; /**<5, Deep Sleep reset digital core*/
+        case 6:
+            return "SDIO_RESET"; /**<6, Reset by SLC module, reset digital core*/
+        case 7:
+            return "TG0WDT_SYS_RESET"; /**<7, Timer Group0 Watch dog reset digital core*/
+        case 8:
+            return "TG1WDT_SYS_RESET"; /**<8, Timer Group1 Watch dog reset digital core*/
+        case 9:
+            return "RTCWDT_SYS_RESET"; /**<9, RTC Watch dog Reset digital core*/
+        case 10:
+            return "INTRUSION_RESET"; /**<10, Instrusion tested to reset CPU*/
+        case 11:
+            return "TGWDT_CPU_RESET"; /**<11, Time Group reset CPU*/
+        case 12:
+            return "SW_CPU_RESET"; /**<12, Software reset CPU*/
+        case 13:
+            return "RTCWDT_CPU_RESET"; /**<13, RTC Watch dog Reset CPU*/
+        case 14:
+            return "EXT_CPU_RESET"; /**<14, for APP CPU, reseted by PRO CPU*/
+        case 15:
+            return "RTCWDT_BROWN_OUT_RESET"; /**<15, Reset when the vdd voltage is not stable*/
+        case 16:
+            return "RTCWDT_RTC_RESET"; /**<16, RTC Watch dog reset digital core and rtc module*/
+        default:
+            return "NO_MEAN";
     }
 }
 void print_reset_reason(void)
@@ -199,7 +228,7 @@ void print_reset_reason(void)
 #else
 void print_reset_reason(void)
 {
-    rst_info *resetInfo;
+    rst_info * resetInfo;
     resetInfo = ESP.getResetInfoPtr();
 
     switch (resetInfo->reason) {
@@ -235,7 +264,6 @@ void print_reset_reason(void)
 }
 #endif
 
-
 void wifi_networks_report(AsyncWebSocketClient * client)
 {
     if (eeprom_storage.wifi_is_valid()) {
@@ -245,7 +273,8 @@ void wifi_networks_report(AsyncWebSocketClient * client)
             wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[index];
             if (wifi_is_psk_valid(wifi_ptr) && (wifi_is_ssid_valid(wifi_ptr) || wifi_is_mac_valid(wifi_ptr))) {
                 info_str += "/\\/\\";
-                if (index < 10) info_str += '0';
+                if (index < 10)
+                    info_str += '0';
                 info_str += index;
                 if (wifi_is_mac_valid(wifi_ptr)) {
                     info_str += mac_addr_print(wifi_ptr->mac);
@@ -263,7 +292,7 @@ void wifi_networks_report(AsyncWebSocketClient * client)
 
 /*************************************************************************/
 
-int esp_now_msp_rcvd(mspPacket_t &msp_pkt)
+int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
 {
     if (msp_handler.handle_received_msp(msp_pkt) < 0) {
         // Not handler internally, pass to serial
@@ -272,17 +301,14 @@ int esp_now_msp_rcvd(mspPacket_t &msp_pkt)
     return 0;
 }
 
-
 /*************************************************************************/
 String mac_addr_print(uint8_t const * const mac_addr)
 {
     char macStr[18] = {0};
-    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X",
-            mac_addr[0], mac_addr[1], mac_addr[2],
-            mac_addr[3], mac_addr[4], mac_addr[5]);
+    sprintf(macStr, "%02X:%02X:%02X:%02X:%02X:%02X", mac_addr[0], mac_addr[1], mac_addr[2], mac_addr[3], mac_addr[4],
+            mac_addr[5]);
     return String(macStr);
 }
-
 
 void websocket_send(char const * data, AsyncWebSocketClient * client)
 {
@@ -308,25 +334,27 @@ void websocket_send_bin(uint8_t const * data, uint8_t const len, AsyncWebSocketC
 {
     if (!len || !data)
         return;
-    Serial.print("WS socket send: ");
-    Serial.println(client != NULL);
     if (client)
-        client->binary((char*)data, (size_t)len);
+        client->binary((char *)data, (size_t)len);
     else
-        webSocket.binaryAll((char*)data, (size_t)len);
+        webSocket.binaryAll((char *)data, (size_t)len);
 }
 
-void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
-                    AwsEventType type, void * arg, uint8_t *payload, size_t length)
+void webSocketEvent(AsyncWebSocket * server,
+                    AsyncWebSocketClient * client,
+                    AwsEventType type,
+                    void * arg,
+                    uint8_t * payload,
+                    size_t length)
 {
     switch (type) {
         case WS_EVT_DISCONNECT:
             break;
 
         case WS_EVT_CONNECT: {
-            //IPAddress ip = webSocket.remoteIP(num);
-            //Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\r\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-            //socketNumber = num;
+            // IPAddress ip = webSocket.remoteIP(num);
+            // Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\r\n", num, ip[0], ip[1], ip[2], ip[3], payload);
+            // socketNumber = num;
 
             IPAddress my_ip;
             my_ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
@@ -382,20 +410,19 @@ void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
         }
 
         case WS_EVT_DATA: {
-            AwsFrameInfo const * const info = (AwsFrameInfo*)arg;
+            AwsFrameInfo const * const info = (AwsFrameInfo *)arg;
             if (info->final && info->index == 0 && info->len == length) {
                 // the whole message is in a single frame and we got all of it's data
                 if (info->opcode == WS_TEXT) {
                     size_t index;
-                    char const * temp = strstr((char*)payload, "WIFIADD/");
+                    char const * temp = strstr((char *)payload, "WIFIADD/");
                     if (temp) { // WiFi network add
                         temp += 8;
                         wifi_networks_t * wifi_ptr = NULL;
                         for (index = 0; index < ARRAY_SIZE(eeprom_storage.wifi_nets); index++, wifi_ptr = NULL) {
                             wifi_ptr = &eeprom_storage.wifi_nets[index];
-                            if (!wifi_is_ssid_valid(wifi_ptr) &&
-                                    !wifi_is_psk_valid(wifi_ptr) &&
-                                    !wifi_is_mac_valid(wifi_ptr)) {
+                            if (!wifi_is_ssid_valid(wifi_ptr) && !wifi_is_psk_valid(wifi_ptr) &&
+                                !wifi_is_mac_valid(wifi_ptr)) {
                                 // Free slot found
                                 break;
                             }
@@ -403,14 +430,14 @@ void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
                         if (wifi_ptr) {
                             size_t len;
                             // Parse SSID
-                            len  = (10 * char_to_dec(*temp++));
+                            len = (10 * char_to_dec(*temp++));
                             len += char_to_dec(*temp++);
                             temp += 1; // Skip '/'
                             memcpy(wifi_ptr->ssid, temp, len);
                             wifi_ptr->ssid[len] = 0;
                             temp += len + 1; // Skip SSID + '/'
                             // Parse PSK
-                            len  = (10 * char_to_dec(*temp++));
+                            len = (10 * char_to_dec(*temp++));
                             len += char_to_dec(*temp++);
                             temp += 1; // Skip '/'
                             memcpy(wifi_ptr->psk, temp, len);
@@ -433,7 +460,7 @@ void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
                         }
                         break;
                     }
-                    temp = strstr((char*)payload, "WIFIDEL/");
+                    temp = strstr((char *)payload, "WIFIDEL/");
                     if (temp) { // WiFi network remove
                         temp += 8;
                         if ((((uintptr_t)temp - (uintptr_t)payload) + 2) <= length) {
@@ -454,10 +481,10 @@ void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
                         break;
                     }
 
-                    msp_handler.parse_command((char*)payload, length, client);
+                    msp_handler.parse_command((char *)payload, length, client);
 
                 } else if (info->opcode == WS_BINARY) {
-                    websoc_bin_hdr_t const * const header = (websoc_bin_hdr_t*)payload;
+                    websoc_bin_hdr_t const * const header = (websoc_bin_hdr_t *)payload;
                     length -= sizeof(header->msg_id);
 
                     // ====================== ESP-NOW COMMANDS ==============
@@ -466,14 +493,14 @@ void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
                         espnow_update_clients(header->payload, length);
                         client->text(espnow_get_info());
 
-                    // ====================== STM COMMANDS ==================
+                        // ====================== STM COMMANDS ==================
 #if CONFIG_STM_UPDATER
                     } else if (WSMSGID_STM32_RESET == header->msg_id) {
                         // STM reset
                         reset_stm32_to_app_mode();
 #endif // CONFIG_STM_UPDATER
 
-                    // ====================== DEFAULT =======================
+                        // ====================== DEFAULT =======================
                     } else if (msp_handler.parse_command(header, length, client) < 0) {
                         String error = "Invalid message: 0x";
                         error += String(header->msg_id, HEX);
@@ -487,7 +514,6 @@ void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
             break;
     }
 }
-
 
 /***********************************************************************************/
 
@@ -510,36 +536,32 @@ static String getContentType(String const filename)
     return "text/plain";
 }
 
-static void sendReturn(AsyncWebServerRequest *request)
+static void sendReturn(AsyncWebServerRequest * request)
 {
     request->send_P(200, "text/html", GO_BACK);
 }
 
-static void handle_recover(AsyncWebServerRequest *request)
+static void handle_recover(AsyncWebServerRequest * request)
 {
     request->send_P(200, "text/html", RECOVER_HTML);
 }
 
-
-static void handleUpdatePage(AsyncWebServerRequest *request) {
-    const char html[] =
-        "<form method='POST' action='/doUpdate' enctype='multipart/form-data'>"
-        "<input type='file' name='update'><input type='submit' value='Update'></form>";
+static void handleUpdatePage(AsyncWebServerRequest * request)
+{
+    const char html[] = "<form method='POST' action='/doUpdate' enctype='multipart/form-data'>"
+                        "<input type='file' name='update'><input type='submit' value='Update'></form>";
     request->send(200, "text/html", html);
 }
 
-static void
-handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t index,
-               uint8_t *data, size_t len, bool final)
+static void handleDoUpdate(
+    AsyncWebServerRequest * request, const String & filename, size_t index, uint8_t * data, size_t len, bool final)
 {
     if (!index) {
 #if UART_DEBUG_EN
         Serial.println("Upgrade starts: " + filename);
 #endif
         // Check for the filesystem partition update
-        int const cmd =
-            (filename.indexOf("spiffs") > -1 || filename.indexOf("_fs_data") > -1)
-            ? U_PART : U_FLASH;
+        int const cmd = (filename.indexOf("spiffs") > -1 || filename.indexOf("_fs_data") > -1) ? U_PART : U_FLASH;
 #ifdef ARDUINO_ARCH_ESP8266
         Update.runAsync(true);
         if (!Update.begin(request->contentLength(), cmd))
@@ -555,13 +577,12 @@ handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t in
         Update.printError(Serial);
 #if defined(ARDUINO_ARCH_ESP8266) && UART_DEBUG_EN
     } else {
-        //Serial.printf("Progress: %d%%\n", (Update.progress()*100)/Update.size());
+        // Serial.printf("Progress: %d%%\n", (Update.progress()*100)/Update.size());
 #endif
     }
 
     if (final) {
-        AsyncWebServerResponse *response = request->beginResponse(
-            302, "text/plain", "Upload ready");
+        AsyncWebServerResponse * response = request->beginResponse(302, "text/plain", "Upload ready");
         response->addHeader("Refresh", "20");
         response->addHeader("Location", "/");
         response->addHeader("Connection", "close");
@@ -586,8 +607,7 @@ handleDoUpdate(AsyncWebServerRequest *request, const String& filename, size_t in
 #if CONFIG_STM_UPDATER
 // handles uploads to the filserver
 static void
-handleUploads(AsyncWebServerRequest *request, String filename, size_t index,
-              uint8_t *data, size_t len, bool final)
+handleUploads(AsyncWebServerRequest * request, String filename, size_t index, uint8_t * data, size_t len, bool final)
 {
     String logmessage = "";
 
@@ -610,10 +630,10 @@ handleUploads(AsyncWebServerRequest *request, String filename, size_t index,
     if (len) {
         // stream the incoming chunk to the opened file
         request->_tempFile.write(data, len);
-        //logmessage = "  ** Writing index:" + String(index) + " len:" + String(len);
-        //websocket_send(logmessage);
+        // logmessage = "  ** Writing index:" + String(index) + " len:" + String(len);
+        // websocket_send(logmessage);
 #if UART_DEBUG_EN
-        //Serial.println(logmessage);
+        // Serial.println(logmessage);
 #endif
     }
 
@@ -626,7 +646,7 @@ handleUploads(AsyncWebServerRequest *request, String filename, size_t index,
 #if UART_DEBUG_EN
         Serial.println(logmessage);
 #endif
-        //request->redirect("/");
+        // request->redirect("/");
     }
 }
 
@@ -646,7 +666,7 @@ static void handleUploadsReady(AsyncWebServerRequest * request)
 }
 #endif
 
-static void handleMacAddress(AsyncWebServerRequest *request)
+static void handleMacAddress(AsyncWebServerRequest * request)
 {
     uint8_t channel;
 #ifdef ARDUINO_ARCH_ESP32
@@ -671,7 +691,7 @@ static void handleMacAddress(AsyncWebServerRequest *request)
     request->send(200, "text/plain", message);
 }
 
-static void handleApInfo(AsyncWebServerRequest *request)
+static void handleApInfo(AsyncWebServerRequest * request)
 {
     String message = "== WiFi AP ==\n  - MAC: ";
     message += WiFi.softAPmacAddress();
@@ -680,7 +700,7 @@ static void handleApInfo(AsyncWebServerRequest *request)
     message += wifi_ap_channel_get();
     message += "\n  - SSID: ";
     message += WIFI_AP_SSID;
-    message +=  WIFI_AP_SUFFIX;
+    message += WIFI_AP_SUFFIX;
     message += "\n  - PSK: ";
     message += WIFI_AP_PSK;
     message += "\n  - Hidden: ";
@@ -690,7 +710,7 @@ static void handleApInfo(AsyncWebServerRequest *request)
     request->send(200, "text/plain", message);
 }
 
-static void handle_fs(AsyncWebServerRequest *request)
+static void handle_fs(AsyncWebServerRequest * request)
 {
     String message = "FS info: used ";
 #ifdef ARDUINO_ARCH_ESP32
@@ -734,13 +754,13 @@ static void handle_fs(AsyncWebServerRequest *request)
     request->send(200, "text/plain", message);
 }
 
-static void handle_fs_format(AsyncWebServerRequest *request)
+static void handle_fs_format(AsyncWebServerRequest * request)
 {
     FILESYSTEM.format();
     request->send(200, "text/plain", "Filesystem formatted");
 }
 
-static void handleFileRead(AsyncWebServerRequest *request)
+static void handleFileRead(AsyncWebServerRequest * request)
 {
     bool gzipped = false;
     String path = request->url();
@@ -748,20 +768,20 @@ static void handleFileRead(AsyncWebServerRequest *request)
         // Send the index file if a folder is requested
         path = "/index.html";
     static struct {
-        const char *url;
-        const char *contentType;
-        const uint8_t* content;
+        const char * url;
+        const char * contentType;
+        const uint8_t * content;
         const size_t size;
     } files[] = {
-        {"/index.html", "text/html", (uint8_t *)INDEX_HTML, sizeof(INDEX_HTML)},
-        {"/style.css", "text/css", (uint8_t *)STYLE_CSS, sizeof(STYLE_CSS)},
+        {"/index.html",       "text/html", (uint8_t *)INDEX_HTML, sizeof(INDEX_HTML)},
+        { "/style.css",        "text/css",  (uint8_t *)STYLE_CSS,  sizeof(STYLE_CSS)},
         {"/scripts.js", "text/javascript", (uint8_t *)SCRIPTS_JS, sizeof(SCRIPTS_JS)},
     };
     // Check if matching to builtin files
-    for (size_t i = 0 ; i < ARRAY_SIZE(files); i++) {
+    for (size_t i = 0; i < ARRAY_SIZE(files); i++) {
         if (path.equals(files[i].url)) {
-            AsyncWebServerResponse *response = request->beginResponse_P(
-                200, files[i].contentType, files[i].content, files[i].size);
+            AsyncWebServerResponse * response =
+                request->beginResponse_P(200, files[i].contentType, files[i].content, files[i].size);
             response->addHeader("Content-Encoding", "gzip");
             request->send(response);
             return;
@@ -777,25 +797,47 @@ static void handleFileRead(AsyncWebServerRequest *request)
         return;
     }
     /* file found - send it */
-    AsyncWebServerResponse *response = request->beginResponse(FILESYSTEM, path, contentType);
+    AsyncWebServerResponse * response = request->beginResponse(FILESYSTEM, path, contentType);
     if (gzipped)
         response->addHeader("Content-Encoding", "gzip");
     request->send(response);
 }
 
-static void handleLaptimerConfig(AsyncWebServerRequest *request)
+static void handleLaptimerConfig(AsyncWebServerRequest * request)
 {
     for (size_t i = 0; i < request->args(); i++) {
         String name = request->argName(i);
         String value = request->arg(i);
-        if (name == "laptimer_ssid") {
-
-        } else if (name == "laptimer_mac") {
-
+        uint32_t const len = value.length();
+        const char * p_value = value.c_str();
+        // Serial.printf(" arg: %s = %s\r\n", name.c_str(), p_value);
+        if (name == "ssid") {
+            if (len < sizeof(eeprom_storage.laptimer.ssid)) {
+                memcpy(eeprom_storage.laptimer.ssid, p_value, len);
+                eeprom_storage.laptimer.ssid[len] = 0;
+            }
+        } else if (name == "macaddr" && value.length() == 17) {
+            for (uint8_t iter = 0; iter < 6; iter++) {
+                eeprom_storage.laptimer.mac[iter] = strtol(&p_value[iter * 3], NULL, 16);
+            }
         }
-        Serial.printf(" arg: %s = %s\r\n", name.c_str(), value.c_str());
     }
-    //request->redirect("/");
+
+#if UART_DEBUG_EN
+    Serial.print("=== LapTimer ===\r\n");
+    Serial.print("   SSID: ");
+    Serial.println(eeprom_storage.laptimer.ssid);
+    Serial.print("   MAC: ");
+    Serial.println(mac_addr_print(eeprom_storage.laptimer.mac));
+#endif
+
+    eeprom_storage.markDirty();
+
+    // Trigger scan for LapTimer's SSID
+    WiFi.scanNetworks(true, false, 0, (uint8_t *)eeprom_storage.laptimer.ssid);
+    current_state = STATE_WIFI_SCAN_LAPTIMER;
+
+    // request->redirect("/");
     /*AsyncWebServerResponse *response = request->beginResponse(200);
     response->addHeader("Refresh", "1");
     response->addHeader("Location", "/");
@@ -805,57 +847,34 @@ static void handleLaptimerConfig(AsyncWebServerRequest *request)
 
 /*************************************************/
 
-enum {
-    WIFI_STATE_NA = 0,
-    WIFI_STATE_STA,
-    WIFI_STATE_AP,
-};
-
-#ifdef ARDUINO_ARCH_ESP8266
-static WiFiEventHandler stationConnectedHandler;
-static WiFiEventHandler stationDisconnectedHandler;
-static WiFiEventHandler stationGotIpAddress;
-static WiFiEventHandler stationDhcpTimeout;
-#endif
-static uint32_t wifi_connect_started;
-static uint8_t wifi_connection_state;
-
-
 #ifdef ARDUINO_ARCH_ESP32
 void onStationConnected(WiFiEvent_t event, WiFiEventInfo_t info)
 #else
-void onStationConnected(const WiFiEventStationModeConnected& evt)
+void onStationConnected(const WiFiEventStationModeConnected & evt)
 #endif
 {
     // Don't let AP to be triggered while still connecting to STA
     wifi_connect_started = millis();
 #if UART_DEBUG_EN
-    String wifi_log = "";
-    wifi_log += "Wifi_STA_connect() RSSI=";
-    wifi_log += WiFi.RSSI();
-    Serial.println(wifi_log);
+    Serial.printf("Wifi_STA_connect - RSSI=%ddBm\r\n", WiFi.RSSI());
 #endif
 }
 
 #ifdef ARDUINO_ARCH_ESP32
 void onStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
 #else
-void onStationDisconnected(const WiFiEventStationModeDisconnected& evt)
+void onStationDisconnected(const WiFiEventStationModeDisconnected & evt)
 #endif
 {
 #if UART_DEBUG_EN
-    String wifi_log = "";
-    wifi_log += "Wifi_STA_diconnect() reason:";
-    wifi_log += evt.reason;
-    Serial.println(wifi_log);
+    Serial.printf("Wifi_STA_diconnect with reason: %d\r\n", evt.reason);
 #endif
-    if (WIFI_STATE_NA != wifi_connection_state) {
+    if (STATE_WIFI_WAIT != current_state && WIFI_DISCONNECT_REASON_ASSOC_LEAVE != evt.reason) {
 #if UART_DEBUG_EN
-        Serial.println("  CONNECTION LOST!");
+        Serial.println("  CONNECTION LOST! Start new scan...");
 #endif
-        /* Start check again only after connection drop */
-        wifi_connect_started = millis();
-        wifi_connection_state = WIFI_STATE_NA;
+        /* Start scan again */
+        current_state = STATE_WIFI_SCAN_START;
     }
     MDNS.end();
     WiFi.reconnect(); // Force reconnect
@@ -866,14 +885,15 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected& evt)
 #ifdef ARDUINO_ARCH_ESP32
 void onStationGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
 #else
-void onStationGotIP(const WiFiEventStationModeGotIP& evt)
+void onStationGotIP(const WiFiEventStationModeGotIP & evt)
 #endif
 {
 #if UART_DEBUG_EN
     Serial.print("WiFi STA got IP: ");
     Serial.println(WiFi.localIP().toString());
 #endif
-    wifi_connection_state = WIFI_STATE_STA;
+
+    current_state = STATE_RUNNING;
 
     String instance = String(hostname) + "_" + WiFi.macAddress();
     instance.replace(":", "");
@@ -890,8 +910,7 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt)
     }
 #else
     MDNS.setHostname(hostname);
-    if (MDNS.begin(hostname, WiFi.localIP()))
-    {
+    if (MDNS.begin(hostname, WiFi.localIP())) {
         MDNS.setInstanceName(hostname);
         MDNSResponder::hMDNSService service = MDNS.addService(instance.c_str(), "http", "tcp", 80);
         MDNS.addServiceTxt(service, "vendor", "elrs");
@@ -904,7 +923,7 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt)
         // If the probe result fails because there is another device on the network with the same name
         // use our unique instance name as the hostname. A better way to do this would be to use
         // MDNSResponder::indexDomain and change wifi_hostname as well.
-        MDNS.setHostProbeResultCallback([instance](const char* p_pcDomainName, bool p_bProbeResult) {
+        MDNS.setHostProbeResultCallback([instance](const char * p_pcDomainName, bool p_bProbeResult) {
             if (!p_bProbeResult) {
                 WiFi.hostname(instance);
                 MDNS.setInstanceName(instance);
@@ -933,43 +952,37 @@ void onStationGotIP(const WiFiEventStationModeGotIP& evt)
 
 void onStationDhcpTimeout(void)
 {
-    wifi_connect_started = millis();
-    wifi_connection_state = WIFI_STATE_NA;
+    /* Start scan again */
+    current_state = STATE_WIFI_SCAN_START;
     MDNS.end();
 #if UART_DEBUG_EN
     Serial.println("WiFi STA DHCP timeout");
 #endif
 }
 
-
-
-static void wifi_config_ap(void)
+static void wifi_config_ap(uint8_t const channel)
 {
     IPAddress local_IP(192, 168, 4, 1);
     IPAddress gateway(192, 168, 4, 1);
     IPAddress subnet(255, 255, 255, 0);
-    uint8_t const channel = wifi_ap_channel_get();
 
-    //esp_wifi_set_channel(chan,WIFI_SECOND_CHAN_NONE);
+    // esp_wifi_set_channel(chan,WIFI_SECOND_CHAN_NONE);
 
     // WiFi not connected, Start access point
     WiFi.disconnect(true);
-#ifdef ARDUINO_ARCH_ESP8266
-    WiFi.forceSleepWake();
-#endif
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(local_IP, gateway, subnet);
-    if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, channel,
-                    !!false, WIFI_AP_MAX_CONN)) {
-        wifi_connection_state = WIFI_STATE_AP;
+    if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, channel, !!WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN)) {
+        current_state = STATE_RUNNING;
         led_set(LED_WIFI_AP);
         buzzer_beep(400, 20);
         BUILTIN_LED_SET(1);
 #if UART_DEBUG_EN
-        Serial.println("WiFi AP ok");
+        Serial.printf("WiFi AP '%s' on channel:%u hidden:%u (PSK:'%s')\r\n", WIFI_AP_SSID WIFI_AP_SUFFIX, channel,
+                      !!WIFI_AP_HIDDEN, WIFI_AP_PSK);
 #endif
     } else {
-        //wifi_connect_started = millis() - 100;
+        current_state = STATE_WIFI_SCAN_START;
         WiFi.mode(WIFI_OFF);
 #if UART_DEBUG_EN
         Serial.println("WiFi AP start fail");
@@ -979,80 +992,22 @@ static void wifi_config_ap(void)
     espnow_init(channel, esp_now_msp_rcvd);
 }
 
-
-typedef struct {
-    uint8_t network_index;
-    uint8_t channel;
-} wifi_info_t;
-
-#if PLATFORM_ESP32
-#define ENC_TYPE_NONE WIFI_AUTH_OPEN
-#endif
-
-static bool wifi_search_networks(wifi_info_t &output)
+static void wifi_connect(wifi_info_t & results)
 {
-    output.network_index = 0xff;
-    int rssi_best = WIFI_SEARCH_RSSI_MIN;
-#if UART_DEBUG_EN
-    Serial.println("-------------------------");
-    Serial.println(" Available WiFi networks");
-    Serial.println("-------------------------");
-#endif
-    int const numberOfNetworks = WiFi.scanNetworks(false, true); // Show hidden
-    for (int iter = 0; iter < numberOfNetworks; iter++) {
-        String ssid;
-        uint8_t encryptionType;
-        int32_t rssi;
-        uint8_t* mac;
-        int32_t channel;
-        bool hidden = false;
-#ifdef ARDUINO_ARCH_ESP32
-        WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel);
-#else
-        WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel, hidden);
-#endif
+    WiFi.disconnect(true);
+    WiFi.mode(WIFI_AP_STA); // WIFI_AP_STA
 
+    wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[results.network_index];
 #if UART_DEBUG_EN
-        Serial.printf("  %d: '%s', Ch:%d (%ddBm) BSSID:%s %s %s\n",
-                      (iter + 1), ssid.c_str(), channel, rssi,
-                      WiFi.BSSIDstr(iter).c_str(),
-                      encryptionType == ENC_TYPE_NONE ? "open" : "",
-                      hidden ? "hidden": "");
+    Serial.print("WiFi connecting: '");
+    Serial.print(wifi_ptr->ssid);
+    Serial.println("'");
 #endif
-        (void)hidden;
+    WiFi.begin(wifi_ptr->ssid, wifi_ptr->psk, results.channel);
+    wifi_connect_started = millis();
 
-        if (rssi < WIFI_SEARCH_RSSI_MIN) continue;  // Ignore very bad networks
-
-        for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
-            wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
-            if ((wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac)) == 0) ||
-                    (wifi_is_ssid_valid(wifi_ptr) && strncmp(wifi_ptr->ssid, ssid.c_str(), sizeof(wifi_ptr->ssid)) == 0)) {
-
-                if (encryptionType != ENC_TYPE_NONE && !wifi_is_psk_valid(wifi_ptr))
-                    /* No PSK and encryption is enabled -> ignore */
-                    continue;
-#if UART_DEBUG_EN
-                Serial.print("    ** Configured network found! ");
-#endif
-                // Select based on the best RSSI
-                if (rssi_best < rssi) {
-                    rssi_best = rssi;
-                    output.network_index = jter; // selected
-                    output.channel = channel;
-#if UART_DEBUG_EN
-                    Serial.print(" << selected! idx:");
-                    Serial.print(jter);
-#endif
-                }
-#if UART_DEBUG_EN
-                Serial.println();
-#endif
-                break;
-            }
-        }
-    }
-    WiFi.scanDelete();  // Cleanup scan results
-    return (output.network_index != 0xff);
+    // Initial ESP-NOW configuration
+    espnow_init(results.channel, esp_now_msp_rcvd);
 }
 
 static void wifi_config(void)
@@ -1063,11 +1018,10 @@ static void wifi_config(void)
     wifi_station_set_hostname(hostname);
 #endif
 
-    wifi_connection_state = WIFI_STATE_NA;
-
     /* Set AP MAC to UID for ESP-NOW messaging */
     uint8_t ap_mac[] = {MY_UID};
-    if (ap_mac[0] & 0x1) ap_mac[0] &= ~0x1;
+    if (ap_mac[0] & 0x1)
+        ap_mac[0] &= ~0x1;
 
 #ifdef ARDUINO_ARCH_ESP32
     esp_wifi_set_mac(WIFI_IF_AP, &ap_mac[0]);
@@ -1091,40 +1045,21 @@ static void wifi_config(void)
     WiFi.onEvent(onStationConnected, SYSTEM_EVENT_STA_CONNECTED);
     WiFi.onEvent(onStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
     WiFi.onEvent(onStationGotIP, SYSTEM_EVENT_STA_GOT_IP);
-    //WiFi.onEvent(onStationDhcpTimeout, SYSTEM_EVENT_STA_LOST_IP);
+    // WiFi.onEvent(onStationDhcpTimeout, SYSTEM_EVENT_STA_LOST_IP);
 #else
-    stationConnectedHandler = WiFi.onStationModeConnected(&onStationConnected);
-    stationDisconnectedHandler = WiFi.onStationModeDisconnected(&onStationDisconnected);
-    stationGotIpAddress = WiFi.onStationModeGotIP(&onStationGotIP);
-    stationDhcpTimeout = WiFi.onStationModeDHCPTimeout(&onStationDhcpTimeout);
+    static WiFiEventHandler stationConnectedHandler = WiFi.onStationModeConnected(&onStationConnected);
+    static WiFiEventHandler stationDisconnectedHandler = WiFi.onStationModeDisconnected(&onStationDisconnected);
+    static WiFiEventHandler stationGotIpAddress = WiFi.onStationModeGotIP(&onStationGotIP);
+    static WiFiEventHandler stationDhcpTimeout = WiFi.onStationModeDHCPTimeout(&onStationDhcpTimeout);
 #endif
-
-    WiFi.mode(WIFI_AP_STA);  // WIFI_AP_STA
-
-    // Search for configure networks:
-    wifi_info_t scan_result;
-    if (wifi_search_networks(scan_result)) {
-        wifi_networks_t const * const wifi_ptr =
-            &eeprom_storage.wifi_nets[scan_result.network_index];
-#if UART_DEBUG_EN
-        Serial.print("WiFi connecting: '");
-        Serial.print(wifi_ptr->ssid);
-        Serial.println("'");
+#ifdef ARDUINO_ARCH_ESP8266
+    WiFi.forceSleepWake();
 #endif
-        WiFi.begin(wifi_ptr->ssid, wifi_ptr->psk, scan_result.channel);
-        wifi_connect_started = millis();
-
-        // Initial ESP-NOW configuration
-        espnow_init(scan_result.channel, esp_now_msp_rcvd);
-    } else {
-        wifi_config_ap();
-    }
 }
-
 
 static void wifi_check(void)
 {
-    #define WIFI_LOOP_TIMEOUT (WIFI_TIMEOUT * 1000)
+#define WIFI_LOOP_TIMEOUT (WIFI_TIMEOUT * 1000)
     static uint32_t wifi_last_check, led_state;
 
     uint32_t const now = millis();
@@ -1132,7 +1067,7 @@ static void wifi_check(void)
 #if UART_DEBUG_EN
         Serial.println("WIFI config timeout... start AP");
 #endif
-        wifi_config_ap();
+        current_state = STATE_WIFI_START_AP;
     } else if (500 <= (now - wifi_last_check)) {
         wifi_last_check = now;
         /* Blink led */
@@ -1140,7 +1075,6 @@ static void wifi_check(void)
         led_state ^= 1;
     }
 }
-
 
 static void wifi_config_server(void)
 {
@@ -1158,7 +1092,8 @@ static void wifi_config_server(void)
 
     /* ESP OTA firmware upgrade */
     server.on("/update", HTTP_GET, handleUpdatePage);
-    server.on("/doUpdate", HTTP_POST, [](AsyncWebServerRequest *request) {}, handleDoUpdate);
+    server.on(
+        "/doUpdate", HTTP_POST, [](AsyncWebServerRequest * request) {}, handleDoUpdate);
 
     server.onNotFound(handleFileRead);
 
@@ -1169,10 +1104,101 @@ static void wifi_config_server(void)
     server.begin();
 }
 
+#if ARDUINO_ARCH_ESP32
+#define ENC_TYPE_NONE WIFI_AUTH_OPEN
+#endif
+
+static void wifi_scan_ready(int const numberOfNetworks)
+{
+    int rssi_best = WIFI_SEARCH_RSSI_MIN;
+
+    wifi_search_results.network_index = UINT8_MAX;
+    wifi_search_results.channel = wifi_ap_channel_get();
+
+#if UART_DEBUG_EN
+    Serial.println("-------------------------");
+    Serial.println(" Available WiFi networks");
+    Serial.println("-------------------------");
+#endif
+
+    for (int iter = 0; iter < numberOfNetworks; iter++) {
+        String ssid;
+        uint8_t encryptionType;
+        int32_t rssi;
+        uint8_t * mac;
+        int32_t channel;
+        bool hidden = false;
+#ifdef ARDUINO_ARCH_ESP32
+        WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel);
+#else
+        WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel, hidden);
+#endif
+
+#if UART_DEBUG_EN
+        Serial.printf("  %d: '%s', Ch:%d (%ddBm) BSSID:%s %s %s\n", (iter + 1), ssid.c_str(), channel, rssi,
+                      WiFi.BSSIDstr(iter).c_str(), encryptionType == ENC_TYPE_NONE ? "open" : "",
+                      hidden ? "hidden" : "");
+#endif
+        (void)hidden;
+
+        if ((wifi_is_mac_valid(&eeprom_storage.laptimer) &&
+             memcmp(eeprom_storage.laptimer.mac, mac, sizeof(eeprom_storage.laptimer.ssid)) == 0) ||
+            (wifi_is_ssid_valid(&eeprom_storage.laptimer) &&
+             strncmp(eeprom_storage.laptimer.ssid, ssid.c_str(), sizeof(eeprom_storage.laptimer.ssid)) == 0)) {
+#if UART_DEBUG_EN
+            Serial.println("    ** LapTimer found!");
+#endif
+            wifi_search_results.network_index = UINT8_MAX; // Force AP mode
+            wifi_search_results.channel = channel;
+            break;
+        }
+
+        if (rssi < WIFI_SEARCH_RSSI_MIN)
+            continue; // Ignore very bad networks
+
+        for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
+            wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
+            if ((wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac)) == 0) ||
+                (wifi_is_ssid_valid(wifi_ptr) && strncmp(wifi_ptr->ssid, ssid.c_str(), sizeof(wifi_ptr->ssid)) == 0)) {
+#if UART_DEBUG_EN
+                Serial.print("    ** Configured network found! ");
+#endif
+                if (encryptionType != ENC_TYPE_NONE && !wifi_is_psk_valid(wifi_ptr)) {
+                    /* No PSK and encryption is enabled -> ignore */
+#if UART_DEBUG_EN
+                    Serial.println(" - ignore: No PSK");
+#endif
+                    continue;
+                }
+                // Select based on the best RSSI
+                if (rssi_best < rssi) {
+                    rssi_best = rssi;
+                    wifi_search_results.network_index = jter; // selected
+                    wifi_search_results.channel = channel;
+#if UART_DEBUG_EN
+                    Serial.print(" << selected! idx:");
+                    Serial.print(jter);
+#endif
+                }
+#if UART_DEBUG_EN
+                Serial.println();
+#endif
+                break;
+            }
+        }
+    }
+    WiFi.scanDelete(); // Cleanup scan results
+
+    if (wifi_search_results.network_index == UINT8_MAX) {
+        current_state = STATE_WIFI_START_AP;
+    } else {
+        current_state = STATE_WIFI_CONNECT;
+    }
+}
 
 void setup()
 {
-    //ESP.eraseConfig();
+    // ESP.eraseConfig();
 
     boot_log = "";
     print_reset_reason();
@@ -1202,7 +1228,7 @@ void setup()
 #endif
 
     FILESYSTEM.begin();
-    //FILESYSTEM.format();
+    // FILESYSTEM.format();
 
 #if UART_DEBUG_EN
 #warning "Serial debugging enabled!"
@@ -1215,22 +1241,23 @@ void setup()
     // wsnum does not matter because settings_valid == false
     msp_handler.syncSettings(NULL);
 
-    current_state = STATE_RUNNING;
-
-
 #if UART_DEBUG_EN && 0
     for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
         wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
         Serial.printf("=== [%u] ===\r\n", jter);
-        Serial.print("   SSID: "); Serial.println(wifi_ptr->ssid);
-        Serial.print("   MAC: "); Serial.println(mac_addr_print(wifi_ptr->mac));
-        Serial.print("   PSK: "); Serial.println(wifi_ptr->psk);
+        Serial.print("   SSID: ");
+        Serial.println(wifi_ptr->ssid);
+        Serial.print("   MAC: ");
+        Serial.println(mac_addr_print(wifi_ptr->mac));
+        Serial.print("   PSK: ");
+        Serial.println(wifi_ptr->psk);
     }
 #endif
+
+    current_state = STATE_WIFI_SCAN_START;
 }
 
-
-int serialEvent(String &log_string)
+int serialEvent(String & log_string)
 {
     int temp;
     uint8_t inChar;
@@ -1257,29 +1284,18 @@ int serialEvent(String &log_string)
     return -1;
 }
 
-
 void loop()
 {
     static String input_log_string = "";
 
-    if (wifi_connection_state == WIFI_STATE_NA)
-        wifi_check();
-
-#ifdef ARDUINO_ARCH_ESP8266
-    ESP.wdtFeed();
-#endif
-
     if (0 <= serialEvent(input_log_string)) {
 #if CONFIG_HDZERO
-        if (!strstr(input_log_string.c_str(), "Resource\\_000.bmp") && !strstr(input_log_string.c_str(), "fc_variant:  ...")) // IGNORE dummy dbg print
+        if (!strstr(input_log_string.c_str(), "Resource\\_000.bmp") &&
+            !strstr(input_log_string.c_str(), "fc_variant:  ...")) // IGNORE dummy dbg print
 #endif
             websocket_send(input_log_string);
         input_log_string = "";
     }
-#ifdef ARDUINO_ARCH_ESP8266
-    ESP.wdtFeed();
-#endif
-
 #ifdef ARDUINO_ARCH_ESP8266
     ESP.wdtFeed();
 #endif
@@ -1292,9 +1308,49 @@ void loop()
 
     eeprom_storage.update();
 
+#ifdef ARDUINO_ARCH_ESP8266
+    ESP.wdtFeed();
+#endif
+
     switch (current_state) {
-        case STATE_UPGRADE:
+        case STATE_WIFI_SCAN_START: {
+            WiFi.scanNetworksAsync(wifi_scan_ready, true);
+            current_state = STATE_WIFI_SCANNING;
             break;
+        }
+        case STATE_WIFI_SCAN_LAPTIMER: {
+            int const numNetworks = WiFi.scanComplete();
+            // -1 == running
+            if (0 <= numNetworks) {
+                /* LapTimer's SSID found! */
+                uint8_t const channel = WiFi.channel(0);
+#if UART_DEBUG_EN
+                Serial.printf("  LapTimer's channel is %u\r\n", channel);
+#endif
+                wifi_search_results.channel = channel;
+                current_state = STATE_WIFI_START_AP;
+                WiFi.scanDelete();
+            } else if (-2 == numNetworks) {
+#if UART_DEBUG_EN
+                Serial.println("  LapTimer scan end");
+#endif
+                current_state = STATE_RUNNING;
+            }
+            break;
+        }
+        case STATE_WIFI_CONNECT: {
+            wifi_connect(wifi_search_results);
+            current_state = STATE_WIFI_WAIT;
+            break;
+        }
+        case STATE_WIFI_WAIT: {
+            wifi_check();
+            break;
+        }
+        case STATE_WIFI_START_AP: {
+            wifi_config_ap(wifi_search_results.channel);
+            break;
+        }
         case STATE_REBOOT: {
             if (0 <= (int32_t)(millis() - reboot_req_ms)) {
                 WiFi.mode(WIFI_OFF);
@@ -1304,7 +1360,6 @@ void loop()
             }
             break;
         }
-        case STATE_RUNNING:
         default:
             break;
     }

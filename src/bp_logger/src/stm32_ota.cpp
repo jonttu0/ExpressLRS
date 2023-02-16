@@ -38,7 +38,9 @@ bool stm32_ota_handleFileUploadEnd(AsyncWebServerRequest * request)
     } else if (name == "firmware") {
       filename = "/" + name;
     }
+#if UART_DEBUG_EN
     Serial.printf(" arg: %s = %s\r\n", name.c_str(), value.c_str());
+#endif
   }
 
   bool const success = flash_stm32(flash_base, filename);
@@ -47,7 +49,9 @@ bool stm32_ota_handleFileUploadEnd(AsyncWebServerRequest * request)
     FILESYSTEM.remove("/" + filename);
 
   websocket_send((success) ? "Update Successful!": "Update Failure!");
+#if UART_DEBUG_EN
   Serial.println("STM32 upgrade done!");
+#endif
   return success;
 }
 

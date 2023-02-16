@@ -360,8 +360,6 @@ void HDZeroMsp::handleRecordingState(uint8_t const start)
 void HDZeroMsp::sendVtxFrequencyToWebsocket(uint16_t const freq,
                                             AsyncWebSocketClient * client)
 {
-    Serial.print("WS VTX Freq: ");
-    Serial.println(freq);
     uint8_t response[] = {
         (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
         (uint8_t)WSMSGID_VIDEO_FREQ,

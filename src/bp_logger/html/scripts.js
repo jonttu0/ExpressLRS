@@ -774,6 +774,12 @@ function wifinetworks_parse(value) {
     var table = $id("wifinetworks");
     /* Parse input message */
     var networks = [];
+    /* clean table */
+    while (table.rows.length) {
+        table.deleteRow(table.rows.length-1);
+    }
+    if (value == "CMD_WIFINETS")
+        return; // empty list
     const parts = value.replace("CMD_WIFINETS/\\/\\", "").split('/\\/\\');
     for (const network_str of parts) {
         networks.push({
@@ -781,10 +787,6 @@ function wifinetworks_parse(value) {
             "mac": network_str.substring(2, 19),
             "ssid": network_str.substring(19),
         });
-    }
-    /* clean table */
-    while (table.rows.length) {
-        table.deleteRow(table.rows.length-1);
     }
     for (const network of networks) {
         const row = table.insertRow();
