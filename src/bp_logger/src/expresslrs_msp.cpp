@@ -693,6 +693,8 @@ int ExpresslrsMsp::handle_received_msp(mspPacket_t &msp_in)
             /* Infrom web clients */
             sendVtxFrequencyToWebsocket(freq);
             return 0;
+        } else if (msp_in.function == ELRS_INT_MSP_ESPNOW_UPDATE) {
+            // TODO: handle channel etc!
         }
     }
     return -1;

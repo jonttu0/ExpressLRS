@@ -308,6 +308,8 @@ void websocket_send_bin(uint8_t const * data, uint8_t const len, AsyncWebSocketC
 {
     if (!len || !data)
         return;
+    Serial.print("WS socket send: ");
+    Serial.println(client != NULL);
     if (client)
         client->binary((char*)data, (size_t)len);
     else
@@ -373,6 +375,9 @@ void webSocketEvent(AsyncWebSocket * server, AsyncWebSocketClient * client,
             wifi_networks_report(client);
 
             msp_handler.syncSettings(client);
+
+            websocket_send("No vithuuu!");
+            client->text("WTF?");
             break;
         }
 
@@ -955,7 +960,7 @@ static void wifi_config_ap(void)
     WiFi.mode(WIFI_AP);
     WiFi.softAPConfig(local_IP, gateway, subnet);
     if (WiFi.softAP(WIFI_AP_SSID WIFI_AP_SUFFIX, WIFI_AP_PSK, channel,
-                    !!WIFI_AP_HIDDEN, WIFI_AP_MAX_CONN)) {
+                    !!false, WIFI_AP_MAX_CONN)) {
         wifi_connection_state = WIFI_STATE_AP;
         led_set(LED_WIFI_AP);
         buzzer_beep(400, 20);
@@ -1020,8 +1025,12 @@ static bool wifi_search_networks(wifi_info_t &output)
 
         for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
             wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
-            if ((wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac))) ||
+            if ((wifi_is_mac_valid(wifi_ptr) && memcmp(wifi_ptr->mac, mac, sizeof(wifi_ptr->mac)) == 0) ||
                     (wifi_is_ssid_valid(wifi_ptr) && strncmp(wifi_ptr->ssid, ssid.c_str(), sizeof(wifi_ptr->ssid)) == 0)) {
+
+                if (encryptionType != ENC_TYPE_NONE && !wifi_is_psk_valid(wifi_ptr))
+                    /* No PSK and encryption is enabled -> ignore */
+                    continue;
 #if UART_DEBUG_EN
                 Serial.print("    ** Configured network found! ");
 #endif
@@ -1031,7 +1040,8 @@ static bool wifi_search_networks(wifi_info_t &output)
                     output.network_index = jter; // selected
                     output.channel = channel;
 #if UART_DEBUG_EN
-                    Serial.print(" << selected!");
+                    Serial.print(" << selected! idx:");
+                    Serial.print(jter);
 #endif
                 }
 #if UART_DEBUG_EN
@@ -1167,18 +1177,16 @@ void setup()
     boot_log = "";
     print_reset_reason();
 
-#if CONFIG_HDZERO
-    //delay(500);  // delay boot a bit
-#endif
+    BUILTIN_LED_INIT();
+    BUILTIN_LED_SET(0);
+
     Serial.setRxBufferSize(512);
 #ifdef ARDUINO_ARCH_ESP32
     Serial.begin(SERIAL_BAUD, SERIAL_8N1, -1, -1, SERIAL_INVERTED);
 #else
     Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, SERIAL_INVERTED);
+    delay(500);
 #endif
-
-    BUILTIN_LED_INIT();
-    BUILTIN_LED_SET(0);
 
     eeprom_storage.setup();
 
@@ -1208,6 +1216,17 @@ void setup()
     msp_handler.syncSettings(NULL);
 
     current_state = STATE_RUNNING;
+
+
+#if UART_DEBUG_EN && 0
+    for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
+        wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
+        Serial.printf("=== [%u] ===\r\n", jter);
+        Serial.print("   SSID: "); Serial.println(wifi_ptr->ssid);
+        Serial.print("   MAC: "); Serial.println(mac_addr_print(wifi_ptr->mac));
+        Serial.print("   PSK: "); Serial.println(wifi_ptr->psk);
+    }
+#endif
 }
 
 

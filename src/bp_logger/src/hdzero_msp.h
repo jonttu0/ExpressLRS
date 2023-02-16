@@ -6,6 +6,9 @@
 #include <stdint.h>
 
 
+class AsyncWebSocketClient;
+
+
 class HDZeroMsp
 {
 public:
@@ -14,7 +17,7 @@ public:
 
     void init(void);
 
-    void syncSettings(void * client);
+    void syncSettings(AsyncWebSocketClient * client);
 
     int parse_data(uint8_t const chr);
     int parse_command(char * cmd, size_t len, void * client);
@@ -45,8 +48,8 @@ private:
     void handleVtxFrequency(uint16_t freq, void * client = NULL, bool espnow = true);
     void handleRecordingState(uint8_t start);
 
-    void sendVtxFrequencyToWebsocket(uint16_t freq);
-    void sendVRecordingStateToWebsocket(uint8_t state);
+    void sendVtxFrequencyToWebsocket(uint16_t freq, AsyncWebSocketClient * client = NULL);
+    void sendVRecordingStateToWebsocket(uint8_t state, AsyncWebSocketClient * client = NULL);
 
     //
     void getChannelIndex(void);

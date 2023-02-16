@@ -37,9 +37,9 @@ void storage::load()
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
         wifi_networks_t * const ptr = &wifi_nets[0];
         const char ssid[] = WIFI_SSID;
-        strcpy(ptr->ssid, ssid);
+        memcpy(ptr->ssid, ssid, sizeof(ssid));
         const char psk[] = WIFI_PSK;
-        strcpy(ptr->psk, psk);
+        memcpy(ptr->psk, psk, sizeof(psk));
 #endif
     }
     isDirty = false;

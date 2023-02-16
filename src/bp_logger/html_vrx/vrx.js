@@ -63,7 +63,7 @@ function message_send_binary(msg_id, bytes=[]) {
   view[1] = (msg_id >> 8) & 0xFF;
   for (var iter = 0; iter < bytes.length; iter++)
     view[2+iter] = bytes[iter];
-  if (websock) websock.send(sendarray, { binary: true });
+  websock_validate_and_send(sendarray);
 }
 /********************* RECORDING *************************/
 function recording_control_send(btn) {
@@ -227,11 +227,24 @@ function wifinetworks_add(event) {
   if (!ssid && !mac && !psk) return;
   if (!ssid && !mac) {console.error("SSID or MAC is mandatory!");}
   if (mac) {command += "/" + mac.split(":").join("");}
-  if (websock) websock.send(command);
+  websock_validate_and_send(command);
 }
 function wifinetworks_del(event) {
   var row = event.target.parentElement.parentElement;
   var command = "WIFIDEL/" + int2str_pad(row.esp_index, 2);
-  if (websock) websock.send(command);
+  websock_validate_and_send(command);
   event.target.disabled = true;
+}
+
+function websock_validate_and_send(command) {
+  if (!websock || websock.readyState !== WebSocket.OPEN) {
+    show_error("Failed to communicate with handset, websocket connection is closed!");
+    return;
+  }
+  websock.send(command);
+}
+
+function show_error(msg) {
+  console.log(msg);
+  alert(msg);
 }

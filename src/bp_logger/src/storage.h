@@ -4,7 +4,7 @@
 
 #define LOGGER_STORAGE_VERSION   0x11220001
 #define LOGGER_ESPNOW_INIT_KEY   0x4321
-#define LOGGER_WIFINETS_INIT_KEY 0x4321
+#define LOGGER_WIFINETS_INIT_KEY 0x4322
 
 typedef struct {
     uint8_t mac_addr[6];
@@ -51,7 +51,7 @@ struct storage {
 extern struct storage eeprom_storage;
 
 static inline bool wifi_is_mac_valid(wifi_networks_t const * const net) {
-    return (net->mac[0] && net->mac[1]);
+    return (!!net->mac[0] && !!net->mac[1] && !!net->mac[2]);
 }
 static inline bool wifi_is_ssid_valid(wifi_networks_t const * const net) {
     return (!!net->ssid[0]);

@@ -48,10 +48,10 @@ void HDZeroMsp::init(void)
 }
 
 
-void HDZeroMsp::syncSettings(void * client)
+void HDZeroMsp::syncSettings(AsyncWebSocketClient * client)
 {
     // Send settings
-    sendVtxFrequencyToWebsocket(eeprom_storage.vtx_freq);
+    sendVtxFrequencyToWebsocket(eeprom_storage.vtx_freq, client);
 }
 
 
@@ -357,26 +357,30 @@ void HDZeroMsp::handleRecordingState(uint8_t const start)
 }
 
 
-void HDZeroMsp::sendVtxFrequencyToWebsocket(uint16_t const freq)
+void HDZeroMsp::sendVtxFrequencyToWebsocket(uint16_t const freq,
+                                            AsyncWebSocketClient * client)
 {
+    Serial.print("WS VTX Freq: ");
+    Serial.println(freq);
     uint8_t response[] = {
         (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
         (uint8_t)WSMSGID_VIDEO_FREQ,
         (uint8_t)(freq >> 8),
         (uint8_t)freq,
     };
-    websocket_send(response, sizeof(response));
+    websocket_send(response, sizeof(response), client);
 }
 
 
-void HDZeroMsp::sendVRecordingStateToWebsocket(uint8_t const state)
+void HDZeroMsp::sendVRecordingStateToWebsocket(uint8_t const state,
+                                               AsyncWebSocketClient * client)
 {
     uint8_t response[] = {
         (uint8_t)(WSMSGID_RECORDING_CTRL >> 8),
         (uint8_t)WSMSGID_RECORDING_CTRL,
         state,
     };
-    websocket_send(response, sizeof(response));
+    websocket_send(response, sizeof(response), client);
 }
 
 
