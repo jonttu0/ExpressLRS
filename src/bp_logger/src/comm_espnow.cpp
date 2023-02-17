@@ -123,7 +123,7 @@ static void add_peer(uint8_t const * const mac_addr, uint32_t const channel)
         .peer_addr = {0},
         .lmk = {0},
         .channel = (uint8_t)channel,
-        .ifidx = ESP_IF_WIFI_AP, //ESP_IF_WIFI_STA,
+        .ifidx = WIFI_IF_AP,
         .encrypt = false,
         .priv = NULL
     };
@@ -167,7 +167,7 @@ void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb)
                 .peer_addr = {0},
                 .lmk = {0},
                 .channel = (uint8_t)channel,
-                .ifidx = ESP_IF_WIFI_AP, //ESP_IF_WIFI_STA,
+                .ifidx = WIFI_IF_AP,
                 .encrypt = false,
                 .priv = NULL
             };

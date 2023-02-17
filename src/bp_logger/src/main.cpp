@@ -63,6 +63,8 @@
 #define WIFI_AP_SUFFIX " HANDSET"
 #elif CONFIG_HDZERO
 #define WIFI_AP_SUFFIX " HDZero"
+#undef WIFI_AP_HIDDEN
+#define WIFI_AP_HIDDEN 0
 #else
 #define WIFI_AP_SUFFIX " MODULE"
 #endif
@@ -319,9 +321,12 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
 #else
         channel = wifi_get_channel();
 #endif
+#if UART_DEBUG_EN
+        Serial.printf("MSP_ESPNOW_UPDATE: current %u, new %u\r\n", channel, update->channel);
+#endif
         if (update->channel != channel) {
             /* Reconfigure wifi channel and (re)start AP */
-            wifi_search_results.channel = channel;
+            wifi_search_results.channel = update->channel;
             current_state = STATE_WIFI_START_AP;
         }
     } else if (msp_handler.handle_received_msp(msp_pkt) < 0) {
@@ -850,7 +855,11 @@ static void handleLaptimerConfig(AsyncWebServerRequest * request)
     eeprom_storage.markDirty();
 
     // Trigger scan for LapTimer's SSID
-    WiFi.scanNetworks(true, true);
+#ifdef ARDUINO_ARCH_ESP32
+    WiFi.scanNetworks(true, true, 0, 300, 0, eeprom_storage.laptimer.ssid);
+#else
+    WiFi.scanNetworks(true, true, 0, (uint8_t *)eeprom_storage.laptimer.ssid);
+#endif
     current_state = STATE_WIFI_SCAN_LAPTIMER;
 
     // request->redirect("/");
@@ -864,7 +873,7 @@ static void handleLaptimerConfig(AsyncWebServerRequest * request)
 /*************************************************/
 
 #ifdef ARDUINO_ARCH_ESP32
-void onStationConnected(WiFiEvent_t event, WiFiEventInfo_t info)
+void onStationConnected(arduino_event_id_t event)
 #else
 void onStationConnected(const WiFiEventStationModeConnected & evt)
 #endif
@@ -877,7 +886,7 @@ void onStationConnected(const WiFiEventStationModeConnected & evt)
 }
 
 #ifdef ARDUINO_ARCH_ESP32
-void onStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info)
+void onStationDisconnected(arduino_event_id_t event)
 #else
 void onStationDisconnected(const WiFiEventStationModeDisconnected & evt)
 #endif
@@ -911,7 +920,7 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected & evt)
 }
 
 #ifdef ARDUINO_ARCH_ESP32
-void onStationGotIP(WiFiEvent_t event, WiFiEventInfo_t info)
+void onStationGotIP(arduino_event_id_t event)
 #else
 void onStationGotIP(const WiFiEventStationModeGotIP & evt)
 #endif
@@ -1022,8 +1031,9 @@ static void wifi_config_ap(uint8_t const channel)
 
 static void wifi_connect(wifi_info_t & results)
 {
-    WiFi.disconnect(true);
     WiFi.mode(WIFI_AP_STA); // WIFI_AP_STA
+    WiFi.softAPdisconnect();
+    WiFi.disconnect();
 
     wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[results.network_index];
 #if UART_DEBUG_EN
@@ -1067,13 +1077,19 @@ static void wifi_config(void)
     WiFi.setAutoReconnect(true);
     WiFi.persistent(true);
     WiFi.disconnect(true);
-
+    WiFi.softAPdisconnect(false);
+#ifdef ARDUINO_ARCH_ESP32
+    WiFi.setTxPower(WIFI_POWER_13dBm);
+#else
+    WiFi.setOutputPower(13);
+    WiFi.setPhyMode(WIFI_PHY_MODE_11G);
+#endif
     /* STA mode callbacks */
 #ifdef ARDUINO_ARCH_ESP32
-    WiFi.onEvent(onStationConnected, SYSTEM_EVENT_STA_CONNECTED);
-    WiFi.onEvent(onStationDisconnected, SYSTEM_EVENT_STA_DISCONNECTED);
-    WiFi.onEvent(onStationGotIP, SYSTEM_EVENT_STA_GOT_IP);
-    // WiFi.onEvent(onStationDhcpTimeout, SYSTEM_EVENT_STA_LOST_IP);
+    WiFi.onEvent(onStationConnected, ARDUINO_EVENT_WIFI_STA_CONNECTED);
+    WiFi.onEvent(onStationDisconnected, ARDUINO_EVENT_WIFI_STA_DISCONNECTED);
+    WiFi.onEvent(onStationGotIP, ARDUINO_EVENT_WIFI_STA_GOT_IP);
+    // WiFi.onEvent(onStationDhcpTimeout, ARDUINO_EVENT_WIFI_STA_LOST_IP);
 #else
     static WiFiEventHandler stationConnectedHandler = WiFi.onStationModeConnected(&onStationConnected);
     static WiFiEventHandler stationDisconnectedHandler = WiFi.onStationModeDisconnected(&onStationDisconnected);
@@ -1140,6 +1156,12 @@ static void wifi_scan_ready(int const numberOfNetworks)
 {
     int rssi_best = WIFI_SEARCH_RSSI_MIN;
     bool const laptimer_search = (current_state == STATE_WIFI_SCAN_LAPTIMER);
+    const char * own_ap_ssid = WIFI_AP_SSID;
+    const size_t own_ap_ssid_len = strlen(own_ap_ssid);
+    uint8_t own_ap_mac[] = {MY_UID};
+    if (own_ap_mac[0] & 0x1)
+        own_ap_mac[0] &= ~0x1;
+    int8_t own_ap_index = -1;
 
     if (!laptimer_search)
         wifi_search_results.network_index = UINT8_MAX;
@@ -1158,6 +1180,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
         uint8_t * mac;
         int32_t channel;
         bool hidden = false;
+
 #ifdef ARDUINO_ARCH_ESP32
         WiFi.getNetworkInfo(iter, ssid, encryptionType, rssi, mac, channel);
 #else
@@ -1172,7 +1195,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
         (void)hidden;
 
         if ((wifi_is_mac_valid(&eeprom_storage.laptimer) &&
-             memcmp(eeprom_storage.laptimer.mac, mac, sizeof(eeprom_storage.laptimer.ssid)) == 0) ||
+             memcmp(eeprom_storage.laptimer.mac, mac, sizeof(eeprom_storage.laptimer.mac)) == 0) ||
             (wifi_is_ssid_valid(&eeprom_storage.laptimer) &&
              strncmp(eeprom_storage.laptimer.ssid, ssid.c_str(), sizeof(eeprom_storage.laptimer.ssid)) == 0)) {
 #if UART_DEBUG_EN
@@ -1189,6 +1212,16 @@ static void wifi_scan_ready(int const numberOfNetworks)
 
         if (rssi < WIFI_SEARCH_RSSI_MIN)
             continue; // Ignore very bad networks
+
+        if ((strncmp(ssid.c_str(), own_ap_ssid, own_ap_ssid_len) == 0) ||
+            (memcmp(mac, own_ap_mac, sizeof(own_ap_mac)) == 0)) {
+            // Match to own access points -> use this since EPS-NOW channel must match
+            own_ap_index = iter;
+#if UART_DEBUG_EN
+            Serial.println("    ** My logger AP");
+#endif
+            continue;
+        }
 
         for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {
             wifi_networks_t const * const wifi_ptr = &eeprom_storage.wifi_nets[jter];
@@ -1221,6 +1254,12 @@ static void wifi_scan_ready(int const numberOfNetworks)
             }
         }
     }
+
+    if (wifi_search_results.network_index == UINT8_MAX && 0 <= own_ap_index) {
+        // Start AP since no matching network found
+        wifi_search_results.channel = WiFi.channel(own_ap_index);
+    }
+
     WiFi.scanDelete(); // Cleanup scan results
 
     if (laptimer_search) {
