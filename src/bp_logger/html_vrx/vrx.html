@@ -76,6 +76,12 @@
       </form>
     </div>
   </fieldset>
+  <fieldset>
+    <legend>Firmware Version</legend>
+    <div>
+      <p id="firmware_version_esp">Logger: {%ESP_VERSION%}</p>
+    </div>
+  </fieldset>
   <fieldset><legend>Upgrade Own Firmware</legend>
     <div><form method='POST' action='/doUpdate' enctype='multipart/form-data'>
         <input type='file' accept='.bin,.bin.gz' name='backpack_fw' id="esp_fw" style="width:350px;">

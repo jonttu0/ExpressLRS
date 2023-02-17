@@ -87,6 +87,7 @@ static enum state {
     STATE_WIFI_CONNECT,
     STATE_WIFI_WAIT,
     STATE_WIFI_START_AP,
+    STATE_WIFI_RECONFIGURE_ESPNOW,
     STATE_REBOOT,
 } current_state;
 static uint32_t reboot_req_ms;
@@ -288,13 +289,42 @@ void wifi_networks_report(AsyncWebSocketClient * client)
         }
         client->text(info_str);
     }
+
+    if (wifi_is_mac_valid(&eeprom_storage.laptimer) || wifi_is_ssid_valid(&eeprom_storage.laptimer)) {
+        String info_str = "CMD_LAPTIMER=";
+        if (wifi_is_mac_valid(&eeprom_storage.laptimer)) {
+            info_str += mac_addr_print(eeprom_storage.laptimer.mac);
+        } else {
+            info_str += "00:00:00:00:00:00";
+        }
+        if (wifi_is_ssid_valid(&eeprom_storage.laptimer)) {
+            info_str += eeprom_storage.laptimer.ssid;
+        }
+        client->text(info_str);
+    }
 }
 
 /*************************************************************************/
 
 int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
 {
-    if (msp_handler.handle_received_msp(msp_pkt) < 0) {
+    if (msp_pkt.type == MSP_PACKET_V1_ELRS && msp_pkt.function == ELRS_INT_MSP_ESPNOW_UPDATE &&
+        msp_pkt.flags == MSP_ELRS_INT) {
+        struct espnow_update const * const update = (struct espnow_update *)msp_pkt.payload;
+        uint8_t channel;
+#ifdef ARDUINO_ARCH_ESP32
+        wifi_second_chan_t secondChan;
+        esp_wifi_get_channel(&channel, &secondChan);
+        (void)secondChan;
+#else
+        channel = wifi_get_channel();
+#endif
+        if (update->channel != channel) {
+            /* Reconfigure wifi channel and (re)start AP */
+            wifi_search_results.channel = channel;
+            current_state = STATE_WIFI_START_AP;
+        }
+    } else if (msp_handler.handle_received_msp(msp_pkt) < 0) {
         // Not handler internally, pass to serial
         MSP::sendPacket(&msp_pkt, &ctrl_serial);
     }
@@ -374,17 +404,6 @@ void webSocketEvent(AsyncWebSocket * server,
             client->text(info_str);
 #endif
             client->text(target_name);
-#if defined(LATEST_COMMIT)
-            info_str = "Current version (SHA): ";
-            uint8_t commit_sha[] = {LATEST_COMMIT};
-            for (uint8_t iter = 0; iter < sizeof(commit_sha); iter++) {
-                info_str += String(commit_sha[iter], HEX);
-            }
-#if LATEST_COMMIT_DIRTY
-            info_str += "-dirty";
-#endif
-            client->text(info_str);
-#endif // LATEST_COMMIT
 
             if (boot_log)
                 client->text(boot_log);
@@ -403,9 +422,6 @@ void webSocketEvent(AsyncWebSocket * server,
             wifi_networks_report(client);
 
             msp_handler.syncSettings(client);
-
-            websocket_send("No vithuuu!");
-            client->text("WTF?");
             break;
         }
 
@@ -834,7 +850,7 @@ static void handleLaptimerConfig(AsyncWebServerRequest * request)
     eeprom_storage.markDirty();
 
     // Trigger scan for LapTimer's SSID
-    WiFi.scanNetworks(true, false, 0, (uint8_t *)eeprom_storage.laptimer.ssid);
+    WiFi.scanNetworks(true, true);
     current_state = STATE_WIFI_SCAN_LAPTIMER;
 
     // request->redirect("/");
@@ -867,9 +883,21 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected & evt)
 #endif
 {
 #if UART_DEBUG_EN
-    Serial.printf("Wifi_STA_diconnect with reason: %d\r\n", evt.reason);
+    Serial.printf("Wifi_STA_diconnect with reason: %d\r\n",
+#ifdef ARDUINO_ARCH_ESP32
+                  event
+#else
+                  evt.reason
 #endif
-    if (STATE_WIFI_WAIT != current_state && WIFI_DISCONNECT_REASON_ASSOC_LEAVE != evt.reason) {
+    );
+#endif
+    if (STATE_WIFI_WAIT != current_state
+#ifdef ARDUINO_ARCH_ESP32
+    /* && SYSTEM_EVENT_STA_DISCONNECTED == event */
+#else
+        && WIFI_DISCONNECT_REASON_ASSOC_LEAVE != evt.reason
+#endif
+    ) {
 #if UART_DEBUG_EN
         Serial.println("  CONNECTION LOST! Start new scan...");
 #endif
@@ -1111,8 +1139,10 @@ static void wifi_config_server(void)
 static void wifi_scan_ready(int const numberOfNetworks)
 {
     int rssi_best = WIFI_SEARCH_RSSI_MIN;
+    bool const laptimer_search = (current_state == STATE_WIFI_SCAN_LAPTIMER);
 
-    wifi_search_results.network_index = UINT8_MAX;
+    if (!laptimer_search)
+        wifi_search_results.network_index = UINT8_MAX;
     wifi_search_results.channel = wifi_ap_channel_get();
 
 #if UART_DEBUG_EN
@@ -1135,7 +1165,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
 #endif
 
 #if UART_DEBUG_EN
-        Serial.printf("  %d: '%s', Ch:%d (%ddBm) BSSID:%s %s %s\n", (iter + 1), ssid.c_str(), channel, rssi,
+        Serial.printf("  %d: '%s', Ch:%d (%ddBm) BSSID:%s %s %s\r\n", (iter + 1), ssid.c_str(), channel, rssi,
                       WiFi.BSSIDstr(iter).c_str(), encryptionType == ENC_TYPE_NONE ? "open" : "",
                       hidden ? "hidden" : "");
 #endif
@@ -1152,6 +1182,10 @@ static void wifi_scan_ready(int const numberOfNetworks)
             wifi_search_results.channel = channel;
             break;
         }
+
+        if (laptimer_search)
+            // Ignore other selections if searching for LapTimer's net
+            continue;
 
         if (rssi < WIFI_SEARCH_RSSI_MIN)
             continue; // Ignore very bad networks
@@ -1189,11 +1223,13 @@ static void wifi_scan_ready(int const numberOfNetworks)
     }
     WiFi.scanDelete(); // Cleanup scan results
 
-    if (wifi_search_results.network_index == UINT8_MAX) {
-        current_state = STATE_WIFI_START_AP;
-    } else {
-        current_state = STATE_WIFI_CONNECT;
+    if (laptimer_search) {
+        current_state =
+            (wifi_search_results.network_index == UINT8_MAX) ? STATE_WIFI_RECONFIGURE_ESPNOW : STATE_RUNNING;
+        return;
     }
+
+    current_state = (wifi_search_results.network_index == UINT8_MAX) ? STATE_WIFI_START_AP : STATE_WIFI_CONNECT;
 }
 
 void setup()
@@ -1211,8 +1247,8 @@ void setup()
     Serial.begin(SERIAL_BAUD, SERIAL_8N1, -1, -1, SERIAL_INVERTED);
 #else
     Serial.begin(SERIAL_BAUD, SERIAL_8N1, SERIAL_FULL, 1, SERIAL_INVERTED);
-    delay(500);
 #endif
+    delay(500);
 
     eeprom_storage.setup();
 
@@ -1232,7 +1268,10 @@ void setup()
 
 #if UART_DEBUG_EN
 #warning "Serial debugging enabled!"
-    Serial.println("ELRS Logger started... starting up the wifi next");
+    Serial.println();
+    Serial.println("========================");
+    Serial.println("  ELRS Logger started");
+    Serial.println("========================");
 #endif
 
     wifi_config();
@@ -1314,27 +1353,25 @@ void loop()
 
     switch (current_state) {
         case STATE_WIFI_SCAN_START: {
-            WiFi.scanNetworksAsync(wifi_scan_ready, true);
+            // Start async scan and wait for results
+            WiFi.scanNetworks(true, true);
             current_state = STATE_WIFI_SCANNING;
+#if UART_DEBUG_EN
+            Serial.println("WiFi scan started");
+#endif
             break;
         }
-        case STATE_WIFI_SCAN_LAPTIMER: {
+        case STATE_WIFI_SCAN_LAPTIMER:
+        case STATE_WIFI_SCANNING: {
             int const numNetworks = WiFi.scanComplete();
-            // -1 == running
             if (0 <= numNetworks) {
-                /* LapTimer's SSID found! */
-                uint8_t const channel = WiFi.channel(0);
-#if UART_DEBUG_EN
-                Serial.printf("  LapTimer's channel is %u\r\n", channel);
-#endif
-                wifi_search_results.channel = channel;
-                current_state = STATE_WIFI_START_AP;
-                WiFi.scanDelete();
+                wifi_scan_ready(numNetworks);
             } else if (-2 == numNetworks) {
 #if UART_DEBUG_EN
-                Serial.println("  LapTimer scan end");
+                Serial.println("WiFi scan end - start AP");
 #endif
-                current_state = STATE_RUNNING;
+                wifi_search_results.channel = wifi_ap_channel_get();
+                current_state = STATE_WIFI_START_AP;
             }
             break;
         }
@@ -1358,6 +1395,12 @@ void loop()
                 delay(100);
                 ESP.restart();
             }
+            break;
+        }
+        case STATE_WIFI_RECONFIGURE_ESPNOW: {
+            // TOOD: Send move on to channel command!
+            espnow_send_update_channel(wifi_search_results.channel);
+            current_state = STATE_WIFI_START_AP;
             break;
         }
         default:

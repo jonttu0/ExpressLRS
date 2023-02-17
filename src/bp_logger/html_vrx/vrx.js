@@ -41,6 +41,7 @@ function start() {
     const text = evt.data; // handle text message
     if (!text) return;
     if (text.startsWith("CMD_WIFINETS")) {wifinetworks_parse(text); return;}
+    else if (text.startsWith("CMD_LAPTIMER=")) {laptimernet_parse(text.replace("CMD_LAPTIMER=", "")); return;}
     const logger = $id("logField");
     const scrollsize = parseInt($id("scrollsize").value, 10);
     var log_history = logger.value.split("\n");
@@ -236,6 +237,15 @@ function wifinetworks_del(event) {
   var command = "WIFIDEL/" + int2str_pad(row.esp_index, 2);
   websock_validate_and_send(command);
   event.target.disabled = true;
+}
+function laptimernet_parse(network_str) {
+  if (network_str == "") return;
+  const network = {"mac": network_str.substring(0, 17), "ssid": network_str.substring(17)}
+  const laptimer_ssid = $id("laptimer_ssid")
+  const laptimer_mac = $id("laptimer_mac")
+  if (laptimer_ssid && network["ssid"]) laptimer_ssid.value = network["ssid"];
+  else if (laptimer_mac && network["mac"] != "00:00:00:00:00:00"
+           && network["mac"] != "FF:FF:FF:FF:FF:FF") laptimer_mac.value = network["mac"];
 }
 
 function websock_validate_and_send(command) {

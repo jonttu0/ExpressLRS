@@ -295,8 +295,18 @@ void FAST_CODE_2 espnow_send_msp(mspPacket_t &msp)
 #endif // ESP_NOW
 }
 
-void FAST_CODE_2 espnow_loop(void)
+void espnow_send_update_channel(uint8_t const channel)
 {
-    //static uint32_t last_check_ms;
+#if ESP_NOW
+    struct espnow_update update = {.channel = channel};
 
+    size_t const len = MSP::bufferPacket(
+        msp_tx_buffer, MSP_PACKET_V1_ELRS, ELRS_INT_MSP_ESPNOW_UPDATE,
+        MSP_ELRS_INT, sizeof(update), (uint8_t*)&update);
+    if (len) {
+        esp_now_send(NULL, msp_tx_buffer, len);
+    }
+#else
+    (void)channel;
+#endif
 }

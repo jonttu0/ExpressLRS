@@ -24,6 +24,10 @@ platform = env.get('PIOPLATFORM', '')
 target_name = env['PIOENV'].upper()
 
 
+def get_version():
+    return '%s' % (env.get('LATEST_COMMIT'))
+
+
 def compress(data):
     """
     Compress data in one shot and return the compressed string.
@@ -37,7 +41,7 @@ def compress(data):
 
 def build_html(mainfile, var, out):
     with open(mainfile, 'r') as file:
-        data = file.read()
+        data = file.read().replace("{%ESP_VERSION%}", get_version())
 
     if mainfile.endswith('.html'):
         data = html_minifier.html_minify(data)

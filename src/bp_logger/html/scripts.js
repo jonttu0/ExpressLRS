@@ -190,6 +190,9 @@ function start() {
         if (text.startsWith("CMD_WIFINETS")) {
             wifinetworks_parse(text);
             return;
+        } else if (text.startsWith("CMD_LAPTIMER=")) {
+            laptimernet_parse(text.replace("CMD_LAPTIMER=", ""));
+            return;
         }
 
         const scrollsize = parseInt($id("scrollsize").value, 10);
@@ -829,6 +832,11 @@ function wifinetworks_del(event) {
         websock.send("WIFIDEL/" + int2str_pad(event.target.parentElement.parentElement.esp_index, 2));
         event.target.disabled = true;
     }
+}
+function laptimernet_parse(network_str) {
+    if (network_str == "") return;
+    const network = {"mac": network_str.substring(0, 17), "ssid": network_str.substring(17)}
+    // Not used, ignore for now
 }
 
 function websock_validate() {
