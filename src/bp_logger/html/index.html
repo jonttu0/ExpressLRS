@@ -235,7 +235,7 @@
       <p>
         <fieldset>
           <legend>Self Firmware</legend>
-          <form method='POST' action='/doUpdate' enctype='multipart/form-data'>
+          <form method='POST' action='/doUpdate' enctype='multipart/form-data' target="hidden-iframe">
             <table style="width: 100%;">
               <tr>
                 <td><input type='file' accept='.bin,.bin.gz' name='backpack_fw' id='esp_fw'></td>
@@ -248,7 +248,7 @@
         <fieldset>
           <legend>STM32 Firmware</legend>
           <div>
-            <form method='POST' action='/upload' enctype='multipart/form-data'>
+            <form method='POST' action='/upload' enctype='multipart/form-data' target="hidden-iframe">
               <table style="width:100%;">
                 <tr>
                   <td><input type='file' accept='.bin,.elrs' name='firmware' id='stm_fw'></td>
@@ -257,6 +257,7 @@
                 </tr>
               </table>
             </form>
+            <iframe name="hidden-iframe" style="display: none;"></iframe>
           </div>
           <br>
           <div style="text-align: center;">

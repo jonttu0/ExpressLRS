@@ -84,11 +84,12 @@
     </div>
   </fieldset>
   <fieldset><legend>Upgrade Own Firmware</legend>
-    <div><form method='POST' action='/doUpdate' enctype='multipart/form-data'>
+    <div><form method='POST' action='/doUpdate' enctype='multipart/form-data' target="hidden-iframe">
         <input type='file' accept='.bin,.bin.gz' name='backpack_fw' id="esp_fw" style="width:350px;">
         <input type='submit' value='FLASH' id='esp_submit' disabled='disabled'>
     </form></div>
     <p><span id="validationMessage" class="hide">Please, select correct firmware file!</span></p>
+    <iframe name="hidden-iframe" style="display: none;"></iframe>
   </fieldset>
   <script>
     const message = $id('validationMessage');
