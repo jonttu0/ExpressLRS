@@ -163,6 +163,7 @@ if sha is None:
     else:
         sha = "0,0,0,0,0,0"
 env.Append(LATEST_COMMIT = sha_string)
+env.Append(TARGET_NAME = target_name)
 print_log("[INFO] Current version: '%s'" % sha_string)
 # print_log("Current SHA: %s" % sha)
 env['BUILD_FLAGS'].append("-DLATEST_COMMIT="+sha)

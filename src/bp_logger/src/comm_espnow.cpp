@@ -64,7 +64,7 @@ static void FAST_CODE_2 esp_now_recv_cb(uint8_t *mac_addr, uint8_t *data, uint8_
 #if 1
     String temp = "ESPNOW received: ";
     temp += mac_addr_print(mac_addr);
-    websocket_send(temp);
+    websocket_send_txt(temp);
 #endif
     esp_now_msp_rx.markPacketFree();
 
@@ -109,7 +109,7 @@ static void esp_now_send_cb(uint8_t *mac_addr, u8 status) {
     String temp = "ESPNOW Sent: ";
     temp += mac_addr_print(mac_addr);
     temp += (status ? " FAIL" : " SUCCESS");
-    websocket_send(temp);
+    websocket_send_txt(temp);
 }
 #endif
 

@@ -116,17 +116,17 @@ int HDZeroMsp::parse_data(uint8_t const chr) {
             if (init_state == STATE_GET_RECORDING)
                 init_state = STATE_READY;
         } else if (msp_in.function == HDZ_MSP_FUNC_VRX_MODE_GET) {
-            websocket_send("HDZ_MSP_FUNC_VRX_MODE_GET");
+            websocket_send_txt("HDZ_MSP_FUNC_VRX_MODE_GET");
         } else if (msp_in.function == HDZ_MSP_FUNC_RSSI_GET) {
-            websocket_send("HDZ_MSP_FUNC_RSSI_GET");
+            websocket_send_txt("HDZ_MSP_FUNC_RSSI_GET");
         } else if (msp_in.function == HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET) {
-            websocket_send("HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET");
+            websocket_send_txt("HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET");
         } else if (msp_in.function == HDZ_MSP_FUNC_FIRMWARE_GET) {
-            websocket_send("HDZ_MSP_FUNC_FIRMWARE_GET");
+            websocket_send_txt("HDZ_MSP_FUNC_FIRMWARE_GET");
         }
 
         if (info.length()) {
-            websocket_send(info);
+            websocket_send_txt(info);
         } else {
             espnow_send_msp(msp_in);
         }
@@ -156,7 +156,7 @@ int HDZeroMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const le
 {
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
-        websocket_send(settings_out, (AsyncWebSocketClient*)client);
+        websocket_send_txt(settings_out, (AsyncWebSocketClient*)client);
         return -1;
     }
 
@@ -272,7 +272,7 @@ void HDZeroMsp::handleUserText(const char * input, size_t const len)
     String dbg_info = "OSD Text: '";
     dbg_info += input;
     dbg_info += "'";
-    websocket_send(dbg_info);
+    websocket_send_txt(dbg_info);
 }
 
 
@@ -343,7 +343,7 @@ void HDZeroMsp::handleVtxFrequency(uint16_t const freq, void * client, bool cons
     getChannelIndex();
     getFrequency();
 
-    websocket_send(dbg_info, (AsyncWebSocketClient*)client);
+    websocket_send_txt(dbg_info, (AsyncWebSocketClient*)client);
 }
 
 
@@ -366,7 +366,7 @@ void HDZeroMsp::sendVtxFrequencyToWebsocket(uint16_t const freq,
         (uint8_t)(freq >> 8),
         (uint8_t)freq,
     };
-    websocket_send(response, sizeof(response), client);
+    websocket_send_bin(response, sizeof(response), client);
 }
 
 
@@ -378,26 +378,26 @@ void HDZeroMsp::sendVRecordingStateToWebsocket(uint8_t const state,
         (uint8_t)WSMSGID_RECORDING_CTRL,
         state,
     };
-    websocket_send(response, sizeof(response), client);
+    websocket_send_bin(response, sizeof(response), client);
 }
 
 
 void HDZeroMsp::getChannelIndex(void)
 {
-    //websocket_send("getChannelIndex()");
+    //websocket_send_txt("getChannelIndex()");
     MspWrite(NULL, 0, HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_GET);
 }
 
 
 void HDZeroMsp::getFrequency(void)
 {
-    //websocket_send("getFrequency()");
+    //websocket_send_txt("getFrequency()");
     MspWrite(NULL, 0, HDZ_MSP_FUNC_FREQUENCY_GET);
 }
 
 
 void HDZeroMsp::getRecordingState(void)
 {
-    //websocket_send("getRecordingState()");
+    //websocket_send_txt("getRecordingState()");
     MspWrite(NULL, 0, HDZ_MSP_FUNC_RECORDING_STATE_GET);
 }

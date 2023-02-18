@@ -10,8 +10,8 @@
 static bool flash_stm32(uint32_t flash_addr, String &uploadedfilename)
 {
   int8_t result = -1;
-  websocket_send("STM32 Firmware Flash Requested!");
-  websocket_send("  the firmware file: '" + uploadedfilename + "'");
+  websocket_send_txt("STM32 Firmware Flash Requested!");
+  websocket_send_txt("  the firmware file: '" + uploadedfilename + "'");
   if (uploadedfilename.endsWith("firmware.elrs")) {
     result = stk500_write_file(uploadedfilename.c_str());
   } else if (uploadedfilename.endsWith("firmware.bin")) {
@@ -19,7 +19,7 @@ static bool flash_stm32(uint32_t flash_addr, String &uploadedfilename)
     if (result == 0)
       reset_stm32_to_app_mode(); // boot into app
   } else {
-    websocket_send("Invalid file!");
+    websocket_send_txt("Invalid file!");
   }
   Serial.begin(SERIAL_BAUD);
   return (0 <= result);
@@ -48,7 +48,7 @@ bool stm32_ota_handleFileUploadEnd(AsyncWebServerRequest * request)
   if (filename.length() && FILESYSTEM.exists("/" + filename))
     FILESYSTEM.remove("/" + filename);
 
-  websocket_send((success) ? "Update Successful!": "Update Failure!");
+  websocket_send_txt((success) ? "Update Successful!": "Update Failure!");
 #if UART_DEBUG_EN
   Serial.println("STM32 upgrade done!");
 #endif

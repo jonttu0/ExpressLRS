@@ -362,10 +362,10 @@
               <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'L1_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'L1_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L1_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">LEFT, 2</td>
@@ -374,10 +374,10 @@
               <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'L2_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'L2_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L2_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 1</td>
@@ -386,10 +386,10 @@
               <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'R1_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'R1_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R1_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 2</td>
@@ -398,10 +398,10 @@
               <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_min" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'R2_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
             <td>
               <button onclick="handset_calibrate_auto_send(this, 'R2_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R2_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_max" onchange="handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr>
             <td id="handset_calibrate_stat" colspan="4">&nbsp;</td>
@@ -502,8 +502,9 @@
       <fieldset>
         <legend>Firmware Versions</legend>
         <div>
-          <p id="firmware_version_esp">Logger: {%ESP_VERSION%}</p>
-          <p>ExpressLRS: <span id="firmware_version_stm">??</span></p>
+          <p>Target name: {%TARGET_NAME%}</p>
+          <p>Logger ver:  {%ESP_VERSION%}</p>
+          <p>ExpressLRS:  <span id="firmware_version_stm">??</span></p>
         </div>
       </fieldset>
     </div>

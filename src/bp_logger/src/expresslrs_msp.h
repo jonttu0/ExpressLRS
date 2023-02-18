@@ -14,7 +14,7 @@ public:
 
     void init(void);
 
-    void syncSettings(void * client);
+    void syncSettings(void * client, bool force = false);
 
     int parse_data(uint8_t const chr);
     int parse_command(char * cmd, size_t len, void * client);

@@ -90,6 +90,7 @@ static enum state {
     STATE_WIFI_WAIT,
     STATE_WIFI_START_AP,
     STATE_WIFI_RECONFIGURE_ESPNOW,
+    STATE_WS_CLIENT_CONNECTED,
     STATE_REBOOT,
 } current_state;
 static uint32_t reboot_req_ms;
@@ -112,6 +113,7 @@ static uint32_t wifi_connect_started;
 
 AsyncWebServer server(80);
 AsyncWebSocket webSocket("/ws");
+AsyncWebSocketClient * g_ws_client;
 
 #ifndef LOGGER_HOST_NAME
 #define LOGGER_HOST_NAME "elrs_logger"
@@ -345,7 +347,7 @@ String mac_addr_print(uint8_t const * const mac_addr)
     return String(macStr);
 }
 
-void websocket_send(char const * data, AsyncWebSocketClient * client)
+void websocket_send_txt(char const * data, AsyncWebSocketClient * client)
 {
     if (client)
         client->text(data);
@@ -353,16 +355,11 @@ void websocket_send(char const * data, AsyncWebSocketClient * client)
         webSocket.textAll(data);
 }
 
-void websocket_send(String & data, AsyncWebSocketClient * client)
+void websocket_send_txt(String & data, AsyncWebSocketClient * client)
 {
     if (!data.length())
         return;
-    websocket_send(data.c_str(), client);
-}
-
-void websocket_send(uint8_t const * data, uint8_t const len, AsyncWebSocketClient * client)
-{
-    websocket_send_bin(data, len, client);
+    websocket_send_txt(data.c_str(), client);
 }
 
 void websocket_send_bin(uint8_t const * data, uint8_t const len, AsyncWebSocketClient * client)
@@ -373,6 +370,45 @@ void websocket_send_bin(uint8_t const * data, uint8_t const len, AsyncWebSocketC
         client->binary((char *)data, (size_t)len);
     else
         webSocket.binaryAll((char *)data, (size_t)len);
+}
+
+static void websocket_send_initial_data(AsyncWebSocketClient * client)
+{
+    IPAddress my_ip;
+    my_ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
+    String info_str = "NA";
+    info_str = "My IP address = ";
+    info_str += my_ip.toString();
+    info_str += " rssi: ";
+    info_str += WiFi.RSSI();
+
+    client->text(info_str);
+    client->text(espnow_get_info());
+#if ESP_NOW
+    info_str = "ESP-NOW channel: ";
+    info_str += espnow_channel();
+    client->text(info_str);
+#endif
+
+    if (boot_log)
+        client->text(boot_log);
+
+#if ESP_NOW
+    if (eeprom_storage.espnow_initialized == LOGGER_ESPNOW_INIT_KEY) {
+        uint8_t const size = eeprom_storage.espnow_clients_count * 6;
+        if (size) {
+            uint8_t buffer[size + 2];
+            buffer[0] = (uint8_t)(WSMSGID_ESPNOW_ADDRS >> 8);
+            buffer[1] = (uint8_t)(WSMSGID_ESPNOW_ADDRS);
+            memcpy(&buffer[2], eeprom_storage.espnow_clients, size);
+            client->binary(buffer, sizeof(buffer));
+        }
+    }
+#endif
+
+    wifi_networks_report(client);
+
+    msp_handler.syncSettings(client);
 }
 
 void webSocketEvent(AsyncWebSocket * server,
@@ -387,46 +423,8 @@ void webSocketEvent(AsyncWebSocket * server,
             break;
 
         case WS_EVT_CONNECT: {
-            // IPAddress ip = webSocket.remoteIP(num);
-            // Serial.printf("[%u] Connected from %d.%d.%d.%d url: %s\r\n", num, ip[0], ip[1], ip[2], ip[3], payload);
-            // socketNumber = num;
-
-            IPAddress my_ip;
-            my_ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
-            String info_str = "NA";
-            info_str = "My IP address = ";
-            info_str += my_ip.toString();
-            info_str += " ms: ";
-            info_str += millis();
-            info_str += " rssi: ";
-            info_str += WiFi.RSSI();
-
-            client->text(info_str);
-            client->text(espnow_get_info());
-#if ESP_NOW
-            info_str = "ESP-NOW channel: ";
-            info_str += espnow_channel();
-            client->text(info_str);
-#endif
-            client->text(target_name);
-
-            if (boot_log)
-                client->text(boot_log);
-#if ESP_NOW
-            if (eeprom_storage.espnow_initialized == LOGGER_ESPNOW_INIT_KEY) {
-                uint8_t const size = eeprom_storage.espnow_clients_count * 6;
-                if (size) {
-                    uint8_t buffer[size + 2];
-                    buffer[0] = (uint8_t)(WSMSGID_ESPNOW_ADDRS >> 8);
-                    buffer[1] = (uint8_t)(WSMSGID_ESPNOW_ADDRS);
-                    memcpy(&buffer[2], eeprom_storage.espnow_clients, size);
-                    client->binary(buffer, sizeof(buffer));
-                }
-            }
-#endif
-            wifi_networks_report(client);
-
-            msp_handler.syncSettings(client);
+            g_ws_client = client;
+            current_state = STATE_WS_CLIENT_CONNECTED;
             break;
         }
 
@@ -642,7 +640,7 @@ handleUploads(AsyncWebServerRequest * request, String filename, size_t index, ui
         request->_tempFile = FILESYSTEM.open("/" + filename, "w");
         if (!request->_tempFile)
             request->send(500, "text/plain", "500: couldn't create file");
-        websocket_send(logmessage);
+        websocket_send_txt(logmessage);
 #if UART_DEBUG_EN
         Serial.println(logmessage);
 #endif
@@ -652,7 +650,7 @@ handleUploads(AsyncWebServerRequest * request, String filename, size_t index, ui
         // stream the incoming chunk to the opened file
         request->_tempFile.write(data, len);
         // logmessage = "  ** Writing index:" + String(index) + " len:" + String(len);
-        // websocket_send(logmessage);
+        // websocket_send_txt(logmessage);
 #if UART_DEBUG_EN
         // Serial.println(logmessage);
 #endif
@@ -663,7 +661,7 @@ handleUploads(AsyncWebServerRequest * request, String filename, size_t index, ui
         logmessage += (index + len);
         // close the file handle as the upload is now done
         request->_tempFile.close();
-        websocket_send(logmessage);
+        websocket_send_txt(logmessage);
 #if UART_DEBUG_EN
         Serial.println(logmessage);
 #endif
@@ -862,12 +860,14 @@ static void handleLaptimerConfig(AsyncWebServerRequest * request)
 #endif
     current_state = STATE_WIFI_SCAN_LAPTIMER;
 
-    // request->redirect("/");
-    /*AsyncWebServerResponse *response = request->beginResponse(200);
-    response->addHeader("Refresh", "1");
-    response->addHeader("Location", "/");
-    request->send(response);*/
     sendReturn(request);
+}
+
+static void handle_reboot_cmd(AsyncWebServerRequest * request)
+{
+    (void)request;
+    current_state = STATE_REBOOT;
+    reboot_req_ms = millis() + 50;
 }
 
 /*************************************************/
@@ -1082,7 +1082,7 @@ static void wifi_config(void)
     WiFi.setTxPower(WIFI_POWER_13dBm);
 #else
     WiFi.setOutputPower(13);
-    WiFi.setPhyMode(WIFI_PHY_MODE_11G);
+    // WiFi.setPhyMode(WIFI_PHY_MODE_11N);
 #endif
     /* STA mode callbacks */
 #ifdef ARDUINO_ARCH_ESP32
@@ -1128,6 +1128,7 @@ static void wifi_config_server(void)
     server.on("/mac", handleMacAddress);
     server.on("/ap", handleApInfo);
     server.on("/laptimer_config", HTTP_POST, handleLaptimerConfig);
+    server.on("/reboot", handle_reboot_cmd);
 
 #if CONFIG_STM_UPDATER
     // STM32 OTA upgrade
@@ -1167,6 +1168,8 @@ static void wifi_scan_ready(int const numberOfNetworks)
         wifi_search_results.network_index = UINT8_MAX;
     wifi_search_results.channel = wifi_ap_channel_get();
 
+    boot_log += ",S2:";
+    boot_log += numberOfNetworks;
 #if UART_DEBUG_EN
     Serial.println("-------------------------");
     Serial.println(" Available WiFi networks");
@@ -1198,6 +1201,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
              memcmp(eeprom_storage.laptimer.mac, mac, sizeof(eeprom_storage.laptimer.mac)) == 0) ||
             (wifi_is_ssid_valid(&eeprom_storage.laptimer) &&
              strncmp(eeprom_storage.laptimer.ssid, ssid.c_str(), sizeof(eeprom_storage.laptimer.ssid)) == 0)) {
+            boot_log += ",L!";
 #if UART_DEBUG_EN
             Serial.println("    ** LapTimer found!");
 #endif
@@ -1217,6 +1221,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
             (memcmp(mac, own_ap_mac, sizeof(own_ap_mac)) == 0)) {
             // Match to own access points -> use this since EPS-NOW channel must match
             own_ap_index = iter;
+            boot_log += ",AP";
 #if UART_DEBUG_EN
             Serial.println("    ** My logger AP");
 #endif
@@ -1242,6 +1247,8 @@ static void wifi_scan_ready(int const numberOfNetworks)
                     rssi_best = rssi;
                     wifi_search_results.network_index = jter; // selected
                     wifi_search_results.channel = channel;
+                    boot_log += ",i:";
+                    boot_log += jter;
 #if UART_DEBUG_EN
                     Serial.print(" << selected! idx:");
                     Serial.print(jter);
@@ -1269,6 +1276,8 @@ static void wifi_scan_ready(int const numberOfNetworks)
     }
 
     current_state = (wifi_search_results.network_index == UINT8_MAX) ? STATE_WIFI_START_AP : STATE_WIFI_CONNECT;
+    boot_log += "->";
+    boot_log += current_state;
 }
 
 void setup()
@@ -1371,7 +1380,7 @@ void loop()
         if (!strstr(input_log_string.c_str(), "Resource\\_000.bmp") &&
             !strstr(input_log_string.c_str(), "fc_variant:  ...")) // IGNORE dummy dbg print
 #endif
-            websocket_send(input_log_string);
+            websocket_send_txt(input_log_string);
         input_log_string = "";
     }
 #ifdef ARDUINO_ARCH_ESP8266
@@ -1395,6 +1404,7 @@ void loop()
             // Start async scan and wait for results
             WiFi.scanNetworks(true, true);
             current_state = STATE_WIFI_SCANNING;
+            boot_log += ",S1";
 #if UART_DEBUG_EN
             Serial.println("WiFi scan started");
 #endif
@@ -1406,6 +1416,7 @@ void loop()
             if (0 <= numNetworks) {
                 wifi_scan_ready(numNetworks);
             } else if (-2 == numNetworks) {
+                boot_log += ",S-!";
 #if UART_DEBUG_EN
                 Serial.println("WiFi scan end - start AP");
 #endif
@@ -1440,6 +1451,15 @@ void loop()
             // TOOD: Send move on to channel command!
             espnow_send_update_channel(wifi_search_results.channel);
             current_state = STATE_WIFI_START_AP;
+            break;
+        }
+        case STATE_WS_CLIENT_CONNECTED: {
+            // Send initial config data to just connected WS client
+            if (g_ws_client) {
+                websocket_send_initial_data(g_ws_client);
+            }
+            g_ws_client = NULL;
+            current_state = STATE_RUNNING;
             break;
         }
         default:

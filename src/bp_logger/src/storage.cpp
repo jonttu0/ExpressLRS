@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-
 struct storage eeprom_storage;
 
 static uint32_t last_save;
@@ -29,8 +28,9 @@ void storage::load()
 {
     EEPROM.get(0, *this);
 
-    if (versionNumber != LOGGER_STORAGE_VERSION)
+    if (versionNumber != LOGGER_STORAGE_VERSION) {
         initDefaults();
+    }
     if (!wifi_is_valid()) {
         memset(wifi_nets, 0, sizeof(wifi_nets));
         wifi_nets_initialized = LOGGER_WIFINETS_INIT_KEY;
@@ -59,20 +59,25 @@ void storage::markDirty()
 
 void storage::initDefaults()
 {
+    if (versionNumber < 0x11220001) {
+        batt_voltage_scale = 100;
+        batt_voltage_interval = 5000;
+        batt_voltage_warning = BATT_WARN_DEFAULT;
+
+        vtx_freq = 0;
+
+        espnow_initialized = 0;
+        espnow_clients_count = 0;
+    }
+    if (versionNumber < 0x11220002) {
+        // mighrate to newer version
+        wifi_nets_initialized = 0;
+        memset(wifi_nets, 0, sizeof(wifi_nets));
+    }
+    if (versionNumber < 0x11220003) {
+        memset(&laptimer, 0, sizeof(laptimer));
+    }
+
     versionNumber = LOGGER_STORAGE_VERSION;
-
-    batt_voltage_scale = 100;
-    batt_voltage_interval = 5000;
-    batt_voltage_warning = BATT_WARN_DEFAULT;
-
-    vtx_freq = 0;
-
-    espnow_initialized = 0;
-    espnow_clients_count = 0;
-
-    wifi_nets_initialized = 0;
-
-    memset(&laptimer, 0, sizeof(laptimer));
-
     this->save();
 }

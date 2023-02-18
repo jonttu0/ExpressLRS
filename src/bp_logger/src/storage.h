@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#define LOGGER_STORAGE_VERSION   0x11220001
+#define LOGGER_STORAGE_VERSION   0x11220003
 #define LOGGER_ESPNOW_INIT_KEY   0x4321
 #define LOGGER_WIFINETS_INIT_KEY 0x4321
 
@@ -18,6 +18,7 @@ typedef struct {
 
 
 struct storage {
+    // --------------- 0x11220001 ---------------------------
     uint32_t versionNumber;
     uint32_t batt_voltage_scale;    // range 50...150
     uint32_t batt_voltage_interval;
@@ -30,10 +31,12 @@ struct storage {
     uint32_t espnow_clients_count;
     espnow_clients_t espnow_clients[16];
 
+    // --------------- 0x11220002 ---------------------------
     /* configured wifi networks*/
     uint32_t wifi_nets_initialized;
     wifi_networks_t wifi_nets[5];
 
+    // --------------- 0x11220003 ---------------------------
     wifi_networks_t laptimer;
 
     void setup();

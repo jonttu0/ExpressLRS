@@ -24,9 +24,8 @@ class AsyncWebSocketClient;
 
 String mac_addr_print(uint8_t const * const mac_addr);
 
-void websocket_send(String & data, AsyncWebSocketClient * client = NULL);
-void websocket_send(char const * data, AsyncWebSocketClient * client = NULL);
-void websocket_send(uint8_t const * data, uint8_t len, AsyncWebSocketClient * client = NULL);
+void websocket_send_txt(String & data, AsyncWebSocketClient * client = NULL);
+void websocket_send_txt(char const * data, AsyncWebSocketClient * client = NULL);
 void websocket_send_bin(uint8_t const * data, uint8_t len, AsyncWebSocketClient * client = NULL);
 
 typedef struct {

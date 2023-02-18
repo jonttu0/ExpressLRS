@@ -44,7 +44,7 @@ int ExpresslrsMsp::send_current_values(void * client)
         SettingsWrite(buff, sizeof(buff));
         return 0;
     }
-    uint8_t response[] = {
+    static uint8_t settings_resp[] = {
         (uint8_t)(WSMSGID_ELRS_SETTINGS >> 8),
         (uint8_t)WSMSGID_ELRS_SETTINGS,
         settings_region,
@@ -55,7 +55,7 @@ int ExpresslrsMsp::send_current_values(void * client)
         (uint8_t)(eeprom_storage.vtx_freq >> 8),
         (uint8_t)eeprom_storage.vtx_freq,
     };
-    websocket_send(response, sizeof(response), (AsyncWebSocketClient *)client);
+    websocket_send_bin(settings_resp, sizeof(settings_resp), (AsyncWebSocketClient *)client);
     return 0;
 }
 
@@ -109,7 +109,7 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, void * client)
     String dbg_info = "Setting vtx freq to: ";
     dbg_info += freq;
     dbg_info += "MHz (0=ignored)";
-    websocket_send(dbg_info, (AsyncWebSocketClient *)client);
+    websocket_send_txt(dbg_info, (AsyncWebSocketClient *)client);
 
     if (freq == 0)
         return;
@@ -130,13 +130,13 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, void * client)
 
 void ExpresslrsMsp::sendVtxFrequencyToWebsocket(uint16_t const freq)
 {
-    uint8_t response[] = {
+    static uint8_t vtx_response[] = {
         (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
         (uint8_t)WSMSGID_VIDEO_FREQ,
         (uint8_t)(freq >> 8),
         (uint8_t)freq,
     };
-    websocket_send(response, sizeof(response));
+    websocket_send_bin(vtx_response, sizeof(vtx_response), NULL);
 }
 
 #if CONFIG_HANDSET
@@ -180,11 +180,11 @@ void ExpresslrsMsp::handleHandsetCalibrate(uint8_t const * const input)
 
 void ExpresslrsMsp::handleHandsetCalibrateResp(uint8_t * data, void * client)
 {
-    uint8_t response[] = {
+    static uint8_t calib_response[] = {
         (uint8_t)(WSMSGID_HANDSET_CALIBRATE >> 8),
         (uint8_t)WSMSGID_HANDSET_CALIBRATE,
     };
-    websocket_send(response, sizeof(response));
+    websocket_send_bin(calib_response, sizeof(calib_response), (AsyncWebSocketClient *)client);
 }
 
 void ExpresslrsMsp::handleHandsetMixer(uint8_t const * const input, size_t const length)
@@ -216,8 +216,8 @@ void ExpresslrsMsp::handleHandsetMixer(uint8_t const * const input, size_t const
 
 void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, void * client)
 {
+    static uint8_t mixer_response[2 + 2 + 4 * ARRAY_SIZE(mixer)];
     uint8_t * outptr;
-    uint8_t response[2 + 2 + 4 * ARRAY_SIZE(mixer)];
     uint8_t iter;
     if (data) {
         for (iter = 0; iter < ARRAY_SIZE(mixer); iter++) {
@@ -230,11 +230,11 @@ void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, void * client)
         handset_num_aux = *data++;
     }
 
-    response[0] = (uint8_t)(WSMSGID_HANDSET_MIXER >> 8);
-    response[1] = (uint8_t)WSMSGID_HANDSET_MIXER;
-    response[2] = handset_num_aux;
-    response[3] = handset_num_switches;
-    outptr = &response[4];
+    mixer_response[0] = (uint8_t)(WSMSGID_HANDSET_MIXER >> 8);
+    mixer_response[1] = (uint8_t)WSMSGID_HANDSET_MIXER;
+    mixer_response[2] = handset_num_aux;
+    mixer_response[3] = handset_num_switches;
+    outptr = &mixer_response[4];
     for (iter = 0; iter < ARRAY_SIZE(mixer); iter++) {
         outptr[0] = iter;
         outptr[1] = mixer[iter].index;
@@ -242,7 +242,7 @@ void ExpresslrsMsp::handleHandsetMixerResp(uint8_t * data, void * client)
         outptr[3] = mixer[iter].scale;
         outptr += 4;
     }
-    websocket_send(response, sizeof(response), (AsyncWebSocketClient *)client);
+    websocket_send_bin(mixer_response, sizeof(mixer_response), (AsyncWebSocketClient *)client);
 }
 
 void ExpresslrsMsp::handleHandsetAdjust(uint8_t const * const input)
@@ -282,11 +282,11 @@ void ExpresslrsMsp::handleHandsetAdjustResp(uint8_t * data, void * client)
         memcpy(gimbals, data, sizeof(gimbals));
     }
     // Send to web client(s)
-    uint8_t info[2 + sizeof(gimbals)];
-    info[0] = (uint8_t)(WSMSGID_HANDSET_ADJUST >> 8);
-    info[1] = (uint8_t)WSMSGID_HANDSET_ADJUST;
-    memcpy(&info[2], gimbals, sizeof(gimbals));
-    websocket_send(info, sizeof(info), (AsyncWebSocketClient *)client);
+    static uint8_t adjust_info[2 + sizeof(gimbals)];
+    adjust_info[0] = (uint8_t)(WSMSGID_HANDSET_ADJUST >> 8);
+    adjust_info[1] = (uint8_t)WSMSGID_HANDSET_ADJUST;
+    memcpy(&adjust_info[2], gimbals, sizeof(gimbals));
+    websocket_send_bin(adjust_info, sizeof(adjust_info), (AsyncWebSocketClient *)client);
 }
 
 void ExpresslrsMsp::HandsetConfigGet(void * client, uint8_t force)
@@ -302,12 +302,12 @@ void ExpresslrsMsp::HandsetConfigGet(void * client, uint8_t force)
         msp_out.payloadSize = 2;
         // Send packet
         MSP::sendPacket(&msp_out, _serial);
+        websocket_send_txt("Configs load...", (AsyncWebSocketClient *)client);
         return;
     }
 
-    // delay(5);
     handleHandsetMixerResp(NULL, client);
-    // delay(5);
+    delay(10);
     handleHandsetAdjustResp(NULL, client);
 }
 
@@ -327,16 +327,14 @@ void ExpresslrsMsp::HandsetConfigSave(void * client)
 
 void ExpresslrsMsp::handleHandsetTlmLnkStatsAndBatt(uint8_t * data)
 {
+    static uint8_t tlm_info[2 + sizeof(LinkStatsLink_t) + sizeof(LinkStatsBatt_t)];
     LinkStats_t * stats = (LinkStats_t *)data;
-
-    uint8_t info[2 + sizeof(LinkStatsLink_t) + sizeof(LinkStatsBatt_t)];
-    uint8_t * outptr = info;
+    uint8_t * outptr = &tlm_info[2];
     // Adjust values
     stats->link.downlink_RSSI = (uint8_t)(stats->link.downlink_RSSI - 120);
     // fill the message
-    info[0] = (uint8_t)(WSMSGID_HANDSET_TLM_LINK_STATS >> 8);
-    info[1] = (uint8_t)WSMSGID_HANDSET_TLM_LINK_STATS;
-    outptr += 2;
+    tlm_info[0] = (uint8_t)(WSMSGID_HANDSET_TLM_LINK_STATS >> 8);
+    tlm_info[1] = (uint8_t)WSMSGID_HANDSET_TLM_LINK_STATS;
     // Add link stats
     memcpy(outptr, &stats->link, sizeof(LinkStatsLink_t));
     outptr += sizeof(LinkStatsLink_t);
@@ -350,21 +348,21 @@ void ExpresslrsMsp::handleHandsetTlmLnkStatsAndBatt(uint8_t * data)
     outptr[6] = (uint8_t)(stats->batt.capacity >> 16);
     outptr[7] = (uint8_t)stats->batt.remaining;
     outptr += 8;
-    websocket_send_bin(info, (outptr - info));
+    websocket_send_bin(tlm_info, (outptr - tlm_info));
 }
 
 void ExpresslrsMsp::handleHandsetTlmGps(uint8_t * data)
 {
+    static uint8_t gpc_info[2 + sizeof(GpsOta_t)];
     GpsOta_t * stats = (GpsOta_t *)data;
-    uint8_t info[2 + sizeof(GpsOta_t)];
     // Convert data
     stats->heading /= 10;
     stats->altitude -= 1000;
     // fill the message
-    info[0] = (uint8_t)(WSMSGID_HANDSET_TLM_GPS >> 8);
-    info[1] = (uint8_t)WSMSGID_HANDSET_TLM_GPS;
-    memcpy(&info[2], stats, sizeof(GpsOta_t));
-    websocket_send_bin(info, sizeof(info));
+    gpc_info[0] = (uint8_t)(WSMSGID_HANDSET_TLM_GPS >> 8);
+    gpc_info[1] = (uint8_t)WSMSGID_HANDSET_TLM_GPS;
+    memcpy(&gpc_info[2], stats, sizeof(GpsOta_t));
+    websocket_send_bin(gpc_info, sizeof(gpc_info));
 }
 
 // #define ADC_VOLT(X) (((X) * ADC_R2) / (ADC_R1 + ADC_R2))
@@ -386,15 +384,15 @@ static uint8_t batt_voltage_last_bright;
 
 void ExpresslrsMsp::battery_voltage_report(void * client)
 {
-    uint8_t info[] = {(uint8_t)(WSMSGID_HANDSET_BATT_INFO >> 8),
-                      (uint8_t)WSMSGID_HANDSET_BATT_INFO,
-                      (uint8_t)(batt_voltage >> 24),
-                      (uint8_t)(batt_voltage >> 16),
-                      (uint8_t)(batt_voltage >> 8),
-                      (uint8_t)(batt_voltage >> 0),
-                      (uint8_t)eeprom_storage.batt_voltage_scale,
-                      (uint8_t)eeprom_storage.batt_voltage_warning};
-    websocket_send(info, sizeof(info), (AsyncWebSocketClient *)client);
+    static uint8_t batt_info[] = {(uint8_t)(WSMSGID_HANDSET_BATT_INFO >> 8),
+                                  (uint8_t)WSMSGID_HANDSET_BATT_INFO,
+                                  (uint8_t)(batt_voltage >> 24),
+                                  (uint8_t)(batt_voltage >> 16),
+                                  (uint8_t)(batt_voltage >> 8),
+                                  (uint8_t)(batt_voltage >> 0),
+                                  (uint8_t)eeprom_storage.batt_voltage_scale,
+                                  (uint8_t)eeprom_storage.batt_voltage_warning};
+    websocket_send_bin(batt_info, sizeof(batt_info), (AsyncWebSocketClient *)client);
 }
 
 void ExpresslrsMsp::battery_voltage_parse(uint8_t const scale, uint8_t const warning, void * client)
@@ -492,14 +490,15 @@ void ExpresslrsMsp::init(void)
     batt_voltage_init();
 }
 
-void ExpresslrsMsp::syncSettings(void * client)
+void ExpresslrsMsp::syncSettings(void * client, bool const force)
 {
     // Send settings
     send_current_values(client);
-    ;
+
 #if CONFIG_HANDSET
-    HandsetConfigGet(client);
-    delay(5);
+    delay(10);
+    HandsetConfigGet(client, force);
+    delay(10);
     battery_voltage_report(client);
 #endif
 }
@@ -576,7 +575,7 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
         }
 
         if (info.length())
-            websocket_send(info);
+            websocket_send_txt(info);
         if (forward)
             espnow_send_msp(msp_in);
 
@@ -587,7 +586,10 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
     return 0;
 }
 
-int ExpresslrsMsp::parse_command(char * cmd, size_t len, void * client) { return -1; }
+int ExpresslrsMsp::parse_command(char * cmd, size_t len, void * client)
+{
+    return -1;
+}
 
 int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t const len, void * client)
 {
@@ -598,7 +600,7 @@ int ExpresslrsMsp::parse_command(websoc_bin_hdr_t const * const cmd, size_t cons
 
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
-        websocket_send(settings_out, (AsyncWebSocketClient *)client);
+        websocket_send_txt(settings_out, (AsyncWebSocketClient *)client);
     }
 
     switch (cmd->msg_id) {

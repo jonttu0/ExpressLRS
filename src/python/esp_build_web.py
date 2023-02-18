@@ -28,6 +28,10 @@ def get_version():
     return '%s' % (env.get('LATEST_COMMIT'))
 
 
+def get_target_name():
+    return '%s' % (env.get('TARGET_NAME'))
+
+
 def compress(data):
     """
     Compress data in one shot and return the compressed string.
@@ -41,8 +45,9 @@ def compress(data):
 
 def build_html(mainfile, var, out):
     with open(mainfile, 'r') as file:
-        data = file.read().replace("{%ESP_VERSION%}", get_version())
-
+        data = file.read()
+        data = data.replace("{%ESP_VERSION%}", get_version())
+        data = data.replace("{%TARGET_NAME%}", get_target_name())
     if mainfile.endswith('.html'):
         data = html_minifier.html_minify(data)
     if mainfile.endswith('.css'):
