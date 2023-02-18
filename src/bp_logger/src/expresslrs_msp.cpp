@@ -44,7 +44,7 @@ int ExpresslrsMsp::send_current_values(void * client)
         SettingsWrite(buff, sizeof(buff));
         return 0;
     }
-    static uint8_t settings_resp[] = {
+    uint8_t settings_resp[] = {
         (uint8_t)(WSMSGID_ELRS_SETTINGS >> 8),
         (uint8_t)WSMSGID_ELRS_SETTINGS,
         settings_region,
@@ -130,7 +130,7 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, void * client)
 
 void ExpresslrsMsp::sendVtxFrequencyToWebsocket(uint16_t const freq)
 {
-    static uint8_t vtx_response[] = {
+    uint8_t vtx_response[] = {
         (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
         (uint8_t)WSMSGID_VIDEO_FREQ,
         (uint8_t)(freq >> 8),
@@ -384,14 +384,14 @@ static uint8_t batt_voltage_last_bright;
 
 void ExpresslrsMsp::battery_voltage_report(void * client)
 {
-    static uint8_t batt_info[] = {(uint8_t)(WSMSGID_HANDSET_BATT_INFO >> 8),
-                                  (uint8_t)WSMSGID_HANDSET_BATT_INFO,
-                                  (uint8_t)(batt_voltage >> 24),
-                                  (uint8_t)(batt_voltage >> 16),
-                                  (uint8_t)(batt_voltage >> 8),
-                                  (uint8_t)(batt_voltage >> 0),
-                                  (uint8_t)eeprom_storage.batt_voltage_scale,
-                                  (uint8_t)eeprom_storage.batt_voltage_warning};
+    uint8_t batt_info[] = {(uint8_t)(WSMSGID_HANDSET_BATT_INFO >> 8),
+                           (uint8_t)WSMSGID_HANDSET_BATT_INFO,
+                           (uint8_t)(batt_voltage >> 24),
+                           (uint8_t)(batt_voltage >> 16),
+                           (uint8_t)(batt_voltage >> 8),
+                           (uint8_t)(batt_voltage >> 0),
+                           (uint8_t)eeprom_storage.batt_voltage_scale,
+                           (uint8_t)eeprom_storage.batt_voltage_warning};
     websocket_send_bin(batt_info, sizeof(batt_info), (AsyncWebSocketClient *)client);
 }
 
@@ -524,7 +524,7 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
                     settings_region = payload[4];
                     settings_valid = 1;
 
-                    send_current_values();
+                    send_current_values(NULL);
                     break;
                 }
                 case ELRS_INT_MSP_DEV_INFO: {
