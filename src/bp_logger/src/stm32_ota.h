@@ -1,8 +1,8 @@
 #pragma once
-#if CONFIG_STM_UPDATER
 #include <WString.h>
 
 class AsyncWebServerRequest;
 
-bool stm32_ota_handleFileUploadEnd(AsyncWebServerRequest * request);
-#endif // CONFIG_STM_UPDATER
+bool stm32_ota_check_filename(String & filename);
+bool stm32_ota_parse_args(AsyncWebServerRequest * request);
+void stm32_ota_do_flash(void);

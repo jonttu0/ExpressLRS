@@ -1,7 +1,6 @@
 #if CONFIG_STM_UPDATER
 #include "stm32Updater.h"
 #include "main.h"
-#include <WebSocketsServer.h>
 
 //adapted from https://github.com/mengguang/esp8266_stm32_isp
 
@@ -11,7 +10,6 @@
 #define STM32F103 0x410
 #define STM32F722 0x452
 
-extern WebSocketsServer webSocket;
 
 char log_buffer[256];
 
@@ -58,7 +56,7 @@ void stm32flasher_hardware_init()
 
 void debug_log()
 {
-	webSocket.broadcastTXT(log_buffer);
+	websocket_send_txt(log_buffer);
 }
 
 static inline void isp_serial_write(uint8_t const * buffer, uint8_t const length)
@@ -372,7 +370,7 @@ uint8_t esp8266_spifs_write_file(const char *filename, uint32_t begin_addr)
 		begin_addr += FLASH_START;
     String message = "Using flash base: 0x";
     message += String(begin_addr, 16);
-    webSocket.broadcastTXT(message);
+    websocket_send_txt(message);
 
 	stm32flasher_hardware_init();
 

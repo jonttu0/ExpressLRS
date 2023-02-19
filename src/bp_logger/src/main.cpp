@@ -20,8 +20,8 @@
 
 #include "storage.h"
 #include "main.h"
-#if !CONFIG_HDZERO
 #include "stm32_ota.h"
+#if !CONFIG_HDZERO
 #include "stm32Updater.h"
 #endif
 #include "common_defs.h"
@@ -91,6 +91,7 @@ static enum state {
     STATE_WIFI_START_AP,
     STATE_WIFI_RECONFIGURE_ESPNOW,
     STATE_WS_CLIENT_CONNECTED,
+    STATE_UPGRADE_STM,
     STATE_REBOOT,
 } current_state;
 static uint32_t reboot_req_ms;
@@ -629,11 +630,14 @@ static void
 handleUploads(AsyncWebServerRequest * request, String filename, size_t index, uint8_t * data, size_t len, bool final)
 {
     String logmessage = "";
+    static bool stm32_upgrade;
 
     if (!index) {
         logmessage = "Uploading file: " + filename;
-        if (filename.indexOf("firmware.") > -1) {
+        stm32_upgrade = stm32_ota_check_filename(filename);
+        if (stm32_upgrade) {
             // STM32 firmwware update
+            stm32_ota_parse_args(request);
             logmessage += " -> STM32 upgrade!";
         }
         // open the file on first call and store the file handle in the request object
@@ -662,27 +666,16 @@ handleUploads(AsyncWebServerRequest * request, String filename, size_t index, ui
         // close the file handle as the upload is now done
         request->_tempFile.close();
         websocket_send_txt(logmessage);
+
 #if UART_DEBUG_EN
         Serial.println(logmessage);
 #endif
-        // request->redirect("/");
+        request->redirect("/");
+        if (stm32_upgrade)
+            current_state = STATE_UPGRADE_STM;
     }
 }
 
-static void handleUploadsReady(AsyncWebServerRequest * request)
-{
-    bool success = true;
-#if CONFIG_STM_UPDATER
-    success = stm32_ota_handleFileUploadEnd(request);
-#endif
-    /*AsyncWebServerResponse *response = request->beginResponse(200);
-    response->addHeader("Refresh", "1");
-    response->addHeader("Location", "/");
-    request->send(response);*/
-    request->redirect("/");
-    request->send(303);
-    request->send((success < 0) ? 400 : 200);
-}
 #endif
 
 static void handleMacAddress(AsyncWebServerRequest * request)
@@ -1132,7 +1125,7 @@ static void wifi_config_server(void)
 
 #if CONFIG_STM_UPDATER
     // STM32 OTA upgrade
-    server.on("/upload", HTTP_POST, handleUploadsReady, handleUploads);
+    server.on("/upload", HTTP_POST, [](AsyncWebServerRequest * request) {}, handleUploads);
 #endif
 
     /* ESP OTA firmware upgrade */
@@ -1459,6 +1452,11 @@ void loop()
                 websocket_send_initial_data(g_ws_client);
             }
             g_ws_client = NULL;
+            current_state = STATE_RUNNING;
+            break;
+        }
+        case STATE_UPGRADE_STM: {
+            stm32_ota_do_flash();
             current_state = STATE_RUNNING;
             break;
         }
