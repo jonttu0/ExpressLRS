@@ -44,7 +44,7 @@ void CRSF_RX::Begin(void)
 #endif // PROTOCOL_CRSF_V3_TO_FC
 #endif // PROTOCOL_ELRS_TO_FC
 
-    msp_packet.header.device_addr = CRSF_ADDRESS_BROADCAST;
+    msp_packet.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     msp_packet.header.frame_size = sizeof(msp_packet) - CRSF_FRAME_START_BYTES;
     msp_packet.header.type = CRSF_FRAMETYPE_MSP_REQ;
     msp_packet.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
