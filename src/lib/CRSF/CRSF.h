@@ -324,7 +324,7 @@ typedef struct crsf_sensor_gps_s
 
 
 /* MSP from radio to FC */
-#define CRSF_FRAME_RX_MSP_FRAME_SIZE 8
+#define CRSF_FRAME_RX_MSP_FRAME_SIZE 8 //16
 typedef struct
 {
     uint8_t flags;
@@ -342,15 +342,15 @@ typedef struct
 #define CRSF_FRAME_TX_MSP_FRAME_SIZE 58
 typedef struct
 {
+    uint8_t flags;
     union {
         struct {
-            uint8_t flags;
             uint8_t payloadSize;
             uint8_t function;
             /* CRC is included into payload ( = payloadSize+1 ) */
             uint8_t payload[CRSF_FRAME_TX_MSP_FRAME_SIZE-3];
         } hdr;
-        uint8_t payload[CRSF_FRAME_TX_MSP_FRAME_SIZE];
+        uint8_t payload[CRSF_FRAME_TX_MSP_FRAME_SIZE-1];
     };
 } PACKED mspHeaderV1_TX_t;
 

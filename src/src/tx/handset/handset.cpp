@@ -274,7 +274,7 @@ void loop()
 #endif // RC_CH_PRINT_INTERVAL
 
     // Send MSP resp if allowed and packet ready
-    if (tlm_msp_rcvd) {
+    if (tx_common_tlm_rx_handle(now)) {
         MSP::sendPacket(&msp_packet_rx, &ctrl_serial);
         msp_packet_rx.reset();
         tlm_msp_rcvd = 0;

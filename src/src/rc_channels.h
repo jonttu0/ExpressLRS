@@ -273,11 +273,10 @@ RcChannels_channels_extract(uint8_t const *const input,
 
 typedef void (*MspCallback_t)(uint8_t const *const input);
 
-uint8_t FAST_CODE_1
+bool FAST_CODE_1
 RcChannels_tlm_ota_send(uint8_t *const output,
-                        mspPacket_t &packet,
-                        uint8_t tx=1);
-uint8_t FAST_CODE_1
+                        mspPacket_t &packet);
+bool FAST_CODE_1
 RcChannels_tlm_ota_receive(uint8_t const *const input,
                            mspPacket_t &packet);
 

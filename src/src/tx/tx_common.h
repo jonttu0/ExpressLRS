@@ -20,9 +20,16 @@ enum {
 };
 
 //////////// TELEMETRY /////////
+enum tlm_msp_state {
+    TLM_MSP_STATE_FREE,
+    TLM_MSP_STATE_SEND,
+    TLM_MSP_STATE_WAIT_RESP,
+};
+
 extern mspPacket_t msp_packet_tx;
 extern mspPacket_t msp_packet_rx;
 extern uint8_t tlm_msp_send, tlm_msp_rcvd;
+extern uint32_t tlm_msp_sent_ms;
 
 extern LinkStats_t LinkStatistics;
 extern GpsOta_t GpsTlm;
@@ -43,6 +50,7 @@ int  tx_common_check_connection(void);
 void tx_common_handle_ctrl_serial(void);
 void tx_common_update_link_stats(void);
 
+bool tx_common_tlm_rx_handle(uint32_t const now);
 
 int8_t SettingsCommandHandle(uint8_t const *in, uint8_t *out,
                              uint8_t inlen, uint8_t &outlen);

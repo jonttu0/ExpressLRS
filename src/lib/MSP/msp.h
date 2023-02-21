@@ -25,10 +25,11 @@ enum {
 
 #define MSP_PORT_INBUF_SIZE 256
 
-#define MSP_VERSION     (1U << 5)
-#define MSP_STARTFLAG   (1U << 4)
-#define MSP_ERRORFLAG   (1U << 5) // MSP RESP
-#define MSP_ELRS_INT    (3U << 0)
+#define MSP_SEQUENCE_MASK (0xF)
+#define MSP_VERSION       (1U << 5)
+#define MSP_STARTFLAG     (1U << 4)
+#define MSP_ERRORFLAG     (1U << 5) // MSP RESP
+#define MSP_ELRS_INT      (3U << 0)
 
 typedef enum
 {
@@ -97,7 +98,7 @@ typedef struct
     uint8_t crc;
     bool error;
 
-    inline uint8_t iterated()
+    inline uint8_t iterated(void) const
     {
         return ((type != MSP_PACKET_UNKNOWN) &&
                 ((0 < payloadSize && payloadSize <= payloadIterator) || (payloadSize == 0)));
@@ -130,7 +131,7 @@ typedef struct
         payload[payloadIterator++] = b;
     }
 
-    inline void add(uint8_t b)
+    inline void add(uint8_t const b)
     {
         addByte(b);
     }
@@ -140,13 +141,13 @@ typedef struct
         while(len--) addByte(*data++);
     }
 
-    inline void FAST_CODE_2 setIteratorToSize()
+    inline void setIteratorToSize(void)
     {
         payloadSize = payloadIterator;
         payloadIterator = 0;
     }
 
-    uint8_t FAST_CODE_2 readByte()
+    inline uint8_t readByte(void)
     {
         if (iterated()) {
             // We are trying to read beyond the length of the payload

@@ -46,7 +46,7 @@ void CRSF_RX::Begin(void)
 
     msp_packet.header.device_addr = CRSF_ADDRESS_BROADCAST;
     msp_packet.header.frame_size = sizeof(msp_packet) - CRSF_FRAME_START_BYTES;
-    msp_packet.header.type = CRSF_FRAMETYPE_MSP_WRITE;
+    msp_packet.header.type = CRSF_FRAMETYPE_MSP_REQ;
     msp_packet.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     msp_packet.header.orig_addr = CRSF_ADDRESS_RADIO_TRANSMITTER;
 
@@ -122,14 +122,18 @@ void FAST_CODE_1 CRSF_RX::sendRCFrameToFC(rc_channels_rx_t * channels) const
 
 void FAST_CODE_1 CRSF_RX::sendMSPFrameToFC(mspPacket_t & msp) const
 {
+    uint8_t * p_dst = msp_packet.msp.payload;
     uint8_t i;
-    msp_packet.msp.flags = MSP_VERSION + msp.sequence_nbr;
+    msp_packet.msp.flags = MSP_VERSION + (msp.sequence_nbr & MSP_SEQUENCE_MASK);
     if (msp.payloadIterator == 0 && msp.sequence_nbr == 0) {
         msp_packet.msp.flags |= MSP_STARTFLAG;
+        msp_packet.msp.hdr.payloadSize = msp.payloadSize;
+        msp_packet.msp.hdr.function = msp.function;
+        p_dst = msp_packet.msp.hdr.payload;
     }
     msp.sequence_nbr++;
-    for (i = 0; i < sizeof(msp_packet.msp.payload); i++) {
-        msp_packet.msp.payload[i] = msp.readByte();
+    for (i = 0; i < sizeof(msp_packet.msp.payload) && !msp.iterated(); i++) {
+        p_dst[i] = msp.readByte();
     }
     sendFrameToFC((uint8_t*)&msp_packet, sizeof(msp_packet));
 }
@@ -207,6 +211,7 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
             // Heartbeat is sent if the telemetry is disabled.
             // Can be used to check the V3 link, try to negotiate new speed
             negotiate_baud();
+            // TODO: dev info cb from here???
             break;
         }
 

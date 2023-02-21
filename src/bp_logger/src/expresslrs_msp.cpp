@@ -108,7 +108,7 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, void * client)
 {
     String dbg_info = "Setting vtx freq to: ";
     dbg_info += freq;
-    dbg_info += "MHz (0=ignored)";
+    dbg_info += "MHz";
     websocket_send_txt(dbg_info, (AsyncWebSocketClient *)client);
 
     if (freq == 0)
