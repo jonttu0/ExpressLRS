@@ -27,6 +27,10 @@ public:
 
     void loop(void);
 
+    String version_info(void) const {
+        return String("Not available");
+    }
+
 private:
     enum {
         STATE_GET_CH_INDEX,

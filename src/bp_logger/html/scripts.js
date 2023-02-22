@@ -144,6 +144,15 @@ function start() {
       _bands.add(option);
     }
 
+    // configure events
+    if (!!window.EventSource) {
+        var source = new EventSource('/events');
+        source.addEventListener('open', function(e) {console.log("Events Connected");}, false);
+        source.addEventListener('error', function(e) {
+            if (e.target.readyState != EventSource.OPEN) {console.log("Events Disconnected");}}, false);
+        source.addEventListener('message', function(e) {console.log("message", e.data);}, false);
+    }
+
     logger.scrollTop = logger.scrollHeight;
     if (false) {
         websock = new WebSocket('ws://elrs_handset.local:/ws');

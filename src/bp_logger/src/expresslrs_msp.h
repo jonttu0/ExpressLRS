@@ -24,6 +24,10 @@ public:
 
     void loop(void);
 
+    String version_info(void) const {
+        return m_version_info;
+    }
+
 private:
     CtrlSerial * _serial;
 
@@ -47,6 +51,8 @@ private:
     uint8_t handset_mixer_ok;
     uint8_t handset_adjust_ok;
 #endif
+
+    String m_version_info;
 
     int send_current_values(void * client = NULL);
 

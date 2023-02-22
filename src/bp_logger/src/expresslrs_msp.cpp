@@ -524,6 +524,11 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
                     settings_region = payload[4];
                     settings_valid = 1;
 
+                    m_version_info = "";
+                    for (uint8_t iter = 0; iter < (msp_in.payloadSize - 5); iter++)
+                        m_version_info += String((char)payload[iter]);
+                    m_version_info.replace("!", "-dirty");
+
                     send_current_values(NULL);
                     break;
                 }
@@ -532,6 +537,10 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
                     // Respond with the VTX config
                     if (payload[0] == 1 && payload[1] < 3)
                         sendVtxFrequencyToSerial(eeprom_storage.vtx_freq);
+                    break;
+                }
+                case ELRS_INT_MSP_ESPNOW_UPDATE: {
+                    info += "[ERROR] ESP-NOW Update from TX co-mcu!";
                     break;
                 }
 #if CONFIG_HANDSET

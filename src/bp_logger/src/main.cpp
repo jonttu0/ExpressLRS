@@ -113,6 +113,7 @@ static uint32_t wifi_connect_started;
 #endif
 
 AsyncWebServer server(80);
+AsyncEventSource events("/events");
 AsyncWebSocket webSocket("/ws");
 AsyncWebSocketClient * g_ws_client;
 
@@ -537,6 +538,30 @@ void webSocketEvent(AsyncWebSocket * server,
 
 /***********************************************************************************/
 
+void async_event_handler(AsyncEventSourceClient *client)
+{
+#if UART_DEBUG_EN
+    if (client->lastId()) {
+        Serial.printf("Client reconnected! Last message ID that it got is: %u\n", client->lastId());
+    }
+#endif
+    // send event with message "hello!", id current millis
+    // and set reconnect delay to 5 second
+    client->send("keepalive", NULL, millis(), 5000);
+    // TODO: send settings...
+}
+
+/***********************************************************************************/
+
+// AwsTemplateProcessor callback for AsyncWebServer
+static String variable_processor(const String & variable)
+{
+    if (variable == "ELRS_VERSION") {
+        return msp_handler.version_info();
+    }
+    return String();
+}
+
 static String getContentType(String const filename)
 {
     if (filename.endsWith(".html"))
@@ -675,8 +700,18 @@ handleUploads(AsyncWebServerRequest * request, String filename, size_t index, ui
             current_state = STATE_UPGRADE_STM;
     }
 }
+#endif // CONFIG_STM_UPDATER
 
+static void handle_reset_elrs_cmd(AsyncWebServerRequest * request)
+{
+#if CONFIG_STM_UPDATER
+    // STM reset
+    reset_stm32_to_app_mode();
+    request->send(200);
+#else
+    request->send(404, "text/plain", "Not supported");
 #endif
+}
 
 static void handleMacAddress(AsyncWebServerRequest * request)
 {
@@ -792,8 +827,8 @@ static void handleFileRead(AsyncWebServerRequest * request)
     // Check if matching to builtin files
     for (size_t i = 0; i < ARRAY_SIZE(files); i++) {
         if (path.equals(files[i].url)) {
-            AsyncWebServerResponse * response =
-                request->beginResponse_P(200, files[i].contentType, files[i].content, files[i].size);
+            AsyncWebServerResponse * response = request->beginResponse_P(200, files[i].contentType, files[i].content,
+                                                                         files[i].size, variable_processor);
             response->addHeader("Content-Encoding", "gzip");
             request->send(response);
             return;
@@ -1127,6 +1162,7 @@ static void wifi_config_server(void)
     // STM32 OTA upgrade
     server.on("/upload", HTTP_POST, [](AsyncWebServerRequest * request) {}, handleUploads);
 #endif
+    server.on("/reset", handle_reset_elrs_cmd); // reset ELRS TX co-processor
 
     /* ESP OTA firmware upgrade */
     server.on("/update", HTTP_GET, handleUpdatePage);
@@ -1134,6 +1170,10 @@ static void wifi_config_server(void)
         "/doUpdate", HTTP_POST, [](AsyncWebServerRequest * request) {}, handleDoUpdate);
 
     server.onNotFound(handleFileRead);
+
+    // Config events
+    events.onConnect(async_event_handler);
+    server.addHandler(&events);
 
     // Config web socket
     webSocket.onEvent(webSocketEvent);
