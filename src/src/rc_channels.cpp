@@ -864,6 +864,7 @@ RcChannels_dev_info_extract(uint8_t const *const input, DeviceInfo_t & output)
 {
     if (input[0] == 0xCA && input[1] == 0xFE) {
         output.state = input[2];
+        output.count = input[3];
         return 1;
     }
     return 0;
@@ -877,6 +878,7 @@ RcChannels_dev_info_pack(uint8_t *const output, DeviceInfo_t & input)
     output[0] = 0xCA;
     output[1] = 0xFE;
     output[2] = input.state;
+    output[3] = input.count++;
     input.transmit = false;
     return 1;
 }

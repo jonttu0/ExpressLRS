@@ -712,7 +712,9 @@ void msp_data_cb(uint8_t const *const input)
     uint8_t const * p_src = p_msp->payload;
     size_t iter;
 
-    // TODO: Possible flags if needed for reason....
+    if (p_msp->flags & MSP_ERRORFLAG) {
+        // Handle error!
+    }
 
     if (p_msp->flags & MSP_STARTFLAG) {
         msp_packet_tx.reset();

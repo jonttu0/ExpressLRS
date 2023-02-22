@@ -24,6 +24,7 @@ static uint32_t DMA_ATTR link_stat_sent_us;
 
 void CRSF_RX::Begin(void)
 {
+    dev_info_received = false;
 #if CRSF_v3_USE_SUCCESSFUL_PACKETS
     successful_packets_from_fc = 0;
 #endif
@@ -145,21 +146,32 @@ void CRSF_RX::negotiate_baud(void) const
     if (configured_baudrate == CRSF_RX_BAUDRATE_V3)
         return;
 
-    crsf_speed_req req;
-    req.header.device_addr = CRSF_ADDRESS_BROADCAST;
-    req.header.frame_size = sizeof(req) - CRSF_FRAME_START_BYTES;
-    req.header.type = CRSF_FRAMETYPE_COMMAND;
-    req.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
-    req.header.orig_addr = CRSF_ADDRESS_CRSF_RECEIVER;
-    req.proposal.command = CRSF_COMMAND_SUBCMD_GENERAL;
-    req.proposal.sub_command = CRSF_COMMAND_SUBCMD_GENERAL_CRSF_SPEED_PROPOSAL;
-    req.proposal.portID = CRSF_v3_PORT_ID;
-    req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
+    static crsf_speed_req speed_req;
+    speed_req.header.device_addr = CRSF_ADDRESS_BROADCAST;
+    speed_req.header.frame_size = sizeof(req) - CRSF_FRAME_START_BYTES;
+    speed_req.header.type = CRSF_FRAMETYPE_COMMAND;
+    speed_req.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
+    speed_req.header.orig_addr = CRSF_ADDRESS_CRSF_RECEIVER;
+    speed_req.proposal.command = CRSF_COMMAND_SUBCMD_GENERAL;
+    speed_req.proposal.sub_command = CRSF_COMMAND_SUBCMD_GENERAL_CRSF_SPEED_PROPOSAL;
+    speed_req.proposal.portID = CRSF_v3_PORT_ID;
+    speed_req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
     // CMD has also its own CRC
-    req.crc_cmd = CalcCRC8len(&req.header.type, (sizeof(req) - CRSF_FRAME_START_BYTES - 2), 0, CRSF_CMD_POLY);
-    sendFrameToFC((uint8_t*)&req, sizeof(req));
-    delay(20); // Wait DMA to finish its job
+    speed_req.crc_cmd = CalcCRC8len(&speed_req.header.type, (sizeof(req) - CRSF_FRAME_START_BYTES - 2), 0, CRSF_CMD_POLY);
+    sendFrameToFC((uint8_t*)&speed_req, sizeof(speed_req));
+    //delay(20); // Wait DMA to finish its job
 #endif // PROTOCOL_CRSF_V3_TO_FC
+}
+
+void CRSF_RX::device_info_ping(void) const
+{
+    if (dev_info_received)
+        return;
+    static crsf_device_info_ping_msg_t dev_info;
+    dev_info.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
+    dev_info.header.frame_size = sizeof(msp_packet) - CRSF_FRAME_START_BYTES;
+    dev_info.header.type = CRSF_FRAMETYPE_DEVICE_PING;
+    sendFrameToFC((uint8_t*)&dev_info, sizeof(dev_info));
 }
 
 void CRSF_RX::change_baudrate(uint32_t const baud)
@@ -215,13 +227,13 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
             break;
         }
 
-        case CRSF_FRAMETYPE_DISPLAYPORT_CMD:
-        case CRSF_FRAMETYPE_DEVICE_INFO: {
-            /* These are sent after startup */
-            negotiate_baud();
+        case CRSF_FRAMETYPE_DEVICE_INFO:
+            dev_info_received = true;
+        case CRSF_FRAMETYPE_DISPLAYPORT_CMD: {
             if (DevInfoCallback) {
                 DevInfoCallback(1);
             }
+            negotiate_baud();
             break;
         }
 
@@ -267,6 +279,7 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
         successful_packets_from_fc = 0;
     }
 #endif
+    device_info_ping();
 }
 
 void CRSF_RX::handleUartIn(void)

@@ -396,6 +396,13 @@ typedef struct crsf_heartbeat_msg_s
     uint8_t crc;
 } PACKED crsf_heartbeat_msg_t;
 
+// Heartbeat, used with V3 to keep the link up without telemetry
+typedef struct crsf_device_info_ping_msg_s
+{
+    crsf_header_t header;
+    uint8_t crc;
+} PACKED crsf_device_info_ping_msg_t;
+
 /////inline and utility functions//////
 
 

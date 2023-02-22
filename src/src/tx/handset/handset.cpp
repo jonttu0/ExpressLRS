@@ -246,10 +246,10 @@ void loop()
         // TODO: limit tlm output speed for higher ratios?
 
         if (_tlm_updated & TLM_UPDATES_DEV_INFO) {
+            uint8_t buff[] = {DevInfo.state, DevInfo.count};
             MSP::sendPacket(
                 &ctrl_serial, MSP_PACKET_V1_ELRS, ELRS_INT_MSP_DEV_INFO,
-                MSP_ELRS_INT, sizeof(DevInfo.state),
-                (uint8_t*)&DevInfo.state);
+                MSP_ELRS_INT, sizeof(buff), buff);
         } else if (_tlm_updated & TLM_UPDATES_GPS) {
             GpsSensorSend();
         } else if (_tlm_updated & (TLM_UPDATES_LNK_STATS | TLM_UPDATES_BATTERY)) {

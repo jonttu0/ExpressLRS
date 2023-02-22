@@ -346,6 +346,7 @@ RcChannels_gps_pack(uint8_t *const output, GpsOta_t & input);
  *************************************************************************************/
 typedef struct DeviceInfo_s {
     uint8_t state;
+    uint8_t count;
     uint8_t transmit;
 } PACKED DeviceInfo_t;
 

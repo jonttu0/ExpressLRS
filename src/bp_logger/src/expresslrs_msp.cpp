@@ -530,7 +530,7 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
                 case ELRS_INT_MSP_DEV_INFO: {
                     info += "device info";
                     // Respond with the VTX config
-                    if (payload[0] == 1)
+                    if (payload[0] == 1 && payload[1] < 3)
                         sendVtxFrequencyToSerial(eeprom_storage.vtx_freq);
                     break;
                 }
