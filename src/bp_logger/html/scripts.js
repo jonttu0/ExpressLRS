@@ -147,10 +147,17 @@ function start() {
     // configure events
     if (!!window.EventSource) {
         var source = new EventSource('/events');
-        source.addEventListener('open', function(e) {console.log("Events Connected");}, false);
+        source.addEventListener('open', function(e) {/*console.log("Events Connected");*/}, false);
         source.addEventListener('error', function(e) {
-            if (e.target.readyState != EventSource.OPEN) {console.log("Events Disconnected");}}, false);
+            if (e.target.readyState != EventSource.OPEN) {/*console.log("Events Disconnected");*/}}, false);
         source.addEventListener('message', function(e) {console.log("message", e.data);}, false);
+        source.addEventListener('elrs_version', function(e) {$id("firmware_version_elrs").innerHTML = e.data;}, false);
+        source.addEventListener('elrs_settings', function(e) {console.log("elrs settings:", e);
+            const settings = JSON.parse(e.data);
+            settings_parse_json(settings);
+            handset_mixer(settings['mixer']);
+            handset_calibrate_adjust(settings['gimbals']);
+        }, false);
     }
 
     logger.scrollTop = logger.scrollHeight;
@@ -184,8 +191,8 @@ function start() {
                         $id("handset_calibrate_stat").innerHTML = 'Calibration failed!';
                     } break;
                 case WSMSGID_HANDSET_BATT_INFO: handset_battery_value(payload); break;
-                case WSMSGID_HANDSET_ADJUST: handset_calibrate_adjust(payload); break;
-                case WSMSGID_HANDSET_MIXER: handset_mixer(payload); break;
+                case WSMSGID_HANDSET_ADJUST: handset_calibrate_adjust(handset_calibrate_adjust_to_dict(payload)); break;
+                case WSMSGID_HANDSET_MIXER: handset_mixer(mixer_list_to_dict(payload)); break;
                 case WSMSGID_HANDSET_TLM_LINK_STATS: handset_telemetry_link_stats(payload); break;
                 case WSMSGID_HANDSET_TLM_BATTERY: handset_telemetry_battery(payload); break;
                 case WSMSGID_HANDSET_TLM_GPS: handset_telemetry_gps(payload); break;
@@ -262,6 +269,7 @@ function rf_module_changed(elem)
 
 function handle_setting_region(domain)
 {
+    if (domain == undefined) return;
     const FLAGS = {
         dual: 0x80,
         handset: 0x40,
@@ -316,6 +324,7 @@ function handle_setting_region(domain)
 
 function handle_setting_generic(elem, value, max_value=null)
 {
+    if (value == undefined) return;
     if (max_value != null) {
         max_value = max_value + 2; // include reset and dummy
         // enable all
@@ -330,16 +339,28 @@ function handle_setting_generic(elem, value, max_value=null)
     elem.disabled = false;
 }
 
-function settings_parse(payload)
+function settings_parse_json(settings)
 {
-    handle_setting_region(payload.nextUint8());
-    handle_setting_generic($id("rates_input"), payload.nextUint8());
-    handle_setting_generic($id("power_input"), payload.nextUint8(), payload.nextUint8());
-    handle_setting_generic($id("tlm_input"), payload.nextUint8());
+    handle_setting_region(settings.region);
+    handle_setting_generic($id("rates_input"), settings.rate);
+    handle_setting_generic($id("power_input"), settings.power, settings.power_max);
+    handle_setting_generic($id("tlm_input"), settings.telemetry);
     // disable telemetry options if vanilla mode
     $id("tlm_input").disabled = ($id("rf_module").domain_in_use == 6);
-    const vtxFreq = (payload.nextUint8() << 8) + payload.nextUint8();
-    msp_vtx_freq(vtxFreq);
+    msp_vtx_freq(settings.vtxfreq);
+}
+
+function settings_parse(payload)
+{
+    const settings = {
+        "region": payload.nextUint8(),
+        "rate": payload.nextUint8(),
+        "power": payload.nextUint8(),
+        "power_max": payload.nextUint8(),
+        "telemetry": payload.nextUint8(),
+        "vtxfreq": (payload.nextUint8() << 8) + payload.nextUint8(),
+    };
+    settings_parse_json(settings);
 }
 
 /********************* VTX *******************************/
@@ -394,6 +415,7 @@ function vtx_band_changed(band)
 
 function msp_vtx_freq(freq)
 {
+    if (freq == undefined) return;
     $id("vtx_send_btn").disabled = true;
     if (freq == 0) {
         // Clear selections
@@ -446,16 +468,17 @@ function mixer_list_to_dict(payload)
     mixer_config['aux'] = payload.nextUint8();
     mixer_config['total'] = mixer_config['aux'] + 4;
     mixer_config['switch'] = payload.nextUint8();
+    const config = [];
     for (var i = 0; i < 16; i++) {
-        mixer_config[i] = {'index': -1, 'inv': false, 'scale': 1.0};
+        config.push({'index': -1, 'inv': false, 'scale': 1.0});
     }
     for (var i = 0; i < 16 && i < ((payload.byteLength - 2) / 4); i++) {
         const idx = payload.nextUint8();
-        mixer_config[idx].index = payload.nextUint8();
-        mixer_config[idx].inv = payload.nextUint8() ? true : false;
-        var scale = payload.nextUint8();
-        mixer_config[idx].scale = (scale) ? (scale.toFixed(4) / 100.) : 1.0;
+        config[idx].index = payload.nextUint8();
+        config[idx].inv = payload.nextUint8();
+        config[idx].scale = payload.nextUint8();
     }
+    mixer_config['config'] = config;
     return mixer_config;
 }
 
@@ -482,12 +505,11 @@ function mixer_add_selection_lst(cell, input=-1, values={})
     cell.appendChild(sel);
 }
 
-function handset_mixer(payload)
+function handset_mixer(mixes)
 {
+    if (mixes == undefined) return;
     var iter;
     var table = $id("handset_mixer");
-    /* Parse input */
-    var mixes = mixer_list_to_dict(payload);
 
     var gimbals = {
         'Gimbal L1': 0, 'Gimbal L2': 1,
@@ -503,6 +525,7 @@ function handset_mixer(payload)
     }
     /* write values */
     for (iter = 0; iter < mixes['total']; iter++) {
+        const mix_cfg = mixes['config'][iter];
         var row = table.insertRow();
         var cell = row.insertCell(0);
         if (iter < 4)
@@ -511,7 +534,7 @@ function handset_mixer(payload)
             cell.innerHTML = "AUX " + (iter - 3);
         cell = row.insertCell(1);
         cell.style.width = "auto";
-        mixer_add_selection_lst(cell, mixes[iter].index,
+        mixer_add_selection_lst(cell, mix_cfg.index,
             ((iter < 4) ? gimbals : switches));
 
         cell = row.insertCell(2);
@@ -522,7 +545,7 @@ function handset_mixer(payload)
         checkbox.name = "invert";
         checkbox.value = iter;
         checkbox.id = "inverted" + iter;
-        checkbox.checked = mixes[iter].inv;
+        checkbox.checked = mix_cfg.inv ? true : false;
         var label = document.createElement('label');
         label.htmlFor = checkbox.id;
         label.appendChild(document.createTextNode('Inverted:'));
@@ -539,7 +562,7 @@ function handset_mixer(payload)
             scale.min = 0.1;
             scale.max = 1.0;
             scale.step = 0.05;
-            scale.value = mixes[iter].scale;
+            scale.value = (mix_cfg.scale) ? (mix_cfg.scale.toFixed(4) / 100.) : 1.0;
             scale.id = "scale" + iter;
             scale.style.width = "50px";
             // creating label for checkbox
@@ -635,18 +658,35 @@ function handset_calibrate_adjust_send(event)
     if (websock_validate()) websock.send(sendarray, { binary: true });
 }
 
-function handset_calibrate_adjust(payload)
+function handset_calibrate_adjust_to_dict(payload)
 {
+    const config = [];
+    for (var iter = 0; iter < 4; iter++) {
+        const offset = iter * 6; // 3 * 2B
+        config[iter] = {
+            'min': payload.getUint16(offset+0, true),
+            'mid': payload.getUint16(offset+2, true),
+            'max': payload.getUint16(offset+4, true),
+        };
+    }
+}
+
+function handset_calibrate_adjust(calibration)
+{
+    if (calibration == undefined) return;
+    //const calib_table = $id("calibrate");
+    //for (var row of calib_table.rows)
+    //    console.log(row);
     const mapping = {
         0 : 'L1_', 1 : 'L2_',
         2 : 'R1_', 3 : 'R2_',
     };
-    for (const iter in mapping) {
+    for (const iter in calibration) {
         const type = mapping[iter];
-        const offset = iter * 6; // 3 * 2B
-        $id(type + 'min').value = payload.getUint16(offset+0, true);
-        $id(type + 'mid').value = payload.getUint16(offset+2, true);
-        $id(type + 'max').value = payload.getUint16(offset+4, true);
+        const values = calibration[iter];
+        $id(type + 'min').value = values['min'];
+        $id(type + 'mid').value = values['mid'];
+        $id(type + 'max').value = values['max'];
     }
     if (calibrate_btn != null) {
         calibrate_btn.disabled = false;

@@ -44,6 +44,9 @@ int ExpresslrsMsp::send_current_values(void * client)
         SettingsWrite(buff, sizeof(buff));
         return 0;
     }
+
+    String data = syncSettingsJson();
+    async_event_send(data, "elrs_settings");
     uint8_t settings_resp[] = {
         (uint8_t)(WSMSGID_ELRS_SETTINGS >> 8),
         (uint8_t)WSMSGID_ELRS_SETTINGS,
@@ -494,13 +497,68 @@ void ExpresslrsMsp::syncSettings(void * client, bool const force)
 {
     // Send settings
     send_current_values(client);
-
 #if CONFIG_HANDSET
-    delay(10);
+    // delay(10);
     HandsetConfigGet(client, force);
-    delay(10);
+    // delay(10);
     battery_voltage_report(client);
 #endif
+}
+
+String ExpresslrsMsp::syncSettingsJson(void)
+{
+    String json = "{";
+    if (settings_valid) {
+        json += "\"region\":" + String(settings_region);
+        json += ",\"rate\":" + String(settings_rate);
+        json += ",\"power\":" + String(settings_power);
+        json += ",\"power_max\":" + String(settings_power_max);
+        json += ",\"telemetry\":" + String(settings_tlm);
+        json += ",\"vtxfreq\":" + String(eeprom_storage.vtx_freq);
+    }
+#if CONFIG_HANDSET
+    if (handset_mixer_ok) {
+        json += ",\"mixer\":{";
+        json += "\"total\":" + String(handset_num_aux);
+        json += ",\"aux\":" + String(handset_num_aux + TX_NUM_ANALOGS);
+        json += ",\"switch\":" + String(handset_num_switches);
+        json += ",\"config\":[";
+        for (uint8_t iter = 0; iter < ARRAY_SIZE(mixer); iter++) {
+            if (TX_NUM_MIXER == mixer[iter].index)
+                continue;  // Ignore all invalid configs
+            if (iter)
+                json += ",";
+            json += "{";
+            json += "\"index\":" + String(mixer[iter].index);
+            json += ",\"inv\":" + String(mixer[iter].inv);
+            json += ",\"scale\":" + String(mixer[iter].scale);
+            json += "}";
+        }
+        json += "]}";
+    }
+    if (handset_adjust_ok) {
+        json += ",\"gimbals\":[";
+        for (uint8_t iter = 0; iter < ARRAY_SIZE(gimbals); iter++) {
+            if (iter)
+                json += ",";
+            json += "{";
+            json += "\"min\":" + String(gimbals[iter].low);
+            json += ",\"mid\":" + String(gimbals[iter].mid);
+            json += ",\"max\":" + String(gimbals[iter].high);
+            json += "}";
+        }
+        json += "]";
+    }
+#endif
+    json += "}";
+    return json;
+}
+
+void ExpresslrsMsp::sendSettingsJson(void * client)
+{
+    String data = syncSettingsJson();
+    async_event_send(data, "elrs_settings", (AsyncEventSourceClient *)client);
+    async_event_send(m_version_info, "elrs_version", (AsyncEventSourceClient *)client);
 }
 
 int ExpresslrsMsp::parse_data(uint8_t const chr)
@@ -515,19 +573,22 @@ int ExpresslrsMsp::parse_data(uint8_t const chr)
             forward = false;
             switch (msp_in.function) {
                 case ELRS_INT_MSP_PARAMS: {
+                    msp_in.payloadIterator = 0;
                     forward = true;
                     info += "ELRS params";
-                    settings_rate = payload[0];
-                    settings_tlm = payload[1];
-                    settings_power = payload[2];
-                    settings_power_max = payload[3];
-                    settings_region = payload[4];
+                    settings_rate = msp_in.readByte();
+                    settings_tlm = msp_in.readByte();
+                    settings_power = msp_in.readByte();
+                    settings_power_max = msp_in.readByte();
+                    settings_region = msp_in.readByte();
                     settings_valid = 1;
 
+                    // Read ELRS code version sha
                     m_version_info = "";
-                    for (uint8_t iter = 0; iter < (msp_in.payloadSize - 5); iter++)
-                        m_version_info += String((char)payload[iter]);
-                    m_version_info.replace("!", "-dirty");
+                    for (uint8_t iter = 0; (iter < 6) && !msp_in.iterated(); iter++)
+                        m_version_info += String(msp_in.readByte(), HEX);
+                    if (msp_in.readByte() == '!')
+                        m_version_info += "-dirty";
 
                     send_current_values(NULL);
                     break;

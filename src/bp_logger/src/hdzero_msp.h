@@ -18,6 +18,8 @@ public:
     void init(void);
 
     void syncSettings(AsyncWebSocketClient * client);
+    String syncSettingsJson(void) {return String();};
+    void sendSettingsJson(void * client) {};
 
     int parse_data(uint8_t const chr);
     int parse_command(char * cmd, size_t len, void * client);
@@ -26,10 +28,6 @@ public:
     int handle_received_msp(mspPacket_t &msp_in);
 
     void loop(void);
-
-    String version_info(void) const {
-        return String("Not available");
-    }
 
 private:
     enum {

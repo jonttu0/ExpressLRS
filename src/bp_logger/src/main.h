@@ -21,12 +21,15 @@
 #endif
 
 class AsyncWebSocketClient;
+class AsyncEventSourceClient;
 
 String mac_addr_print(uint8_t const * const mac_addr);
 
 void websocket_send_txt(String & data, AsyncWebSocketClient * client = NULL);
 void websocket_send_txt(char const * data, AsyncWebSocketClient * client = NULL);
 void websocket_send_bin(uint8_t const * data, uint8_t len, AsyncWebSocketClient * client = NULL);
+
+void async_event_send(String & data, const char * event, AsyncEventSourceClient *client = NULL);
 
 typedef struct {
     uint16_t msg_id;

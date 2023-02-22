@@ -410,7 +410,7 @@ static void websocket_send_initial_data(AsyncWebSocketClient * client)
 
     wifi_networks_report(client);
 
-    msp_handler.syncSettings(client);
+    msp_handler.syncSettings(client);  // configured using events
 }
 
 void webSocketEvent(AsyncWebSocket * server,
@@ -538,6 +538,15 @@ void webSocketEvent(AsyncWebSocket * server,
 
 /***********************************************************************************/
 
+void async_event_send(String & data, const char * event, AsyncEventSourceClient *client)
+{
+    if (client) {
+        client->send(data.c_str(), event);
+        return;
+    }
+    events.send(data.c_str(), event);
+}
+
 void async_event_handler(AsyncEventSourceClient *client)
 {
 #if UART_DEBUG_EN
@@ -548,19 +557,11 @@ void async_event_handler(AsyncEventSourceClient *client)
     // send event with message "hello!", id current millis
     // and set reconnect delay to 5 second
     client->send("keepalive", NULL, millis(), 5000);
-    // TODO: send settings...
+    // Send settings to client
+    msp_handler.sendSettingsJson(client);
 }
 
 /***********************************************************************************/
-
-// AwsTemplateProcessor callback for AsyncWebServer
-static String variable_processor(const String & variable)
-{
-    if (variable == "ELRS_VERSION") {
-        return msp_handler.version_info();
-    }
-    return String();
-}
 
 static String getContentType(String const filename)
 {
@@ -828,7 +829,7 @@ static void handleFileRead(AsyncWebServerRequest * request)
     for (size_t i = 0; i < ARRAY_SIZE(files); i++) {
         if (path.equals(files[i].url)) {
             AsyncWebServerResponse * response = request->beginResponse_P(200, files[i].contentType, files[i].content,
-                                                                         files[i].size, variable_processor);
+                                                                         files[i].size);
             response->addHeader("Content-Encoding", "gzip");
             request->send(response);
             return;

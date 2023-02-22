@@ -15,6 +15,8 @@ public:
     void init(void);
 
     void syncSettings(void * client, bool force = false);
+    String syncSettingsJson(void);
+    void sendSettingsJson(void * client);
 
     int parse_data(uint8_t const chr);
     int parse_command(char * cmd, size_t len, void * client);
@@ -23,10 +25,6 @@ public:
     int handle_received_msp(mspPacket_t &msp_in);
 
     void loop(void);
-
-    String version_info(void) const {
-        return m_version_info;
-    }
 
 private:
     CtrlSerial * _serial;
