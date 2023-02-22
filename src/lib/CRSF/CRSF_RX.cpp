@@ -169,7 +169,7 @@ void CRSF_RX::device_info_ping(void) const
         return;
     static crsf_device_info_ping_msg_t dev_info;
     dev_info.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
-    dev_info.header.frame_size = sizeof(msp_packet) - CRSF_FRAME_START_BYTES;
+    dev_info.header.frame_size = sizeof(dev_info) - CRSF_FRAME_START_BYTES;
     dev_info.header.type = CRSF_FRAMETYPE_DEVICE_PING;
     sendFrameToFC((uint8_t*)&dev_info, sizeof(dev_info));
 }
