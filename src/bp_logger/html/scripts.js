@@ -154,7 +154,7 @@ function start() {
         source.addEventListener('elrs_version', function(e) {$id("firmware_version_elrs").innerHTML = e.data;}, false);
         source.addEventListener('elrs_settings', function(e) {console.log("elrs settings:", e);
             const settings = JSON.parse(e.data);
-            settings_parse_json(settings);
+            handle_settings(settings);
             handset_mixer(settings['mixer']);
             handset_calibrate_adjust(settings['gimbals']);
         }, false);
@@ -182,7 +182,7 @@ function start() {
             const payload = new DataView(evt.data, 2);
             switch(msgid) {
                 case WSMSGID_ESPNOW_ADDRS: espnowclients_parse(payload);break;
-                case WSMSGID_ELRS_SETTINGS: settings_parse(payload); break;
+                case WSMSGID_ELRS_SETTINGS: handle_settings(settings_parse(payload)); break;
                 case WSMSGID_VIDEO_FREQ: msp_vtx_freq(payload.getUint16()); break;
                 case WSMSGID_HANDSET_CALIBRATE:
                     if (calibrate_btn != null) {
@@ -300,7 +300,7 @@ function handle_setting_region(domain)
         $id("power_input").disabled = true;
         $id("tlm_input").disabled = true;
         $id("region_domain").innerHTML = "Invalid domain: " + domain;
-        return;
+        return false;
     }
 
     // Store domain index for later use
@@ -320,6 +320,7 @@ function handle_setting_region(domain)
         option.value = i;
         rates.add(option);
     }
+    return true;
 }
 
 function handle_setting_generic(elem, value, max_value=null)
@@ -339,14 +340,15 @@ function handle_setting_generic(elem, value, max_value=null)
     elem.disabled = false;
 }
 
-function settings_parse_json(settings)
+function handle_settings(settings)
 {
-    handle_setting_region(settings.region);
-    handle_setting_generic($id("rates_input"), settings.rate);
-    handle_setting_generic($id("power_input"), settings.power, settings.power_max);
-    handle_setting_generic($id("tlm_input"), settings.telemetry);
-    // disable telemetry options if vanilla mode
-    $id("tlm_input").disabled = ($id("rf_module").domain_in_use == 6);
+    if (handle_setting_region(settings.region)) {
+        handle_setting_generic($id("rates_input"), settings.rate);
+        handle_setting_generic($id("power_input"), settings.power, settings.power_max);
+        handle_setting_generic($id("tlm_input"), settings.telemetry);
+        // disable telemetry options if vanilla mode
+        $id("tlm_input").disabled = ($id("rf_module").domain_in_use == 6);
+    }
     msp_vtx_freq(settings.vtxfreq);
 }
 
@@ -360,7 +362,7 @@ function settings_parse(payload)
         "telemetry": payload.nextUint8(),
         "vtxfreq": (payload.nextUint8() << 8) + payload.nextUint8(),
     };
-    settings_parse_json(settings);
+    return settings;
 }
 
 /********************* VTX *******************************/
@@ -415,9 +417,8 @@ function vtx_band_changed(band)
 
 function msp_vtx_freq(freq)
 {
-    if (freq == undefined) return;
     $id("vtx_send_btn").disabled = true;
-    if (freq == 0) {
+    if (freq == 0 || freq == undefined) {
         // Clear selections
         $id("vtx_band").value = "";
         $id("vtx_channel").value = "";

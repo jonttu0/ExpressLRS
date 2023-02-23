@@ -179,10 +179,11 @@ CtrlSerialPrivate my_ctrl_serial;
 CtrlSerial & ctrl_serial = my_ctrl_serial;
 
 #if CONFIG_HDZERO
-HDZeroMsp msp_handler(&my_ctrl_serial);
+HDZeroMsp msp_handler_obj(&my_ctrl_serial);
 #else
-ExpresslrsMsp msp_handler(&my_ctrl_serial);
+ExpresslrsMsp msp_handler_obj(&my_ctrl_serial);
 #endif
+MspHandlerBase & msp_handler = msp_handler_obj;
 
 /*************************************************************************/
 
@@ -349,7 +350,7 @@ String mac_addr_print(uint8_t const * const mac_addr)
     return String(macStr);
 }
 
-void websocket_send_txt(char const * data, AsyncWebSocketClient * client)
+void websocket_send_txt(char const * data, AsyncWebSocketClient * const client)
 {
     if (client)
         client->text(data);
@@ -357,14 +358,14 @@ void websocket_send_txt(char const * data, AsyncWebSocketClient * client)
         webSocket.textAll(data);
 }
 
-void websocket_send_txt(String & data, AsyncWebSocketClient * client)
+void websocket_send_txt(String & data, AsyncWebSocketClient * const client)
 {
     if (!data.length())
         return;
     websocket_send_txt(data.c_str(), client);
 }
 
-void websocket_send_bin(uint8_t const * data, uint8_t const len, AsyncWebSocketClient * client)
+void websocket_send_bin(uint8_t const * data, uint8_t const len, AsyncWebSocketClient * const client)
 {
     if (!len || !data)
         return;
@@ -374,7 +375,7 @@ void websocket_send_bin(uint8_t const * data, uint8_t const len, AsyncWebSocketC
         webSocket.binaryAll((char *)data, (size_t)len);
 }
 
-static void websocket_send_initial_data(AsyncWebSocketClient * client)
+static void websocket_send_initial_data(AsyncWebSocketClient * const client)
 {
     IPAddress my_ip;
     my_ip = (WiFi.status() == WL_CONNECTED) ? WiFi.localIP() : WiFi.softAPIP();
@@ -410,7 +411,7 @@ static void websocket_send_initial_data(AsyncWebSocketClient * client)
 
     wifi_networks_report(client);
 
-    msp_handler.syncSettings(client);  // configured using events
+    msp_handler.syncSettings(client);
 }
 
 void webSocketEvent(AsyncWebSocket * server,
@@ -538,7 +539,7 @@ void webSocketEvent(AsyncWebSocket * server,
 
 /***********************************************************************************/
 
-void async_event_send(String & data, const char * event, AsyncEventSourceClient *client)
+void async_event_send(String & data, const char * event, AsyncEventSourceClient * const client)
 {
     if (client) {
         client->send(data.c_str(), event);
@@ -547,7 +548,7 @@ void async_event_send(String & data, const char * event, AsyncEventSourceClient 
     events.send(data.c_str(), event);
 }
 
-void async_event_handler(AsyncEventSourceClient *client)
+void async_event_handler(AsyncEventSourceClient * client)
 {
 #if UART_DEBUG_EN
     if (client->lastId()) {
@@ -558,7 +559,7 @@ void async_event_handler(AsyncEventSourceClient *client)
     // and set reconnect delay to 5 second
     client->send("keepalive", NULL, millis(), 5000);
     // Send settings to client
-    msp_handler.sendSettingsJson(client);
+    msp_handler.syncSettings(client);
 }
 
 /***********************************************************************************/
@@ -828,8 +829,8 @@ static void handleFileRead(AsyncWebServerRequest * request)
     // Check if matching to builtin files
     for (size_t i = 0; i < ARRAY_SIZE(files); i++) {
         if (path.equals(files[i].url)) {
-            AsyncWebServerResponse * response = request->beginResponse_P(200, files[i].contentType, files[i].content,
-                                                                         files[i].size);
+            AsyncWebServerResponse * response =
+                request->beginResponse_P(200, files[i].contentType, files[i].content, files[i].size);
             response->addHeader("Content-Encoding", "gzip");
             request->send(response);
             return;
@@ -1161,7 +1162,8 @@ static void wifi_config_server(void)
 
 #if CONFIG_STM_UPDATER
     // STM32 OTA upgrade
-    server.on("/upload", HTTP_POST, [](AsyncWebServerRequest * request) {}, handleUploads);
+    server.on(
+        "/upload", HTTP_POST, [](AsyncWebServerRequest * request) {}, handleUploads);
 #endif
     server.on("/reset", handle_reset_elrs_cmd); // reset ELRS TX co-processor
 
@@ -1359,8 +1361,7 @@ void setup()
     wifi_config();
     wifi_config_server();
 
-    // wsnum does not matter because settings_valid == false
-    msp_handler.syncSettings(NULL);
+    msp_handler.syncSettings();
 
 #if UART_DEBUG_EN && 0
     for (size_t jter = 0; jter < ARRAY_SIZE(eeprom_storage.wifi_nets); jter++) {

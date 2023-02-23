@@ -17,6 +17,18 @@ function start() {
     _bands.add(option);
   }
   $id("logField").scrollTop = $id("logField").scrollHeight;
+  // configure events
+  if (!!window.EventSource) {
+    var source = new EventSource('/events');
+    source.addEventListener('open', function(e) {/*console.log("Events Connected");*/}, false);
+    source.addEventListener('error', function(e) {
+      if (e.target.readyState != EventSource.OPEN) {/*console.log("Events Disconnected");*/}}, false);
+    source.addEventListener('message', function(e) {console.log("message", e.data);}, false);
+    source.addEventListener('vrx_version', function(e) {$id("firmware_version_vrx").innerHTML = e.data;}, false);
+    source.addEventListener('vtxfreq', function(e) {
+      const config = JSON.parse(e.data); msp_vtx_freq(config.vtxfreq);
+    }, false);
+  }
   if (!window.location.hostname) { console.log("No hostname!"); return; }
   websock = new WebSocket('ws://' + window.location.hostname + '/ws');
   websock.binaryType = "arraybuffer";
@@ -124,7 +136,7 @@ function vtx_band_changed(band) {
 }
 function msp_vtx_freq(freq) {
   $id("vtx_send_btn").disabled = true;
-  if (freq == 0) {
+  if (freq == 0 || freq == undefined) {
     // Clear selections
     $id("vtx_band").value = "";
     $id("vtx_channel").value = "";
