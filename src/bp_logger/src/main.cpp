@@ -102,15 +102,7 @@ typedef struct {
 } wifi_info_t;
 static wifi_info_t wifi_search_results;
 static uint32_t wifi_connect_started;
-
-#if (LED_BUILTIN != BOOT0_PIN) && (LED_BUILTIN != RESET_PIN) && (LED_BUILTIN != BUZZER_PIN) &&                         \
-    (LED_BUILTIN != WS2812_PIN)
-#define BUILTIN_LED_INIT()      pinMode((LED_BUILTIN), OUTPUT)
-#define BUILTIN_LED_SET(_state) digitalWrite((LED_BUILTIN), !(_state))
-#else
-#define BUILTIN_LED_INIT()
-#define BUILTIN_LED_SET(_state)
-#endif
+static uint32_t wifi_scan_count;
 
 AsyncWebServer server(80);
 AsyncEventSource events("/events");
@@ -941,12 +933,11 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected & evt)
         Serial.println("  CONNECTION LOST! Start new scan...");
 #endif
         /* Start scan again */
+        wifi_scan_count = 0;
         current_state = STATE_WIFI_SCAN_START;
     }
     MDNS.end();
     WiFi.reconnect(); // Force reconnect
-
-    BUILTIN_LED_SET(0);
 }
 
 #ifdef ARDUINO_ARCH_ESP32
@@ -1000,7 +991,6 @@ void onStationGotIP(const WiFiEventStationModeGotIP & evt)
 #endif
 
     led_set(LED_WIFI_STA);
-    BUILTIN_LED_SET(1);
     /*buzzer_beep(440, 30);
     delay(200);
     buzzer_beep(440, 30);*/
@@ -1020,6 +1010,7 @@ void onStationGotIP(const WiFiEventStationModeGotIP & evt)
 void onStationDhcpTimeout(void)
 {
     /* Start scan again */
+    wifi_scan_count = 0;
     current_state = STATE_WIFI_SCAN_START;
     MDNS.end();
 #if UART_DEBUG_EN
@@ -1043,12 +1034,12 @@ static void wifi_config_ap(uint8_t const channel)
         current_state = STATE_RUNNING;
         led_set(LED_WIFI_AP);
         buzzer_beep(400, 20);
-        BUILTIN_LED_SET(1);
 #if UART_DEBUG_EN
         Serial.printf("WiFi AP '%s' on channel:%u hidden:%u (PSK:'%s')\r\n", WIFI_AP_SSID WIFI_AP_SUFFIX, channel,
                       !!WIFI_AP_HIDDEN, WIFI_AP_PSK);
 #endif
     } else {
+        wifi_scan_count = 0;
         current_state = STATE_WIFI_SCAN_START;
         WiFi.mode(WIFI_OFF);
 #if UART_DEBUG_EN
@@ -1061,7 +1052,7 @@ static void wifi_config_ap(uint8_t const channel)
 
 static void wifi_connect(wifi_info_t & results)
 {
-    WiFi.mode(WIFI_AP_STA); // WIFI_AP_STA
+    WiFi.mode(WIFI_AP_STA);
     WiFi.softAPdisconnect();
     WiFi.disconnect();
 
@@ -1311,9 +1302,20 @@ static void wifi_scan_ready(int const numberOfNetworks)
         return;
     }
 
-    current_state = (wifi_search_results.network_index == UINT8_MAX) ? STATE_WIFI_START_AP : STATE_WIFI_CONNECT;
+    if (wifi_search_results.network_index == UINT8_MAX) {
+        if (3 <= ++wifi_scan_count)
+            current_state = STATE_WIFI_START_AP;
+        else
+            // Restart scan if network not found
+            current_state = STATE_WIFI_SCAN_START;
+    } else {
+        current_state = STATE_WIFI_CONNECT;
+    }
     boot_log += "->";
     boot_log += current_state;
+#if UART_DEBUG_EN
+    Serial.printf("Change state to %u\r\n", current_state);
+#endif
 }
 
 void setup()
@@ -1322,9 +1324,6 @@ void setup()
 
     boot_log = "";
     print_reset_reason();
-
-    BUILTIN_LED_INIT();
-    BUILTIN_LED_SET(0);
 
     Serial.setRxBufferSize(512);
 #ifdef ARDUINO_ARCH_ESP32
@@ -1376,6 +1375,7 @@ void setup()
     }
 #endif
 
+    wifi_scan_count = 0;
     current_state = STATE_WIFI_SCAN_START;
 }
 
@@ -1434,6 +1434,8 @@ void loop()
     ESP.wdtFeed();
 #endif
 
+    uint32_t const now = millis();
+
     switch (current_state) {
         case STATE_WIFI_SCAN_START: {
             // Start async scan and wait for results
@@ -1447,9 +1449,18 @@ void loop()
         }
         case STATE_WIFI_SCAN_LAPTIMER:
         case STATE_WIFI_SCANNING: {
+            static uint32_t scan_led_last_ms;
+            static bool scan_led_state;
+            scan_led_state ^= 1;
+            if (400 <= (now - scan_led_last_ms)) {
+                scan_led_last_ms = now;
+                /* Blink led */
+                led_set(scan_led_state ? LED_INIT : LED_OFF);
+            }
             int const numNetworks = WiFi.scanComplete();
             if (0 <= numNetworks) {
                 wifi_scan_ready(numNetworks);
+
             } else if (-2 == numNetworks) {
                 boot_log += ",S-!";
 #if UART_DEBUG_EN
@@ -1474,7 +1485,7 @@ void loop()
             break;
         }
         case STATE_REBOOT: {
-            if (0 <= (int32_t)(millis() - reboot_req_ms)) {
+            if (0 <= (int32_t)(now - reboot_req_ms)) {
                 WiFi.mode(WIFI_OFF);
                 Serial.flush();
                 delay(100);

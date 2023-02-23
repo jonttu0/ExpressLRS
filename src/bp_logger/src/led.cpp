@@ -9,6 +9,14 @@ static uint32_t led_rgb_state;
 #endif
 #include <Arduino.h>
 
+#if (LED_BUILTIN != BOOT0_PIN) && (LED_BUILTIN != RESET_PIN) && (LED_BUILTIN != BUZZER_PIN) &&                         \
+    (LED_BUILTIN != WS2812_PIN) && !defined(LED_PIN)
+#define LED_PIN LED_BUILTIN
+#endif
+#ifndef LED_INVERTED
+#define LED_INVERTED 0
+#endif
+
 
 void led_init(void)
 {
@@ -36,7 +44,7 @@ void led_set(uint32_t state)
   led_rgb.show();
   led_rgb_state = state;
 #elif defined(LED_PIN)
-  digitalWrite(LED_PIN, (state != LED_OFF));
+  digitalWrite(LED_PIN, (state != LED_OFF) ^ LED_INVERTED);
 #endif
 }
 
