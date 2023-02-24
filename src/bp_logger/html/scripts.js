@@ -133,7 +133,12 @@ function bufferToHex (buffer) {
 
 var websock = null;
 function start() {
+    const fea_debug = {"laptimer":1, "espnow":1, "handset":1};
+    feature_config(fea_debug);
+
     const logger = $id("logField");
+    logger.scrollTop = logger.scrollHeight;
+
     var _bands = $id("vtx_band");
     while (_bands.length > 1) {
         _bands.remove(_bands.length - 1);
@@ -151,7 +156,11 @@ function start() {
         source.addEventListener('error', function(e) {
             if (e.target.readyState != EventSource.OPEN) {/*console.log("Events Disconnected");*/}}, false);
         source.addEventListener('message', function(e) {console.log("message", e.data);}, false);
-        source.addEventListener('elrs_version', function(e) {$id("firmware_version_elrs").innerHTML = e.data;}, false);
+        source.addEventListener('fea_config', function(e) {
+            const config = JSON.parse(e.data);
+            feature_config(config);
+          }, false);
+              source.addEventListener('elrs_version', function(e) {$id("firmware_version_elrs").innerHTML = e.data;}, false);
         source.addEventListener('elrs_settings', function(e) {console.log("elrs settings:", e);
             const settings = JSON.parse(e.data);
             handle_settings(settings);
@@ -160,7 +169,6 @@ function start() {
         }, false);
     }
 
-    logger.scrollTop = logger.scrollHeight;
     if (false) {
         websock = new WebSocket('ws://elrs_handset.local:/ws');
     } else {
@@ -169,9 +177,9 @@ function start() {
         websock = new WebSocket('ws://' + window.location.hostname + '/ws');
     }
     websock.binaryType = "arraybuffer";
-    websock.onopen = function (evt) {console.log('websock open');};
+    websock.onopen = function (evt) {/*console.log('websock open');*/};
     websock.onclose = function(e) {
-        console.log('websock closed. Reconnect in 1 second.', e.reason);
+        /*console.log('websock closed. Reconnect in 1 second.', e.reason);*/
         setTimeout(function() {start();}, 1000);
     };
     websock.onerror = function (evt) {console.log("websock error: ", evt);};
@@ -210,15 +218,20 @@ function start() {
             laptimernet_parse(text.replace("CMD_LAPTIMER=", ""));
             return;
         }
-
-        const scrollsize = parseInt($id("scrollsize").value, 10);
-        var log_history = logger.value.split("\n");
-        while (scrollsize < log_history.length) {log_history.shift();}
-        log_history.push(datetime_current() + ' ' + text);
-        logger.value = log_history.join('\n');
-        if ($id("autoscroll").checked)
-            logger.scrollTop = logger.scrollHeight;
+        appendToLog(text);
     };
+}
+
+function appendToLog(text) {
+    const logger = $id("logField");
+    const scrollsize = parseInt($id("scrollsize").value, 10) - 1;
+    const log_history = logger.value.split("\n");
+    const numignore = log_history.length - scrollsize;
+    if (0 < numignore) log_history.splice(0, numignore);
+    log_history.push(datetime_current() + ' ' + text);
+    logger.value = log_history.join('\n');
+    if ($id("autoscroll").checked)
+        logger.scrollTop = logger.scrollHeight;
 }
 
 function saveTextAsFile() {
@@ -240,6 +253,20 @@ function saveTextAsFile() {
     downloadLink.click();
 }
 
+/********************* UI CONFIG *************************/
+function feature_config(config) {
+    $id("espnow_control").style.display = !!config.espnow ? "block" : "none";
+    $id("laptimer_control").style.display = !!config.laptimer ? "block" : "none";
+    /* Hide or show handset specific tabs */
+    const isHandset = !!config.handset ? "block" : "none";
+    var tabs = $name('handset');
+    for (var tab of tabs) {
+        console.log("tab: ", tab);
+        tab.style.display = isHandset;
+    }
+}
+
+/******************* WEB SOCKET *************************/
 function message_send(elem=null, bytesize=1)
 {
     var sendarray = new ArrayBuffer(2 + ((elem == null) ? 0 : bytesize));  // MSGID + value
@@ -258,6 +285,7 @@ function message_send(elem=null, bytesize=1)
     if (websock_validate()) websock.send(sendarray, { binary: true });
 }
 
+/***************** ELRS SETTINGS *********************/
 function rf_module_changed(elem)
 {
     $id("rf_module").disabled = true;
@@ -284,13 +312,13 @@ function handle_setting_region(domain)
         rf_module.disabled = false;
     }
 
-    if (!(domain & FLAGS.handset)) {
-        /* Disable tabs if not handset */
+    /*if (!(domain & FLAGS.handset)) {
+        // Disable tabs if not handset
         var tabs = $name('handset');
         for (var tab of tabs) {
             tab.className += " disabled";
         }
-    }
+    }*/
     domain = domain & FLAGS.mask;
 
     const domain_params = elrs_settings_lookup[domain];
@@ -891,7 +919,7 @@ function laptimernet_parse(network_str) {
 
 function websock_validate() {
     if (!websock || websock.readyState !== WebSocket.OPEN) {
-        show_error("Failed to communicate with handset, websocket connection is closed!");
+        show_error("Failed to communicate with logger, websocket connection is closed!");
         return false;
     }
     return true;

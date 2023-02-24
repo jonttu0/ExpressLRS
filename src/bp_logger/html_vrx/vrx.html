@@ -11,12 +11,6 @@
   <script type="text/javascript" src="vrx.js"></script>
 </head>
 <body onload="javascript:start();"><div class="content">
-  <fieldset><legend>Log Messages</legend>
-    <textarea id="logField" readonly></textarea><br>
-    <input type="checkbox" id="autoscroll" checked><label for="autoscroll"> Auto scroll</label> |
-    <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;">
-    <label for="scrollsize"> Scroll len</label>
-  </fieldset>
   <fieldset><legend>Settings</legend>
     <table class="center" style="width: 100%;">
       <tr>
@@ -39,15 +33,25 @@
       </tr>
     </table>
   </fieldset>
-  <fieldset><legend>Recording</legend>
+  <fieldset id="recording_control"><legend>Recording</legend>
     <button id="recording_state" class="green" onclick="recording_control_send(this)">START</button>
   </fieldset>
-  <fieldset><legend>Debug</legend>
-    <label for="osdtext">OSD text[32]:</label>
-    <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32"
-      style="width: 320px;"><br>
+  <fieldset id="laptimer_control">
+    <legend>Lap Timer</legend>
+    <div>
+      <form method='POST' action='/laptimer_config' enctype='multipart/form-data'>
+        <table style="width:100%;">
+          <tr>
+            <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
+            <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
+            <td style="width: 80px;"><input type='submit' value='Submit' id='laptimer_submit' style="width:80px;"></td>
+          </tr>
+        </table>
+      </form>
+    </div>
   </fieldset>
-  <fieldset><legend>ESP-NOW Clients</legend><div>
+  <fieldset id="espnow_control">
+    <legend>ESP-NOW Clients</legend><div>
     <label for="espnowclients" class="valigntop">Add one per line</label>
     <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
     <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
@@ -62,18 +66,16 @@
     </table>
     <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="wifinetworks_add()">ADD</button></div></div>
   </fieldset>
-  <fieldset>
-    <legend>Lap Timer</legend>
-    <div>
-      <form method='POST' action='/laptimer_config' enctype='multipart/form-data'>
-        <table style="width:100%;">
-          <tr>
-            <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
-            <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
-            <td style="width: 80px;"><input type='submit' value='Submit' id='laptimer_submit' style="width:80px;"></td>
-          </tr>
-        </table>
-      </form>
+  <fieldset><legend>Log Messages</legend>
+    <textarea id="logField" readonly></textarea><br>
+    <input type="checkbox" id="autoscroll" checked><label for="autoscroll"> Auto scroll</label> |
+    <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;">
+    <label for="scrollsize"> Scroll len</label>
+  </fieldset>
+  <fieldset><legend>Debug</legend>
+    <div id="osd_text_control">
+      <label for="osdtext">OSD text[32]:</label>
+      <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32" style="width: 320px;">
     </div>
   </fieldset>
   <fieldset>

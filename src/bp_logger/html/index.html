@@ -18,37 +18,28 @@
         <script type="text/javascript">
           function change_tab(evt, tabName) {
               // Declare all variables
-              var i, tabcontent, tablinks;
-
+              var i;
               // Get all elements with class="tabcontent" and hide them
-              tabcontent = document.getElementsByClassName("tabcontent");
+              const tabcontent = document.getElementsByClassName("tabcontent");
               for (i = 0; i < tabcontent.length; i++) {
                   tabcontent[i].style.display = "none";
               }
-
               // Get all elements with class="tablinks" and remove the class "active"
-              tablinks = document.getElementsByClassName("tablinks");
+              const tablinks = document.getElementsByClassName("tablinks");
               for (i = 0; i < tablinks.length; i++) {
                   tablinks[i].className = tablinks[i].className.replace(" active", "");
               }
-
               // Show the current tab, and add an "active" class to the link that opened the tab
               document.getElementById(tabName).style.display = "block";
               evt.currentTarget.className += " active";
           }
         </script>
-        <a href="javascript:void(0)" class="tablinks active"
-            onclick="change_tab(event, 'control_main')">Log</a>
-        <a href="javascript:void(0)" class="tablinks"
-            onclick="change_tab(event, 'control_settings')">Radio</a>
-        <a href="javascript:void(0)" class="tablinks"
-            onclick="change_tab(event, 'control_flash')">Firmware</a>
-        <a href="javascript:void(0)" class="tablinks" name="handset"
-            onclick="change_tab(event, 'control_handset')">Handset</a>
-        <a href="javascript:void(0)" class="tablinks" name="handset"
-            onclick="change_tab(event, 'handset_telemetry')">Telemetry</a>
-        <a href="javascript:void(0)" class="tablinks"
-          onclick="change_tab(event, 'misc_content')">Misc</a>
+        <a href="javascript:void(0)" class="tablinks active" onclick="change_tab(event, 'control_main')">Log</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'control_settings')">Radio</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'control_flash')">Firmware</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'control_handset')" name="handset">Handset</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'handset_telemetry')" name="handset">Telemetry</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'misc_content')">Misc</a>
       </div>
     </div> <!-- header -->
 
@@ -233,6 +224,14 @@
     <!-- FLASH -->
     <div id="control_flash" class="tabcontent" style="display:none;">
       <p>
+        <fieldset>
+          <legend>Firmware Versions</legend>
+          <div>
+            <p>Target name: {%TARGET_NAME%}</p>
+            <p>Logger ver:  {%ESP_VERSION%}</p>
+            <p>ExpressLRS:  <span id="firmware_version_elrs">??</span></p>
+          </div>
+        </fieldset>
         <fieldset>
           <legend>Self Firmware</legend>
           <form method='POST' action='/doUpdate' enctype='multipart/form-data' target="hidden-iframe">
@@ -475,7 +474,21 @@
 
     <!-- ESP-NOW -->
     <div id="misc_content" class="tabcontent" style="display:none;">
-      <fieldset>
+      <fieldset id="laptimer_control">
+        <legend>Lap Timer</legend>
+        <div>
+          <form method='POST' action='/laptimer_config' enctype='multipart/form-data'>
+            <table style="width:100%;">
+              <tr>
+                <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
+                <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
+                <td style="width: 80px;"><input type='submit' value='Submit' id='laptimer_submit' style="width:80px;"></td>
+              </tr>
+            </table>
+          </form>
+        </div>
+      </fieldset>
+      <fieldset id="espnow_control">
         <legend>ESP-NOW Clients</legend>
         <div>
           <label for="espnowclients" class="valigntop">Add one per line</label>
@@ -498,14 +511,6 @@
             <td><input id="wifi_new_mac" type='text' style="width:130px;" placeholder="MAC (optional)" minlength="17" maxlength="17"></td>
           </table>
           <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="wifinetworks_add()">ADD</button></div>
-        </div>
-      </fieldset>
-      <fieldset>
-        <legend>Firmware Versions</legend>
-        <div>
-          <p>Target name: {%TARGET_NAME%}</p>
-          <p>Logger ver:  {%ESP_VERSION%}</p>
-          <p>ExpressLRS:  <span id="firmware_version_elrs">??</span></p>
         </div>
       </fieldset>
     </div>

@@ -3,6 +3,10 @@
 #include <Arduino.h>
 #include "msp.h"
 
+#ifndef ESP_NOW
+#define ESP_NOW 0
+#endif
+
 struct espnow_update {
     uint8_t channel;
 };

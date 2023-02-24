@@ -38,7 +38,7 @@ uint8_t CRSF::CalcCRC(uint8_t const * data, uint8_t size) const
     return crc_crsf.calc(data, size);
 }
 
-uint8_t *CRSF::ParseInByte(uint8_t inChar)
+uint8_t *CRSF::ParseInByte(uint8_t const inChar)
 {
     uint8_t *packet_ptr = NULL;
 
@@ -59,9 +59,8 @@ uint8_t *CRSF::ParseInByte(uint8_t inChar)
 
     if (CRSFframeActive == false)
     {
-        if ((inChar == CRSF_ADDRESS_CRSF_RECEIVER) ||
-            (inChar == CRSF_ADDRESS_CRSF_TRANSMITTER) ||
-            (inChar == CRSF_SYNC_BYTE))
+        if ((inChar == CRSF_ADDRESS_CRSF_RECEIVER) || (inChar == CRSF_ADDRESS_CRSF_TRANSMITTER) ||
+            (inChar == CRSF_SYNC_BYTE) || (inChar == CRSF_ADDRESS_BROADCAST))
         {
             CRSFframeActive = true;
             SerialInPacketLen = 0;

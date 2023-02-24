@@ -223,9 +223,9 @@ String get_reset_reason(RESET_REASON const reason)
 }
 void print_reset_reason(void)
 {
-    boot_log += "CPU0: ";
+    boot_log += "Reset CPU0: ";
     boot_log += get_reset_reason(rtc_get_reset_reason(0));
-    boot_log += "CPU1: ";
+    boot_log += ", CPU1: ";
     boot_log += get_reset_reason(rtc_get_reset_reason(1));
 }
 #else
@@ -262,6 +262,7 @@ void print_reset_reason(void)
         case REASON_DEFAULT_RST:
         default:
             /* 0 = normal startup by power on */
+            boot_log += "Reset: normal power on";
             break;
     }
 }
@@ -1139,7 +1140,7 @@ static void wifi_check(void)
     } else if (500 <= (now - wifi_last_check)) {
         wifi_last_check = now;
         /* Blink led */
-        led_set(led_state ? LED_WIFI_AP : LED_OFF);
+        led_set(led_state ? LED_WIFI_STA : LED_OFF);
         led_state ^= 1;
     }
 }
@@ -1198,8 +1199,6 @@ static void wifi_scan_ready(int const numberOfNetworks)
         wifi_search_results.network_index = UINT8_MAX;
     wifi_search_results.channel = wifi_ap_channel_get();
 
-    boot_log += ",S2:";
-    boot_log += numberOfNetworks;
 #if UART_DEBUG_EN
     Serial.println("-------------------------");
     Serial.println(" Available WiFi networks");
@@ -1231,7 +1230,6 @@ static void wifi_scan_ready(int const numberOfNetworks)
              memcmp(eeprom_storage.laptimer.mac, mac, sizeof(eeprom_storage.laptimer.mac)) == 0) ||
             (wifi_is_ssid_valid(&eeprom_storage.laptimer) &&
              strncmp(eeprom_storage.laptimer.ssid, ssid.c_str(), sizeof(eeprom_storage.laptimer.ssid)) == 0)) {
-            boot_log += ",L!";
 #if UART_DEBUG_EN
             Serial.println("    ** LapTimer found!");
 #endif
@@ -1251,7 +1249,6 @@ static void wifi_scan_ready(int const numberOfNetworks)
             (memcmp(mac, own_ap_mac, sizeof(own_ap_mac)) == 0)) {
             // Match to own access points -> use this since EPS-NOW channel must match
             own_ap_index = iter;
-            boot_log += ",AP";
 #if UART_DEBUG_EN
             Serial.println("    ** My logger AP");
 #endif
@@ -1277,8 +1274,6 @@ static void wifi_scan_ready(int const numberOfNetworks)
                     rssi_best = rssi;
                     wifi_search_results.network_index = jter; // selected
                     wifi_search_results.channel = channel;
-                    boot_log += ",i:";
-                    boot_log += jter;
 #if UART_DEBUG_EN
                     Serial.print(" << selected! idx:");
                     Serial.print(jter);
@@ -1314,8 +1309,6 @@ static void wifi_scan_ready(int const numberOfNetworks)
     } else {
         current_state = STATE_WIFI_CONNECT;
     }
-    boot_log += "->";
-    boot_log += current_state;
 #if UART_DEBUG_EN
     Serial.printf("Change state to %u\r\n", current_state);
 #endif
@@ -1444,7 +1437,6 @@ void loop()
             // Start async scan and wait for results
             WiFi.scanNetworks(true, true);
             current_state = STATE_WIFI_SCANNING;
-            boot_log += ",S1";
 #if UART_DEBUG_EN
             Serial.println("WiFi scan started");
 #endif
@@ -1465,7 +1457,6 @@ void loop()
                 wifi_scan_ready(numNetworks);
 
             } else if (-2 == numNetworks) {
-                boot_log += ",S-!";
 #if UART_DEBUG_EN
                 Serial.println("WiFi scan end - start AP");
 #endif

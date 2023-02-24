@@ -161,7 +161,7 @@ td {
 
 /************ TABS ***********/
  /* Style the tab */
- div.tab {
+div.tab {
     overflow: hidden;
     border: 1px solid #000;
     background-color: #181717;

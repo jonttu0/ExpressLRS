@@ -134,6 +134,17 @@ void ExpresslrsMsp::elrsSettingsSendEvent(AsyncEventSourceClient * const client)
 #endif
     json += "}";
     async_event_send(json, "elrs_settings", client);
+
+    json = "{\"espnow\":";
+    json += ESP_NOW;
+#ifdef HANDSET_LAPTIMER
+    json += ",\"laptimer\":1";
+#endif
+#if CONFIG_HANDSET
+    json += ",\"handset\":1";
+#endif
+    json += '}';
+    async_event_send(json, "fea_config", client);
 }
 
 void ExpresslrsMsp::handleVtxFrequencySetCommand(uint16_t const freq, AsyncWebSocketClient * const client)

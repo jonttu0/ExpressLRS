@@ -52,8 +52,13 @@ void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
 {
     String json = "{\"vtxfreq\":";
     json += eeprom_storage.vtx_freq;
+    json += ",\"recording_control\":1";
+    json += ",\"osd_text\":1";
+    json += ",\"laptimer\":1";
+    json += ",\"espnow\":";
+    json += ESP_NOW;
     json += '}';
-    async_event_send(json, "vtxfreq", client);
+    async_event_send(json, "fea_config", client);
     async_event_send(m_version_info, "vrx_version", client);
 }
 

@@ -9,6 +9,9 @@ function $class_del(obj, type) {if(obj) obj.classList.remove(type);}
 function int2str_pad(num, size=2, base=10) {return num.toString(base).padStart(size,"0");}
 var websock = null;
 function start() {
+  const fea_debug = {"recording":1, "osd_text":1, "laptimer":1, "espnow":1};
+  feature_config(fea_debug);
+
   var _bands = $id("vtx_band")
   while (_bands.length > 1) { _bands.remove(_bands.length - 1); }
   for (const band in channelFreqTable) {
@@ -25,8 +28,14 @@ function start() {
       if (e.target.readyState != EventSource.OPEN) {/*console.log("Events Disconnected");*/}}, false);
     source.addEventListener('message', function(e) {console.log("message", e.data);}, false);
     source.addEventListener('vrx_version', function(e) {$id("firmware_version_vrx").innerHTML = e.data;}, false);
+    source.addEventListener('fea_config', function(e) {
+      const config = JSON.parse(e.data);
+      feature_config(config);
+      msp_vtx_freq(config.vtxfreq);
+    }, false);
     source.addEventListener('vtxfreq', function(e) {
-      const config = JSON.parse(e.data); msp_vtx_freq(config.vtxfreq);
+      const config = JSON.parse(e.data);
+      msp_vtx_freq(config.vtxfreq);
     }, false);
   }
   if (!window.location.hostname) { console.log("No hostname!"); return; }
@@ -77,6 +86,13 @@ function message_send_binary(msg_id, bytes=[]) {
   for (var iter = 0; iter < bytes.length; iter++)
     view[2+iter] = bytes[iter];
   websock_validate_and_send(sendarray);
+}
+/********************* UI CONFIG *************************/
+function feature_config(config) {
+  $id("recording_control").style.display = !!config.recording ? "block" : "none";
+  $id("osd_text_control").style.display = !!config.osd_text ? "block" : "none";
+  $id("laptimer_control").style.display = !!config.laptimer ? "block" : "none";
+  $id("espnow_control").style.display = !!config.espnow ? "block" : "none";
 }
 /********************* RECORDING *************************/
 function recording_control_send(btn) {
