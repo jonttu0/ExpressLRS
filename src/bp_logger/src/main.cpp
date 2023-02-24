@@ -21,18 +21,17 @@
 #include "storage.h"
 #include "main.h"
 #include "stm32_ota.h"
-#if !CONFIG_HDZERO
 #include "stm32Updater.h"
-#endif
 #include "common_defs.h"
 #include "html_default.h"
 #include "led.h"
 #include "comm_espnow.h"
 #include "expresslrs_msp.h"
 #include "hdzero_msp.h"
+#include "tbs_fusion.h"
 #include "buzzer.h"
 
-#if CONFIG_HDZERO
+#if CONFIG_HDZERO || CONFIG_TBS_FUSION
 #include "backpack_vrx.h"
 #else
 #include "backpack_tx.h"
@@ -65,6 +64,8 @@
 #define WIFI_AP_SUFFIX " HDZero"
 #undef WIFI_AP_HIDDEN
 #define WIFI_AP_HIDDEN 0
+#elif CONFIG_TBS_FUSION
+#define WIFI_AP_SUFFIX " FusionVRX"
 #else
 #define WIFI_AP_SUFFIX " MODULE"
 #endif
@@ -172,6 +173,8 @@ CtrlSerial & ctrl_serial = my_ctrl_serial;
 
 #if CONFIG_HDZERO
 HDZeroMsp msp_handler_obj(&my_ctrl_serial);
+#elif CONFIG_TBS_FUSION
+TbsFusion msp_handler_obj(&my_ctrl_serial);
 #else
 ExpresslrsMsp msp_handler_obj(&my_ctrl_serial);
 #endif
