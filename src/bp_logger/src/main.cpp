@@ -93,6 +93,8 @@ static enum state {
     STATE_WIFI_RECONFIGURE_ESPNOW,
     STATE_WS_CLIENT_CONNECTED,
     STATE_UPGRADE_STM,
+    STATE_LAPTIMER_REGISTER,
+    STATE_LAPTIMER_WAIT,
     STATE_REBOOT,
 } current_state;
 static uint32_t reboot_req_ms;
@@ -104,6 +106,7 @@ typedef struct {
 static wifi_info_t wifi_search_results;
 static uint32_t wifi_connect_started;
 static uint32_t wifi_scan_count;
+static uint8_t laptimer_channel;
 
 AsyncWebServer server(80);
 AsyncEventSource events("/events");
@@ -117,13 +120,6 @@ static const char hostname[] = LOGGER_HOST_NAME;
 static const char target_name[] = STR(TARGET_NAME);
 
 String boot_log = "";
-
-enum {
-    WSMSGID_ESPNOW_ADDRS = WSMSGID_BASE_ESPNOW,
-
-    // STM32 control messages
-    WSMSGID_STM32_RESET = WSMSGID_BASE_STM32,
-};
 
 uint8_t char_to_dec(uint8_t const chr)
 {
@@ -330,6 +326,51 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
             wifi_search_results.channel = update->channel;
             current_state = STATE_WIFI_START_AP;
         }
+    } else if (msp_pkt.type == MSP_PACKET_V2_RESPONSE && msp_pkt.function == MSP_LAP_TIMER) {
+        laptimer_messages_t const * const p_command = (laptimer_messages_t *)msp_pkt.payload;
+        switch (p_command->subcommand) {
+            case CMD_LAP_TIMER_REGISTER: {
+                eeprom_storage.vtx_freq = p_command->register_resp.freq;
+                eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
+#if UART_DEBUG_EN
+                Serial.printf("CMD_LAP_TIMER_REGISTER: freq %u, node_index %u\r\n", p_command->register_resp.freq,
+                              p_command->register_resp.node_index);
+#endif
+                msp_handler.clientSendVtxFrequency(eeprom_storage.vtx_freq);
+                break;
+            }
+            case CMD_LAP_TIMER_START: {
+#if UART_DEBUG_EN
+                Serial.printf("CMD_LAP_TIMER_START: race_id: %u, node_index: %u\r\n", p_command->start.race_id,
+                              p_command->start.node_index);
+#endif
+                msp_handler.clientSendLaptimerState(&p_command->start);
+                break;
+            }
+            case CMD_LAP_TIMER_STOP: {
+#if UART_DEBUG_EN
+                Serial.printf("CMD_LAP_TIMER_STOP: race_id: %u, node_index: %u\r\n", p_command->stop.race_id,
+                              p_command->stop.node_index);
+#endif
+                msp_handler.clientSendLaptimerState(&p_command->stop);
+                break;
+            }
+            case CMD_LAP_TIMER_LAP: {
+#if UART_DEBUG_EN
+                Serial.printf("CMD_LAP_TIMER_LAP: lap: %u = %ums, race_id: %u, node_index: %u\r\n",
+                              p_command->lap.lap_index, p_command->lap.lap_time_ms, p_command->lap.race_id,
+                              p_command->lap.node_index);
+#endif
+                msp_handler.clientSendLaptimerLap(&p_command->lap);
+                // TODO: store laps internally if client drops for some reason??
+                break;
+            }
+            default:
+#if UART_DEBUG_EN
+                Serial.printf("MSP_LAP_TIMER: invalid subcommand %u\r\n", p_command->subcommand);
+#endif
+                break;
+        }
     } else if (msp_handler.parseCommand(msp_pkt) < 0) {
         // Not handler internally, pass to serial
         MSP::sendPacket(&msp_pkt, &ctrl_serial);
@@ -505,21 +546,30 @@ void webSocketEvent(AsyncWebSocket * server,
                     websoc_bin_hdr_t const * const header = (websoc_bin_hdr_t *)payload;
                     length -= sizeof(header->msg_id);
 
-                    // ====================== ESP-NOW COMMANDS ==============
-                    if (WSMSGID_ESPNOW_ADDRS == header->msg_id) {
+                    // ====================== LAPTIMER COMMANDS ==============
+                    if (WSMSGID_LAPTIMER_START_STOP == header->msg_id) {
+                        uint16_t const node = eeprom_storage.laptimer_config.index;
+                        if (header->payload[0]) {
+                            espnow_laptimer_start_send(node);
+                        } else {
+                            espnow_laptimer_stop_send(node);
+                        }
+
+                        // ====================== ESP-NOW COMMANDS ==============
+                    } else if (WSMSGID_ESPNOW_ADDRS == header->msg_id) {
                         // ESP-Now client list
                         espnow_update_clients(header->payload, length);
                         client->text(espnow_get_info());
 
-                        // ====================== STM COMMANDS ==================
 #if CONFIG_STM_UPDATER
                     } else if (WSMSGID_STM32_RESET == header->msg_id) {
+                        // ====================== STM COMMANDS ==================
                         // STM reset
                         reset_stm32_to_app_mode();
 #endif // CONFIG_STM_UPDATER
 
-                        // ====================== DEFAULT =======================
                     } else if (msp_handler.parseCommand(header, length, client) < 0) {
+                        // ====================== DEFAULT =======================
                         String error = "Invalid message: 0x";
                         error += String(header->msg_id, HEX);
                         client->text(error);
@@ -861,10 +911,14 @@ static void handleLaptimerConfig(AsyncWebServerRequest * request)
                 memcpy(eeprom_storage.laptimer.ssid, p_value, len);
                 eeprom_storage.laptimer.ssid[len] = 0;
             }
-        } else if (name == "macaddr" && value.length() == 17) {
+        } else if (name == "macaddr" && len == 17) {
             for (uint8_t iter = 0; iter < 6; iter++) {
                 eeprom_storage.laptimer.mac[iter] = strtol(&p_value[iter * 3], NULL, 16);
             }
+        } else if (name == "pilot" && len < sizeof(eeprom_storage.laptimer_config.pilot_name)) {
+            memcpy(eeprom_storage.laptimer_config.pilot_name, p_value, len);
+            eeprom_storage.laptimer_config.pilot_name[len] = 0;
+            eeprom_storage.laptimer_config.index = -1;
         }
     }
 
@@ -874,6 +928,8 @@ static void handleLaptimerConfig(AsyncWebServerRequest * request)
     Serial.println(eeprom_storage.laptimer.ssid);
     Serial.print("   MAC: ");
     Serial.println(mac_addr_print(eeprom_storage.laptimer.mac));
+    Serial.print("   PILOT: ");
+    Serial.println(eeprom_storage.laptimer_config.pilot_name);
 #endif
 
     eeprom_storage.markDirty();
@@ -1042,6 +1098,8 @@ static void wifi_config_ap(uint8_t const channel)
         Serial.printf("WiFi AP '%s' on channel:%u hidden:%u (PSK:'%s')\r\n", WIFI_AP_SSID WIFI_AP_SUFFIX, channel,
                       !!WIFI_AP_HIDDEN, WIFI_AP_PSK);
 #endif
+        // Configure ESP-NOW
+        espnow_init(channel, esp_now_msp_rcvd);
     } else {
         wifi_scan_count = 0;
         current_state = STATE_WIFI_SCAN_START;
@@ -1050,8 +1108,6 @@ static void wifi_config_ap(uint8_t const channel)
         Serial.println("WiFi AP start fail");
 #endif
     }
-    // Configure ESP-NOW
-    espnow_init(channel, esp_now_msp_rcvd);
 }
 
 static void wifi_connect(wifi_info_t & results)
@@ -1187,7 +1243,6 @@ static void wifi_config_server(void)
 static void wifi_scan_ready(int const numberOfNetworks)
 {
     int rssi_best = WIFI_SEARCH_RSSI_MIN;
-    bool const laptimer_search = (current_state == STATE_WIFI_SCAN_LAPTIMER);
     const char * own_ap_ssid = WIFI_AP_SSID;
     const size_t own_ap_ssid_len = strlen(own_ap_ssid);
     uint8_t own_ap_mac[] = {MY_UID};
@@ -1195,8 +1250,9 @@ static void wifi_scan_ready(int const numberOfNetworks)
         own_ap_mac[0] &= ~0x1;
     int8_t own_ap_index = -1;
 
-    if (!laptimer_search)
-        wifi_search_results.network_index = UINT8_MAX;
+    laptimer_channel = 0;
+
+    wifi_search_results.network_index = UINT8_MAX;
     wifi_search_results.channel = wifi_ap_channel_get();
 
 #if UART_DEBUG_EN
@@ -1233,14 +1289,15 @@ static void wifi_scan_ready(int const numberOfNetworks)
 #if UART_DEBUG_EN
             Serial.println("    ** LapTimer found!");
 #endif
-            wifi_search_results.network_index = UINT8_MAX; // Force AP mode
-            wifi_search_results.channel = channel;
+            laptimer_channel = channel;
+
+            // Store Laptimer's MAC address for ESP-NOW configuration
+            if (!wifi_is_mac_valid(&eeprom_storage.laptimer)) {
+                memcpy(eeprom_storage.laptimer.mac, mac, sizeof(eeprom_storage.laptimer.mac));
+                eeprom_storage.markDirty();
+            }
             break;
         }
-
-        if (laptimer_search)
-            // Ignore other selections if searching for LapTimer's net
-            continue;
 
         if (rssi < WIFI_SEARCH_RSSI_MIN)
             continue; // Ignore very bad networks
@@ -1272,7 +1329,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
                 // Select based on the best RSSI
                 if (rssi_best < rssi) {
                     rssi_best = rssi;
-                    wifi_search_results.network_index = jter; // selected
+                    wifi_search_results.network_index = jter;
                     wifi_search_results.channel = channel;
 #if UART_DEBUG_EN
                     Serial.print(" << selected! idx:");
@@ -1287,16 +1344,30 @@ static void wifi_scan_ready(int const numberOfNetworks)
         }
     }
 
+    WiFi.scanDelete(); // Cleanup scan results
+
     if (wifi_search_results.network_index == UINT8_MAX && 0 <= own_ap_index) {
         // Start AP since no matching network found
         wifi_search_results.channel = WiFi.channel(own_ap_index);
     }
 
-    WiFi.scanDelete(); // Cleanup scan results
+    if (laptimer_channel && laptimer_channel != wifi_search_results.channel) {
+        /* Force AP to move onto same channel with the laptimer */
+        if (wifi_search_results.network_index != UINT8_MAX) {
+            wifi_scan_count = 5; // stop scan
+        }
 
-    if (laptimer_search) {
-        current_state =
-            (wifi_search_results.network_index == UINT8_MAX) ? STATE_WIFI_RECONFIGURE_ESPNOW : STATE_RUNNING;
+        wifi_search_results.network_index = UINT8_MAX; // Force AP mode
+        wifi_search_results.channel = laptimer_channel;
+        if (current_state == STATE_WIFI_SCAN_LAPTIMER) {
+            current_state = STATE_WIFI_RECONFIGURE_ESPNOW;
+            return;
+        }
+    }
+
+    if (current_state == STATE_WIFI_SCAN_LAPTIMER) {
+        // No need to reconfigure, just continue
+        current_state = STATE_RUNNING;
         return;
     }
 
@@ -1488,7 +1559,6 @@ void loop()
             break;
         }
         case STATE_WIFI_RECONFIGURE_ESPNOW: {
-            // TOOD: Send move on to channel command!
             espnow_send_update_channel(wifi_search_results.channel);
             current_state = STATE_WIFI_START_AP;
             break;
@@ -1505,6 +1575,16 @@ void loop()
         case STATE_UPGRADE_STM: {
             stm32_ota_do_flash();
             current_state = STATE_RUNNING;
+            break;
+        }
+
+        case STATE_LAPTIMER_REGISTER: {
+            espnow_laptimer_register_send();
+            current_state = STATE_LAPTIMER_WAIT;
+            break;
+        }
+        case STATE_LAPTIMER_WAIT: {
+            // Wait couple of seconds and resend if no response received
             break;
         }
         default:

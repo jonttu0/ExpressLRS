@@ -11,6 +11,7 @@
   <script type="text/javascript" src="vrx.js"></script>
 </head>
 <body onload="javascript:start();"><div class="content">
+  <iframe name="hidden-iframe" style="display: none;"></iframe>
   <fieldset><legend>Settings</legend>
     <table class="center" style="width: 100%;">
       <tr>
@@ -39,7 +40,7 @@
   <fieldset id="laptimer_control">
     <legend>Lap Timer</legend>
     <div>
-      <form method='POST' action='/laptimer_config' enctype='multipart/form-data'>
+      <form method='POST' action='/laptimer_config' enctype='multipart/form-data' target="hidden-iframe">
         <table style="width:100%;">
           <tr>
             <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
@@ -83,7 +84,7 @@
     <div style="text-align: left;">
       <p>Target name: {%TARGET_NAME%}</p>
       <p>Logger ver:  {%ESP_VERSION%}</p>
-      <p>VRX ver: <span id="firmware_version_vrx"></span></p>
+      <p id="vrxversion_control">VRX ver: <span id="firmware_version_vrx"></span></p>
     </div>
   </fieldset>
   <fieldset><legend>Upgrade Own Firmware</legend>
@@ -92,7 +93,6 @@
         <input type='submit' value='FLASH' id='esp_submit' disabled='disabled'>
     </form></div>
     <p><span id="validationMessage" class="hide">Please, select correct firmware file!</span></p>
-    <iframe name="hidden-iframe" style="display: none;"></iframe>
   </fieldset>
   <script>
     const message = $id('validationMessage');

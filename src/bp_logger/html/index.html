@@ -482,10 +482,27 @@
               <tr>
                 <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
                 <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
-                <td style="width: 80px;"><input type='submit' value='Submit' id='laptimer_submit' style="width:80px;"></td>
+              </tr>
+              <tr>
+                <td><input placeholder="Pilot name" type='text' name='pilot' id='laptimer_pilot' size='32' maxlength='32'></td>
+                <td><span>...info...</span></td>
               </tr>
             </table>
+            <div style="width:100%; text-align: center;"><input type='submit' value='Save' id='laptimer_submit' style="width:80px;"></div>
           </form>
+        </div>
+        <hr>
+        <div>
+          <label for="laptimer_ctrl_btn">Laptimer: </label>
+          <button id="laptimer_ctrl_btn" onclick="laptimer_ctrl_send(this)" class="green">START</button>
+        </div>
+        <hr>
+        <div>
+          <p style="text-align: center; padding: 2px;">LAP TIMES</p>
+          <table id="laptimer_laps">
+            <tr><td style="width: 50px;">Lap</td><td style="width: 200px;">Time</td></tr>
+            <tr><td>1</td><td>00:11.1234</td></tr>
+          </table>
         </div>
       </fieldset>
       <fieldset id="espnow_control">

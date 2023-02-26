@@ -24,8 +24,10 @@ const WSMSGID_HANDSET_TLM_LINK_STATS = 0x2380;
 const WSMSGID_HANDSET_TLM_BATTERY    = 0x2381; // not used
 const WSMSGID_HANDSET_TLM_GPS        = 0x2382;
 
-const WSMSGID_VIDEO_FREQ         = 0x2400;
+const WSMSGID_VIDEO_FREQ            = 0x2400;
 
+const WSMSGID_LAPTIMER_START_STOP   = 0x2500;
+const WSMSGID_LAPTIMER_LAPTIME      = 0x2501;
 
 const ws_msgid_lookup = {
     // STM32 slave control
@@ -53,7 +55,10 @@ const elrs_settings_lookup = {
     5: {"rfidx": 3, "rates": ['1000Hz', '500Hz', '250Hz'], "info": "2400MHz ISM (FLRC)"},
     6: {"rfidx": 4, "rates": ['DVDA500Hz', 'DVDA250Hz', 'LORA500Hz', 'LORA250Hz'], "info": "2400MHz ISM (VANILLA 3.x)"},
 };
-
+function show_error(msg) {
+    console.log(msg);
+    alert(msg);
+}
 function $id(id) {
     return document.getElementById(id);
 }
@@ -204,6 +209,8 @@ function start() {
                 case WSMSGID_HANDSET_TLM_LINK_STATS: handset_telemetry_link_stats(payload); break;
                 case WSMSGID_HANDSET_TLM_BATTERY: handset_telemetry_battery(payload); break;
                 case WSMSGID_HANDSET_TLM_GPS: handset_telemetry_gps(payload); break;
+                case WSMSGID_LAPTIMER_START_STOP: laptimer_ctrl_state(payload.getUint8()); break;
+                case WSMSGID_LAPTIMER_LAPTIME: laptimer_laptime_parse(payload); break;
                 default: console.error("Invalid message received: " + msgid);
             }
             return;
@@ -222,6 +229,30 @@ function start() {
     };
 }
 
+function websock_validate_and_send(command) {
+    if (!websock || websock.readyState !== WebSocket.OPEN) {
+        show_error("Failed to communicate with handset, websocket connection is closed!");
+        return false;
+    }
+    websock.send(command);
+    return true;
+}
+
+function message_send_str(type, value) {
+    return websock_validate_and_send(type + "=" + value);
+}
+
+function message_send_binary(msg_id, bytes=[]) {
+    var sendarray = new ArrayBuffer(2 + bytes.length);
+    var view = new Uint8Array(sendarray);
+    view[0] = msg_id & 0xFF;
+    view[1] = (msg_id >> 8) & 0xFF;
+    for (var iter = 0; iter < bytes.length; iter++)
+        view[2+iter] = bytes[iter];
+    return websock_validate_and_send(sendarray);
+}
+
+/********************* LOGGING *************************/
 function appendToLog(text) {
     const logger = $id("logField");
     const scrollsize = parseInt($id("scrollsize").value, 10) - 1;
@@ -282,7 +313,7 @@ function message_send(elem=null, bytesize=1)
         view[0] = WSMSGID_ELRS_SETTINGS & 0xFF;
         view[1] = (WSMSGID_ELRS_SETTINGS >> 8) & 0xFF;
     }
-    if (websock_validate()) websock.send(sendarray, { binary: true });
+    websock_validate_and_send(sendarray);
 }
 
 /***************** ELRS SETTINGS *********************/
@@ -635,13 +666,7 @@ function handset_mixer_send()
             }
         }
     }
-    var sendarray = new ArrayBuffer(2 + output.length);
-    var view = new Uint8Array(sendarray);
-    view[0] = WSMSGID_HANDSET_MIXER & 0xFF;
-    view[1] = (WSMSGID_HANDSET_MIXER >> 8) & 0xFF;
-    for (var i = 0; i < output.length; i++) view[2+i] = output[i];
-    if (websock_validate()) websock.send(sendarray, { binary: true });
-    console.log(view);
+    message_send_binary(WSMSGID_HANDSET_MIXER, output);
 }
 
 /********************* CALIBRATE *****************************/
@@ -659,13 +684,7 @@ function handset_calibrate_auto_send(btn, type)
     }
     btn.disabled = true;
     calibrate_btn = btn;
-
-    var sendarray = new ArrayBuffer(3);
-    var view = new Uint8Array(sendarray);
-    view[0] = WSMSGID_HANDSET_CALIBRATE & 0xFF;
-    view[1] = (WSMSGID_HANDSET_CALIBRATE >> 8) & 0xFF;
-    view[2] = mapping_calibrate[type];
-    if (websock_validate()) websock.send(sendarray, { binary: true });
+    message_send_binary(WSMSGID_HANDSET_CALIBRATE, [mapping_calibrate[type]]);
 }
 
 function handset_calibrate_adjust_send(event)
@@ -676,15 +695,11 @@ function handset_calibrate_adjust_send(event)
     } else if (value > 4095) {
         event.target.value = value = 4095;
     }
-
-    var sendarray = new ArrayBuffer(5);
-    var view = new Uint8Array(sendarray);
-    view[0] = WSMSGID_HANDSET_ADJUST & 0xFF;
-    view[1] = (WSMSGID_HANDSET_ADJUST >> 8) & 0xFF;
-    view[2] = mapping_calibrate[event.target.id];
-    view[3] = event.target.value & 0xFF;
-    view[4] = (event.target.value >> 8) & 0xFF;
-    if (websock_validate()) websock.send(sendarray, { binary: true });
+    const data = [
+        mapping_calibrate[event.target.id],
+        (event.target.value & 0xFF),
+        ((event.target.value >> 8) & 0xFF)];
+    message_send_binary(WSMSGID_HANDSET_ADJUST, data);
 }
 
 function handset_calibrate_adjust_to_dict(payload)
@@ -734,13 +749,11 @@ function handset_battery_value(payload)
 }
 
 function handset_battery_adjust() {
-    var sendarray = new ArrayBuffer(4);
-    var view = new Uint8Array(sendarray);
-    view[0] = WSMSGID_HANDSET_BATT_CONFIG & 0xFF;
-    view[1] = (WSMSGID_HANDSET_BATT_CONFIG >> 8) & 0xFF;
-    view[2] = parseInt($id("battery_scale").value, 10);
-    view[3] = parseInt($id("battery_warning").value, 10);
-    if (websock_validate()) websock.send(sendarray, { binary: true });
+    const data = [
+        parseInt($id("battery_scale").value, 10),
+        parseInt($id("battery_warning").value, 10),
+    ];
+    message_send_binary(WSMSGID_HANDSET_BATT_CONFIG, data);
 }
 
 /********************* TELEMETRY *****************************/
@@ -818,12 +831,7 @@ function espnowclients_send() {
         if (mac.length != 6) { console.error("Invalid MAC address: %s", client); return; }
         mac.forEach(element => { bytes.push(element); });
     }
-    var sendarray = new ArrayBuffer(bytes.length + 2);
-    var view = new Uint8Array(sendarray);
-    view[0] = WSMSGID_ESPNOW_ADDRS & 0xFF; // Little endian 0x1100
-    view[1] = (WSMSGID_ESPNOW_ADDRS >> 8) & 0xFF;
-    for (var i = 0; i < bytes.length; i++) view[2+i] = bytes[i];
-    if (websock_validate()) websock.send(sendarray, { binary: true });
+    message_send_binary(WSMSGID_ESPNOW_ADDRS, bytes);
 }
 
 function espnowclients_parse(value) {
@@ -895,19 +903,16 @@ function wifinetworks_add(event) {
         show_error("SSID or MAC is mandatory!");
         return;
     }
-    if (websock_validate()) {
-        const psk = $id("wifi_new_psk").value;
-        websock.send(
-            "WIFIADD/" +
-            int2str_pad(ssid.length, 2) + "/" + ssid + "/" +
-            int2str_pad(psk.length, 2) + "/" + psk +
-            (mac ? "/" + mac.split(":").join("") : "")
-        );
-    }
+    const psk = $id("wifi_new_psk").value;
+    websock_validate_and_send(
+        "WIFIADD/" +
+        int2str_pad(ssid.length, 2) + "/" + ssid + "/" +
+        int2str_pad(psk.length, 2) + "/" + psk +
+        (mac ? "/" + mac.split(":").join("") : "")
+    );
 }
 function wifinetworks_del(event) {
-    if (websock_validate()) {
-        websock.send("WIFIDEL/" + int2str_pad(event.target.parentElement.parentElement.esp_index, 2));
+    if (websock_validate_and_send("WIFIDEL/" + int2str_pad(event.target.parentElement.parentElement.esp_index, 2))) {
         event.target.disabled = true;
     }
 }
@@ -917,15 +922,20 @@ function laptimernet_parse(network_str) {
     // Not used, ignore for now
 }
 
-function websock_validate() {
-    if (!websock || websock.readyState !== WebSocket.OPEN) {
-        show_error("Failed to communicate with logger, websocket connection is closed!");
-        return false;
-    }
-    return true;
+/********************* Lap Timer *****************************/
+function laptimer_ctrl_send(btn) {
+    var start = btn.innerHTML == "START";
+    message_send_binary(WSMSGID_LAPTIMER_START_STOP, [start]);
 }
-
-function show_error(msg) {
-    console.log(msg);
-    alert(msg);
+function laptimer_ctrl_state(state) {
+    const button = $id("laptimer_ctrl_btn");
+    $class_del(button, "green"); $class_del(button, "red");
+    $class_add(button, state ? "red" : "green");
+    button.innerHTML = state ? "STOP" : "START";
+    if (state) {
+        /* TODO: New race started, cleanup times */
+    }
+}
+function laptimer_laptime_parse(payload) {
+    console.log();
 }

@@ -44,6 +44,9 @@ body {
   margin: auto;
 }
 
+.green{background-color: #2a6620; color:#e0e6df}
+.red{background-color: #521a1a; color:#e0e6df}
+
 #logField {
     font-size: 12px;
     background-color: #252525;

@@ -77,6 +77,10 @@ void storage::initDefaults()
     if (versionNumber < 0x11220003) {
         memset(&laptimer, 0, sizeof(laptimer));
     }
+    if (versionNumber < 0x11220004) {
+        memset(&laptimer_config, 0, sizeof(laptimer_config));
+        laptimer_config.index = -1;
+    }
 
     versionNumber = LOGGER_STORAGE_VERSION;
     this->save();

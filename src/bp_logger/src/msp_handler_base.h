@@ -42,20 +42,28 @@ public:
     {
         return -1;
     }
-    // Message inputs
-    virtual int parseCommand(char const * cmd, size_t len, AsyncWebSocketClient * const client)
+    // Message inputs from Web UI
+    int parseCommand(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
     {
-        return -1;
+        return parseCommandPriv(cmd, len, client);
     }
-    virtual int parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client)
+    int parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client);
+    int parseCommand(mspPacket_t & msp_in); // Handle received MSP packet
+
+    void clientSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
+    void clientSendVRecordingState(uint8_t const state, AsyncWebSocketClient * const client = NULL);
+
+    // Laptimer commands parsing for Web UI
+    void clientSendLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL);
+    void clientSendLaptimerState(laptimer_start_t const * state, AsyncWebSocketClient * const client = NULL)
     {
-        return -1;
+        clientSendLaptimerState(state->race_id, true, client);
     }
-    // Handle received MSP packet
-    virtual int parseCommand(mspPacket_t & msp_in)
+    void clientSendLaptimerState(laptimer_stop_t const * state, AsyncWebSocketClient * const client = NULL)
     {
-        return -1;
+        clientSendLaptimerState(state->race_id, false, client);
     }
+    void clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
 protected:
     CtrlSerial * _serial;
@@ -76,36 +84,12 @@ protected:
         {5333, 5373, 5413, 5453, 5493, 5533, 5573, 5613}, // L
     };
 
-    void sendMspVtxSetToEspnow(uint16_t const freq, int8_t const power = -1, bool const pitmode = false)
-    {
-        // Send to other esp-now clients
-        msp_out.reset();
-        msp_out.type = MSP_PACKET_V2_COMMAND;
-        msp_out.flags = 0;
-        msp_out.function = MSP_VTX_SET_CONFIG;
-        msp_out.payloadSize = 2; // 4 => 2, power and pitmode can be ignored
-        msp_out.payload[0] = (freq & 0xff);
-        msp_out.payload[1] = (freq >> 8);
-        if (0 <= power) {
-            msp_out.payloadSize += 1;
-            msp_out.payload[2] = power;
-        }
-        if (pitmode) {
-            msp_out.payloadSize += 1;
-            msp_out.payload[3] = pitmode;
-        }
-        espnow_send_msp(msp_out);
-    }
+    virtual int parseCommandPriv(char const * cmd, size_t len, AsyncWebSocketClient * const client) = 0;
+    virtual int
+    parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client) = 0;
+    virtual int parseCommandPriv(mspPacket_t & msp_in) = 0;
 
-    uint16_t checkInputMspVtxSet(mspPacket_t & msp_in)
-    {
-        if (msp_in.type == MSP_PACKET_V2_COMMAND) {
-            if (msp_in.function == MSP_VTX_SET_CONFIG && 2 <= msp_in.payloadSize) {
-                return parseFreq(msp_in.payload);
-            }
-        }
-        return 0;
-    }
+    virtual void handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client) = 0;
 
     uint16_t parseFreq(uint8_t const * const payload)
     {

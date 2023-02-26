@@ -31,8 +31,7 @@ enum {
 #define MSP_ERRORFLAG     (1U << 5) // MSP RESP
 #define MSP_ELRS_INT      (3U << 0)
 
-typedef enum
-{
+typedef enum {
     MSP_IDLE,
     MSP_MSP_START,
     MSP_HEADER_M, // MSPv1
@@ -52,8 +51,7 @@ typedef enum
     MSP_COMMAND_RECEIVED
 } mspState_e;
 
-typedef enum
-{
+typedef enum {
     MSP_PACKET_UNKNOWN,
     MSP_PACKET_TLM_OTA, // Used to carry info OTA
     MSP_PACKET_V1_ELRS,
@@ -63,31 +61,93 @@ typedef enum
     MSP_PACKET_V2_RESPONSE
 } mspPacketType_e;
 
-enum /* MSPv1 functions */
-{
+/* MSPv1 functions */
+enum {
     MSP_VTX_CONFIG = 0x58,     // read
     MSP_VTX_SET_CONFIG = 0x59, // write
     MSP_EEPROM_WRITE = 250,
 };
 
-enum /* MSPv2 functions */
-{
+/* MSPv2 functions */
+enum {
     MSP_ELRS_FUNC = 0x4578, // ['E','x']
 
     MSP_ESPNOW_BIND_FUNC = 0x454E, // ['E', 'N']
 
-    MSP_CHORUS32_LAP_TIME = 0x4c54, // ['L', 'T']
+    MSP_LAP_TIMER = 0x4c54, // ['L', 'T']
 };
 
-typedef struct
-{
+/************************* ExpressLRS Commands **************************/
+enum {
+    CMD_ELRS_xxx,
+};
+
+/************************** LAPTIMER Commands ***************************/
+/* MSP_LAP_TIMER subcommands */
+enum {
+    CMD_LAP_TIMER_REGISTER = 0x01,
+    CMD_LAP_TIMER_SET_NODE,
+    CMD_LAP_TIMER_START,
+    CMD_LAP_TIMER_STOP,
+    CMD_LAP_TIMER_LAP,
+};
+
+typedef struct {
+    uint32_t subcommand;
+    char pilot[33];
+} PACKED laptimer_register_req_t;
+
+typedef struct {
+    uint32_t subcommand;
+    uint16_t freq;
+    uint16_t node_index;
+} PACKED laptimer_register_resp_t;
+
+typedef struct { // Allowed only in training mode
+    uint32_t subcommand;
+    laptimer_register_resp_t info;
+    laptimer_register_req_t pilot;
+} PACKED laptimer_set_node_t;
+
+typedef struct {
+    uint32_t subcommand;
+    uint16_t node_index;
+    uint16_t race_id;
+} PACKED laptimer_start_t;
+
+typedef struct {
+    uint32_t subcommand;
+    uint16_t node_index;
+    uint16_t race_id;
+} PACKED laptimer_stop_t;
+
+typedef struct {
+    uint32_t subcommand;
+    uint32_t lap_time_ms;
+    uint16_t node_index;
+    uint16_t race_id;
+    uint8_t lap_index;
+} PACKED laptimer_lap_t;
+
+typedef union {
+    uint32_t subcommand;
+    laptimer_register_req_t register_req;
+    laptimer_register_resp_t register_resp;
+    laptimer_set_node_t set_node;
+    laptimer_start_t start;
+    laptimer_stop_t stop;
+    laptimer_lap_t lap;
+} laptimer_messages_t;
+
+/**************************   MSP Messaging   **************************/
+
+typedef struct {
     uint8_t flags;
     uint16_t function;
     uint16_t payloadSize;
 } PACKED mspHeaderV2_t;
 
-typedef struct
-{
+typedef struct {
     mspPacketType_e type;
     uint8_t WORD_ALIGNED_ATTR payload[MSP_PORT_INBUF_SIZE];
     uint16_t function;
@@ -138,7 +198,8 @@ typedef struct
 
     inline void add(uint8_t const * data, size_t len)
     {
-        while(len--) addByte(*data++);
+        while (len--)
+            addByte(*data++);
     }
 
     inline void setIteratorToSize(void)
@@ -163,36 +224,50 @@ typedef struct
 class MSP
 {
 public:
-    MSP() {}
+    MSP()
+    {
+    }
     bool processReceivedByte(uint8_t c);
-    bool mspOngoing() {
+    bool mspOngoing()
+    {
         return (m_inputState != MSP_IDLE);
     }
-    bool mspReceived() {
+    bool mspReceived()
+    {
         return (m_inputState == MSP_COMMAND_RECEIVED);
     }
-    mspPacket_t &getPacket() {
+    mspPacket_t & getPacket()
+    {
         return m_packet;
     }
-    mspPacket_t *getPacketPtr() {
+    mspPacket_t * getPacketPtr()
+    {
         return &m_packet;
     }
-    uint8_t error() {
+    uint8_t error()
+    {
         return m_packet.error;
     }
-    void markPacketFree() {
+    void markPacketFree()
+    {
         // Set input state to idle, ready to receive the next packet
         // The current packet data will be discarded internally
         m_inputState = MSP_IDLE;
     }
-    static size_t bufferPacket(uint8_t *output_ptr, mspPacketType_e type,
-                             uint16_t function, uint8_t flags,
-                             uint8_t len, uint8_t const * payload);
-    static size_t bufferPacket(uint8_t *output_ptr, mspPacket_t *packet);
-    static bool sendPacket(CtrlSerial *port, mspPacketType_e type,
-                           uint16_t function, uint8_t flags,
-                           uint8_t len, uint8_t const * payload);
-    static bool sendPacket(mspPacket_t *packet, CtrlSerial *port);
+    static size_t bufferPacket(uint8_t * output_ptr,
+                               mspPacketType_e type,
+                               uint16_t function,
+                               uint8_t flags,
+                               uint8_t len,
+                               uint8_t const * payload);
+    static size_t bufferPacket(uint8_t * output_ptr, mspPacket_t * packet);
+    static bool sendPacket(CtrlSerial * port,
+                           mspPacketType_e type,
+                           uint16_t function,
+                           uint8_t flags,
+                           uint8_t len,
+                           uint8_t const * payload);
+    static bool sendPacket(mspPacket_t * packet, CtrlSerial * port);
 
 private:
     mspPacket_t m_packet;

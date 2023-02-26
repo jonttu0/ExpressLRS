@@ -19,9 +19,6 @@ public:
     void syncSettings(AsyncEventSourceClient * const client);
 
     int parseSerialData(uint8_t chr);
-    int parseCommand(char const * cmd, size_t len, AsyncWebSocketClient * const client);
-    int parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
-    int parseCommand(mspPacket_t & msp_in);
 
     void loop(void);
 
@@ -38,11 +35,14 @@ private:
     MSP _handler;
     mspPacket_t msp_out;
 
+    // From WEB UI
+    int parseCommandPriv(char const * cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommandPriv(mspPacket_t & msp_in);
+
     void sendMspToUart(uint8_t const * const buff, uint16_t const len, uint16_t const function);
     void CrsfWrite(uint8_t * buff, uint8_t const size) const;
 
     void handleUserTextCommand(const char * input, size_t len);
-    void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client = NULL, bool espnow = true);
-
-    void sendVtxFrequencyToWebsocket(uint16_t freq);
+    void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
 };

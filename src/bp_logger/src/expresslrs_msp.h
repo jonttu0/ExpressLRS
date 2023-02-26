@@ -19,9 +19,6 @@ public:
     void syncSettings(AsyncEventSourceClient * const client);
 
     int parseSerialData(uint8_t const chr);
-    int parseCommand(char const * cmd, size_t len, AsyncWebSocketClient * const client);
-    int parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
-    int parseCommand(mspPacket_t & msp_in);
 
     void loop(void);
 
@@ -44,16 +41,19 @@ private:
     uint8_t handset_adjust_ok;
 #endif
 
+    // From WEB UI
+    int parseCommandPriv(char const * cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommandPriv(mspPacket_t & msp_in);
+
+    void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
+
     void elrsSettingsSend(uint8_t const * buff, uint8_t len);
     void elrsSendMsp(uint8_t const * buff, uint8_t len, uint8_t function);
 
     void elrsSettingsLoad(void);
     void elrsSettingsSendToWebsocket(AsyncWebSocketClient * const client = NULL);
     void elrsSettingsSendEvent(AsyncEventSourceClient * const client = NULL);
-
-    void handleVtxFrequencySetCommand(uint16_t freq, AsyncWebSocketClient * const client = NULL);
-    void sendVtxFrequencyToSerial(uint16_t freq, AsyncWebSocketClient * const client = NULL);
-    void sendVtxFrequencyToWebsocket(uint16_t freq);
 
 #if CONFIG_HANDSET
     void handleHandsetCalibrateCommand(uint8_t const * const input);

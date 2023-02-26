@@ -23,7 +23,7 @@ void TbsFusion::syncSettings(void)
 void TbsFusion::syncSettings(AsyncWebSocketClient * const client)
 {
     // Send settings
-    sendVtxFrequencyToWebsocket(eeprom_storage.vtx_freq);
+    clientSendVtxFrequency(eeprom_storage.vtx_freq);
 }
 
 void TbsFusion::syncSettings(AsyncEventSourceClient * const client)
@@ -78,7 +78,7 @@ int TbsFusion::parseSerialData(uint8_t const chr)
 }
 
 // From WEB UI
-int TbsFusion::parseCommand(char const * cmd, size_t len, AsyncWebSocketClient * const client)
+int TbsFusion::parseCommandPriv(char const * cmd, size_t len, AsyncWebSocketClient * const client)
 {
     // ExLRS setting commands
     const char * temp = strstr(cmd, "SET_text=");
@@ -90,7 +90,7 @@ int TbsFusion::parseCommand(char const * cmd, size_t len, AsyncWebSocketClient *
 }
 
 // From WEB UI
-int TbsFusion::parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client)
+int TbsFusion::parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client)
 {
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
@@ -99,11 +99,6 @@ int TbsFusion::parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, Asyn
     }
 
     switch (cmd->msg_id) {
-        case WSMSGID_VIDEO_FREQ: {
-            uint16_t const freq = parseFreq(cmd->payload);
-            handleVtxFrequencyCommand(freq, client);
-            break;
-        }
         case WSMSGID_RECORDING_CTRL: {
             break;
         }
@@ -114,15 +109,19 @@ int TbsFusion::parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, Asyn
 }
 
 // This is received from outside (ESP-NOW). Return -1 to get packet written to Serial
-int TbsFusion::parseCommand(mspPacket_t & msp_in)
+int TbsFusion::parseCommandPriv(mspPacket_t & msp_in)
 {
-    uint16_t const freq = checkInputMspVtxSet(msp_in);
-    if (freq) {
-        /* Pass command to HDZero */
-        handleVtxFrequencyCommand(freq, NULL, false);
-        /* Infrom web clients */
-        sendVtxFrequencyToWebsocket(freq);
+    if (msp_in.type == MSP_PACKET_V2_COMMAND || msp_in.type == MSP_PACKET_V2_RESPONSE) {
+        switch (msp_in.function) {
+            case MSP_ELRS_FUNC: {
+                /* Ignore */
+                break;
+            }
+            default:
+                break;
+        }
     }
+
     /* Return 0 to ignore packet */
     return 0;
 }
@@ -164,7 +163,7 @@ void TbsFusion::handleUserTextCommand(const char * input, size_t const len)
     websocket_send_txt(dbg_info);
 }
 
-void TbsFusion::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client, bool const espnow)
+void TbsFusion::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
 {
     if (storeVtxFreq(client, freq) == 0) {
         return;
@@ -184,21 +183,4 @@ void TbsFusion::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketCli
     command.payload[5] = 0x01;
 
     CrsfWrite((uint8_t *)&command, sizeof(command));
-
-    // Send to other esp-now clients
-    if (espnow) {
-        // msp_out.function = MSP_VTX_SET_CONFIG;
-        // espnow_send_msp(msp_out);
-    }
-}
-
-void TbsFusion::sendVtxFrequencyToWebsocket(uint16_t const freq)
-{
-    uint8_t response[] = {
-        (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
-        (uint8_t)WSMSGID_VIDEO_FREQ,
-        (uint8_t)(freq >> 8),
-        (uint8_t)freq,
-    };
-    websocket_send_bin(response, sizeof(response));
 }

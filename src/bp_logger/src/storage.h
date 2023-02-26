@@ -2,9 +2,9 @@
 
 #include <stdint.h>
 
-#define LOGGER_STORAGE_VERSION   0x11220003
+#define LOGGER_STORAGE_VERSION   0x11220004
 #define LOGGER_ESPNOW_INIT_KEY   0x4321
-#define LOGGER_WIFINETS_INIT_KEY 0x4321
+#define LOGGER_WIFINETS_INIT_KEY 0x4322
 
 typedef struct {
     uint8_t mac_addr[6];
@@ -16,6 +16,10 @@ typedef struct {
     uint8_t mac[6];
 } wifi_networks_t;
 
+typedef struct {
+    int8_t index;
+    char pilot_name[33];
+} laptimer_config_t;
 
 struct storage {
     // --------------- 0x11220001 ---------------------------
@@ -38,6 +42,9 @@ struct storage {
 
     // --------------- 0x11220003 ---------------------------
     wifi_networks_t laptimer;
+
+    // --------------- 0x11220004 ---------------------------
+    laptimer_config_t laptimer_config;
 
     void setup();
     void update();

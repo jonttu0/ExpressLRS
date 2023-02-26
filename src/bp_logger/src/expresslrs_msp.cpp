@@ -15,8 +15,6 @@ enum {
     WSMSGID_ELRS_TLM,
     WSMSGID_ELRS_RF_POWER_TEST,
 
-    WSMSGID_TLM_GPS = WSMSGID_BASE_TELEMETRY,
-
 #if CONFIG_HANDSET
     // Handset messages
     WSMSGID_HANDSET_MIXER = WSMSGID_BASE_HANDSET,
@@ -147,24 +145,9 @@ void ExpresslrsMsp::elrsSettingsSendEvent(AsyncEventSourceClient * const client)
     async_event_send(json, "fea_config", client);
 }
 
-void ExpresslrsMsp::handleVtxFrequencySetCommand(uint16_t const freq, AsyncWebSocketClient * const client)
+void ExpresslrsMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
 {
-    if (freq == 0)
-        return;
-
     // Send to ELRS
-    sendVtxFrequencyToSerial(freq, client);
-
-    // Send to other esp-now clients
-    sendMspVtxSetToEspnow(freq);
-}
-
-void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, AsyncWebSocketClient * const client)
-{
-    if (storeVtxFreq(client, freq) == 0) {
-        return;
-    }
-
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     // payload[2] = power;
     // payload[3] = (power == 0); // pit mode
@@ -172,17 +155,6 @@ void ExpresslrsMsp::sendVtxFrequencyToSerial(uint16_t const freq, AsyncWebSocket
 
     // Request save to make set permanent
     msp_send_save_requested_ms = millis();
-}
-
-void ExpresslrsMsp::sendVtxFrequencyToWebsocket(uint16_t const freq)
-{
-    uint8_t vtx_response[] = {
-        (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
-        (uint8_t)WSMSGID_VIDEO_FREQ,
-        (uint8_t)(freq >> 8),
-        (uint8_t)freq,
-    };
-    websocket_send_bin(vtx_response, sizeof(vtx_response), NULL);
 }
 
 #if CONFIG_HANDSET
@@ -604,7 +576,7 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     info += "device info";
                     // Respond with the VTX config
                     if (payload[0] == 1 && payload[1] < 3)
-                        sendVtxFrequencyToSerial(eeprom_storage.vtx_freq);
+                        handleVtxFrequencyCommand(eeprom_storage.vtx_freq, NULL);
                     break;
                 }
 #if CONFIG_HANDSET
@@ -659,14 +631,14 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
     return 0;
 }
 
-int ExpresslrsMsp::parseCommand(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
+int ExpresslrsMsp::parseCommandPriv(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
 {
     return -1;
 }
 
-int ExpresslrsMsp::parseCommand(websoc_bin_hdr_t const * const cmd,
-                                 size_t const len,
-                                 AsyncWebSocketClient * const client)
+int ExpresslrsMsp::parseCommandPriv(websoc_bin_hdr_t const * const cmd,
+                                    size_t const len,
+                                    AsyncWebSocketClient * const client)
 {
     /* No payload */
     if (WSMSGID_ELRS_SETTINGS == cmd->msg_id) {
@@ -733,29 +705,26 @@ int ExpresslrsMsp::parseCommand(websoc_bin_hdr_t const * const cmd,
         }
 #endif
 
-        case WSMSGID_VIDEO_FREQ: {
-            uint16_t const freq = ((uint16_t)cmd->payload[1] << 8) + cmd->payload[0];
-            handleVtxFrequencySetCommand(freq, client);
-            break;
-        }
-
         default:
             return -1;
     }
     return 0;
 }
 
-int ExpresslrsMsp::parseCommand(mspPacket_t & msp_in)
+int ExpresslrsMsp::parseCommandPriv(mspPacket_t & msp_in)
 {
-    uint16_t const freq = checkInputMspVtxSet(msp_in);
-    if (freq) {
-        /* Pass command to elrs */
-        sendVtxFrequencyToSerial(freq);
-        /* Infrom web clients */
-        sendVtxFrequencyToWebsocket(freq);
+    if (msp_in.type == MSP_PACKET_V2_COMMAND || msp_in.type == MSP_PACKET_V2_RESPONSE) {
+        switch (msp_in.function) {
+            case MSP_ELRS_FUNC: {
+                /* Ignore */
+                break;
+            }
+            default:
+                break;
+        }
         return 0;
     }
-    return -1;
+    return -1; // will trigger write to serial
 }
 
 void ExpresslrsMsp::loop(void)

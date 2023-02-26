@@ -19,9 +19,6 @@ public:
     void syncSettings(AsyncEventSourceClient * const client);
 
     int parseSerialData(uint8_t chr);
-    int parseCommand(char const * cmd, size_t len, AsyncWebSocketClient * const client);
-    int parseCommand(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
-    int parseCommand(mspPacket_t & msp_in);
 
     void loop(void);
 
@@ -37,14 +34,16 @@ private:
     uint32_t init_called_ms;
     uint8_t init_state;
 
+    // From WEB UI
+    int parseCommandPriv(char const * cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
+    int parseCommandPriv(mspPacket_t & msp_in);
+
     void sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function);
 
     void handleUserTextCommand(const char * input, size_t len);
-    void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client = NULL, bool espnow = true);
+    void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
     void handleRecordingStateCommand(uint8_t start);
-
-    void sendVtxFrequencyToWebsocket(uint16_t freq, AsyncWebSocketClient * const client = NULL);
-    void sendVRecordingStateToWebsocket(uint8_t state, AsyncWebSocketClient * const client = NULL);
 
     //
     void getFwVersion(void);

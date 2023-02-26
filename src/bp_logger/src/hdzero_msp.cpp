@@ -45,7 +45,7 @@ void HDZeroMsp::syncSettings(void)
 void HDZeroMsp::syncSettings(AsyncWebSocketClient * const client)
 {
     // Send settings
-    sendVtxFrequencyToWebsocket(eeprom_storage.vtx_freq, client);
+    clientSendVtxFrequency(eeprom_storage.vtx_freq, client);
 }
 
 void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
@@ -55,6 +55,7 @@ void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
     json += ",\"recording_control\":1";
     json += ",\"osd_text\":1";
     json += ",\"laptimer\":1";
+    json += ",\"vrxversion\":1";
     json += ",\"espnow\":";
     json += ESP_NOW;
     json += '}';
@@ -89,7 +90,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
             if (freq && eeprom_storage.vtx_freq != freq) {
                 eeprom_storage.vtx_freq = freq;
                 eeprom_storage.markDirty();
-                sendVtxFrequencyToWebsocket(freq);
+                clientSendVtxFrequency(freq);
             }
 
             if (init_state == STATE_GET_CH_INDEX)
@@ -105,7 +106,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
             if (eeprom_storage.vtx_freq != freq) {
                 eeprom_storage.vtx_freq = freq;
                 eeprom_storage.markDirty();
-                sendVtxFrequencyToWebsocket(freq);
+                clientSendVtxFrequency(freq);
             }
 
             if (init_state == STATE_GET_FREQ)
@@ -115,7 +116,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
             info = "Recording state received: ";
             info += msp_in.payload[0] ? "ON" : "OFF";
 
-            sendVRecordingStateToWebsocket(msp_in.payload[0]);
+            clientSendVRecordingState(msp_in.payload[0]);
 
             if (init_state == STATE_GET_RECORDING)
                 init_state = STATE_READY;
@@ -140,7 +141,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
     return 0;
 }
 
-int HDZeroMsp::parseCommand(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
+int HDZeroMsp::parseCommandPriv(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
 {
     char * temp;
     // ExLRS setting commands
@@ -152,7 +153,7 @@ int HDZeroMsp::parseCommand(char const * cmd, size_t const len, AsyncWebSocketCl
     return -1;
 }
 
-int HDZeroMsp::parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client)
+int HDZeroMsp::parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client)
 {
     if (!len) {
         String settings_out = "[INTERNAL ERROR] something went wrong, payload size is 0!";
@@ -161,11 +162,6 @@ int HDZeroMsp::parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len
     }
 
     switch (cmd->msg_id) {
-        case WSMSGID_VIDEO_FREQ: {
-            uint16_t const freq = ((uint16_t)cmd->payload[1] << 8) + cmd->payload[0];
-            handleVtxFrequencyCommand(freq, client);
-            break;
-        }
         case WSMSGID_RECORDING_CTRL: {
             handleRecordingStateCommand(!!cmd->payload[0]);
             break;
@@ -177,22 +173,12 @@ int HDZeroMsp::parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len
 }
 
 // This is received from outside (ESP-NOW)
-int HDZeroMsp::parseCommand(mspPacket_t & msp_in)
+int HDZeroMsp::parseCommandPriv(mspPacket_t & msp_in)
 {
     /* Just validate the packet and let the espnow handler to forward it */
 
-    uint16_t const freq = checkInputMspVtxSet(msp_in);
-    if (freq) {
-        /* Pass command to HDZero */
-        handleVtxFrequencyCommand(freq, NULL, false);
-        /* Infrom web clients */
-        sendVtxFrequencyToWebsocket(freq);
-        return 0;
-    }
-
     /*  HDZero uses only MSP V2 */
-    if (msp_in.type == MSP_PACKET_V2_COMMAND) {
-        /* Check the allowed functions */
+    if (msp_in.type == MSP_PACKET_V2_COMMAND || msp_in.type == MSP_PACKET_V2_RESPONSE) {
         switch (msp_in.function) {
             case HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_SET: {
                 uint16_t const freq = getFreqByIndex(msp_in.payload[0]);
@@ -202,7 +188,7 @@ int HDZeroMsp::parseCommand(mspPacket_t & msp_in)
                     eeprom_storage.vtx_freq = freq;
                     eeprom_storage.markDirty();
                 }
-                sendVtxFrequencyToWebsocket(freq);
+                clientSendVtxFrequency(freq);
                 break;
             }
             case HDZ_MSP_FUNC_FREQUENCY_SET: {
@@ -213,12 +199,18 @@ int HDZeroMsp::parseCommand(mspPacket_t & msp_in)
                     eeprom_storage.vtx_freq = freq;
                     eeprom_storage.markDirty();
                 }
-                sendVtxFrequencyToWebsocket(freq);
+                clientSendVtxFrequency(freq);
                 break;
             }
             case HDZ_MSP_FUNC_RECORDING_STATE_SET: {
-                sendVRecordingStateToWebsocket(msp_in.payload[0]);
+                clientSendVRecordingState(msp_in.payload[0]);
             }
+
+            case MSP_ELRS_FUNC: {
+                /* Ingore */
+                return 0;
+            }
+
             default:
                 break;
         }
@@ -297,12 +289,8 @@ void HDZeroMsp::handleUserTextCommand(const char * input, size_t const len)
     websocket_send_txt(dbg_info);
 }
 
-void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client, bool const espnow)
+void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
 {
-    if (storeVtxFreq(client, freq) == 0) {
-        return;
-    }
-
     // Send to HDZero
 #if 0
     uint8_t chan_index = getIndexByFreq(freq);
@@ -311,13 +299,6 @@ void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketCli
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     sendMspToHdzero(payload, sizeof(payload), HDZ_MSP_FUNC_FREQUENCY_SET);
 #endif
-
-    // Send to other esp-now clients
-    if (espnow) {
-        msp_out.function = MSP_VTX_SET_CONFIG;
-        espnow_send_msp(msp_out);
-    }
-
     getChannelIndex();
     getFrequency();
 }
@@ -328,28 +309,7 @@ void HDZeroMsp::handleRecordingStateCommand(uint8_t const start)
     // Send to HDZero
     uint8_t payload[] = {start, (uint8_t)(delay_s & 0xff), (uint8_t)(delay_s >> 8)};
     sendMspToHdzero(payload, sizeof(payload), HDZ_MSP_FUNC_RECORDING_STATE_SET);
-    sendVRecordingStateToWebsocket(start);
-}
-
-void HDZeroMsp::sendVtxFrequencyToWebsocket(uint16_t const freq, AsyncWebSocketClient * const client)
-{
-    uint8_t response[] = {
-        (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
-        (uint8_t)WSMSGID_VIDEO_FREQ,
-        (uint8_t)(freq >> 8),
-        (uint8_t)freq,
-    };
-    websocket_send_bin(response, sizeof(response), client);
-}
-
-void HDZeroMsp::sendVRecordingStateToWebsocket(uint8_t const state, AsyncWebSocketClient * const client)
-{
-    uint8_t response[] = {
-        (uint8_t)(WSMSGID_RECORDING_CTRL >> 8),
-        (uint8_t)WSMSGID_RECORDING_CTRL,
-        state,
-    };
-    websocket_send_bin(response, sizeof(response), client);
+    clientSendVRecordingState(start);
 }
 
 void HDZeroMsp::getFwVersion(void)

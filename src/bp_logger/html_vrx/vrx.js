@@ -93,6 +93,7 @@ function feature_config(config) {
   $id("osd_text_control").style.display = !!config.osd_text ? "block" : "none";
   $id("laptimer_control").style.display = !!config.laptimer ? "block" : "none";
   $id("espnow_control").style.display = !!config.espnow ? "block" : "none";
+  $id("vrxversion_control").style.display = !!config.vrxversion ? "block" : "none";
 }
 /********************* RECORDING *************************/
 function recording_control_send(btn) {
@@ -278,7 +279,7 @@ function laptimernet_parse(network_str) {
 
 function websock_validate_and_send(command) {
   if (!websock || websock.readyState !== WebSocket.OPEN) {
-    show_error("Failed to communicate with handset, websocket connection is closed!");
+    show_error("Failed to communicate with logger, websocket connection is closed!");
     return;
   }
   websock.send(command);
