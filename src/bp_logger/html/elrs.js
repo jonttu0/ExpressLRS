@@ -26,30 +26,11 @@ const elrs_settings_lookup = {
     6: {"rfidx": 4, "rates": ['DVDA500Hz', 'DVDA250Hz', 'LORA500Hz', 'LORA250Hz'], "info": "2400MHz ISM (VANILLA 3.x)"},
 };
 
-function $id(id) {
-    return document.getElementById(id);
-}
-function $class(id) {
-    return document.getElementsByClassName(id);
-}
-function $name(name) {
-    return document.getElementsByName(name);
-}
-
 export function start() {
     const fea_debug = {"laptimer":1, "espnow":1, "handset":1};
     feature_config(fea_debug);
 
-    const logger = $id("logField");
-    logger.scrollTop = logger.scrollHeight;
-
-    var _bands = $id("vtx_band");
-    while (_bands.length > 1) {_bands.remove(_bands.length - 1);}
-    for (const band in common.vtx_table_get()) {
-        var option = document.createElement("option");
-        option.text = option.value = band;
-        _bands.add(option);
-    }
+    common.common_init();
 
     // configure events
     const events = {
@@ -59,7 +40,7 @@ export function start() {
         "elrs_version": function(e) {
             $id("firmware_version_elrs").innerHTML = e.data;},
         "elrs_settings": function(e) {
-            const config = JSON.parse(e.data);
+            const settings = JSON.parse(e.data);
             handle_settings(settings);
             handset_mixer(settings['mixer']);
             handset_calibrate_adjust(settings['gimbals']);},
@@ -71,19 +52,34 @@ export function start() {
 
 function handle_input_msg(msgid, payload) {
     switch (msgid) {
-        case common.WSMSGID_ELRS_SETTINGS: handle_settings(settings_parse(payload)); break;
+        case common.WSMSGID_ELRS_SETTINGS:
+            handle_settings(settings_parse(payload));
+            break;
         case common.WSMSGID_HANDSET_CALIBRATE:
             if (calibrate_btn != null) {
                 calibrate_btn.disabled = false;
                 calibrate_btn = null;
                 $id("handset_calibrate_stat").innerHTML = 'Calibration failed!';
-            } break;
-        case common.WSMSGID_HANDSET_BATT_INFO: handset_battery_value(payload); break;
-        case common.WSMSGID_HANDSET_ADJUST: handset_calibrate_adjust(handset_calibrate_adjust_to_dict(payload)); break;
-        case common.WSMSGID_HANDSET_MIXER: handset_mixer(mixer_list_to_dict(payload)); break;
-        case common.WSMSGID_HANDSET_TLM_LINK_STATS: handset_telemetry_link_stats(payload); break;
-        case common.WSMSGID_HANDSET_TLM_BATTERY: handset_telemetry_battery(payload); break;
-        case common.WSMSGID_HANDSET_TLM_GPS: handset_telemetry_gps(payload); break;
+            }
+            break;
+        case common.WSMSGID_HANDSET_BATT_INFO:
+            handset_battery_value(payload);
+            break;
+        case common.WSMSGID_HANDSET_ADJUST:
+            handset_calibrate_adjust(handset_calibrate_adjust_to_dict(payload));
+            break;
+        case common.WSMSGID_HANDSET_MIXER:
+            handset_mixer(mixer_list_to_dict(payload));
+            break;
+        case common.WSMSGID_HANDSET_TLM_LINK_STATS:
+            handset_telemetry_link_stats(payload);
+            break;
+        case common.WSMSGID_HANDSET_TLM_BATTERY:
+            handset_telemetry_battery(payload);
+            break;
+        case common.WSMSGID_HANDSET_TLM_GPS:
+            handset_telemetry_gps(payload);
+            break;
         default:
             return false;
     }
@@ -511,7 +507,7 @@ function handset_telemetry_link_stats(payload)
     $id("tlm_dl_RSSI1").innerHTML = payload.nextInt8().toString() + " dBm";
     $id("tlm_dl_LQ").innerHTML = payload.nextUint8();
     $id("tlm_dl_SNR").innerHTML = (payload.nextInt8().toFixed(1) / 10.).toString() + " dB";
-    const now = common.time_current();
+    const now = time_current();
     $id("tlm_ul_updated").innerHTML = now;
     $id("tlm_dl_updated").innerHTML = now;
 
@@ -525,7 +521,7 @@ function handset_telemetry_battery(payload, now=null)
     const capacity = (payload.nextUint8() << 16) + (payload.nextUint8() << 8) + payload.nextUint8();
     $id("tlm_batt_C").innerHTML = capacity.toString() + " mAh";
     $id("tlm_batt_R").innerHTML = payload.nextUint8().toString() + " %";
-    if (now == null) now = common.time_current();
+    if (now == null) now = time_current();
     $id("tlm_batt_updated").innerHTML = now;
 }
 
@@ -537,5 +533,5 @@ function handset_telemetry_gps(payload)
     $id("tlm_gps_head").innerHTML = (payload.nextUint16(true).toFixed(1) / 10.).toString() + " deg";
     $id("tlm_gps_alt").innerHTML = (payload.nextInt16(true) - 1000).toString() + " m";
     $id("tlm_gps_sat").innerHTML = payload.nextUint8();
-    $id("tlm_gps_updated").innerHTML = common.time_current();
+    $id("tlm_gps_updated").innerHTML = time_current();
 }

@@ -83,7 +83,7 @@ int TbsFusion::parseCommandPriv(char const * cmd, size_t len, AsyncWebSocketClie
     // ExLRS setting commands
     const char * temp = strstr(cmd, "SET_text=");
     if (temp) {
-        handleUserTextCommand(&temp[9], (len - 9));
+        handleUserTextCommand(&temp[9], (len - 9), client);
         return 0;
     }
     return -1;
@@ -150,7 +150,7 @@ void TbsFusion::CrsfWrite(uint8_t * buff, uint8_t const size) const
     _serial->write(buff, size);
 }
 
-void TbsFusion::handleUserTextCommand(const char * input, size_t const len)
+void TbsFusion::handleUserTextCommand(const char * input, size_t const len, AsyncWebSocketClient * const client)
 {
     if (input == NULL)
         return;
@@ -158,8 +158,9 @@ void TbsFusion::handleUserTextCommand(const char * input, size_t const len)
     // TODO: write text to OSD
 
     String dbg_info = "OSD Text: '";
-    dbg_info += input;
-    dbg_info += "'";
+    for (size_t iter = 0; iter < len; iter++)
+        dbg_info += input[iter];
+    dbg_info += "' (IGNORED)";
     websocket_send_txt(dbg_info);
 }
 

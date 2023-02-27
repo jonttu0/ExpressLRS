@@ -8,23 +8,11 @@ const channelFreqTable = {
 };
 common.vtx_table_set(channelFreqTable);
 
-function $id(id) {return document.getElementById(id);}
-function $class_add(obj, type) {if(obj) obj.classList.add(type);}
-function $class_del(obj, type) {if(obj) obj.classList.remove(type);}
-
 export function start() {
   const fea_debug = {"recording":1, "osd_text":1, "laptimer":1, "espnow":1};
   feature_config(fea_debug);
 
-  var _bands = $id("vtx_band")
-  while (_bands.length > 1) { _bands.remove(_bands.length - 1); }
-  for (const band in common.vtx_table_get()) {
-    var option = document.createElement("option");
-    option.text = option.value = band;
-    _bands.add(option);
-  }
-
-  $id("logField").scrollTop = $id("logField").scrollHeight;
+  common.common_init();
 
   // configure events
   const events = {
@@ -46,7 +34,7 @@ export function start() {
 function handle_input_msg(msgid, payload) {
   switch (msgid) {
     case common.WSMSGID_RECORDING_CTRL:
-      recording_control_received(payload);
+      recording_control_received(!!payload.getUint8());
       break;
     default:
         return false;
@@ -76,8 +64,7 @@ export function recording_control_send(btn) {
   common.message_send_binary(common.WSMSGID_RECORDING_CTRL, [start]);
 }
 
-function recording_control_received(payload) {
-  const state = payload.getUint8();
+function recording_control_received(state) {
   const button = $id("recording_state");
   $class_del(button, "green"); $class_del(button, "red");
   $class_add(button, state ? "red" : "green");

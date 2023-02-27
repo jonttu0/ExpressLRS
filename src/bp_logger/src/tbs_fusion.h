@@ -43,6 +43,6 @@ private:
     void sendMspToUart(uint8_t const * const buff, uint16_t const len, uint16_t const function);
     void CrsfWrite(uint8_t * buff, uint8_t const size) const;
 
-    void handleUserTextCommand(const char * input, size_t len);
+    void handleUserTextCommand(const char * input, size_t len, AsyncWebSocketClient * const client);
     void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
 };

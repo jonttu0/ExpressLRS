@@ -2,7 +2,7 @@
 <html lang="en"><head>
   <meta charset="utf-8">
   <meta name="viewport" content="width = device-width, initial-scale = 1.0">
-  <title>HDZero Backpack</title>
+  <title>VRX Logger</title>
   <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 <script type="module">
@@ -13,7 +13,8 @@
 </script>
 <body><div class="content">
   <iframe name="hidden-iframe" style="display: none;"></iframe>
-  <fieldset><legend>Settings</legend>
+  <fieldset>
+    <legend>Settings</legend>
     <table class="center" style="width: 100%;">
       <tr>
         <td style="width:200px;">
@@ -35,7 +36,8 @@
       </tr>
     </table>
   </fieldset>
-  <fieldset id="recording_control"><legend>Recording</legend>
+  <fieldset id="recording_control">
+    <legend>Recording</legend>
     <button id="recording_state" class="green" onclick="window.commands.recording_control_send(this)">START</button>
   </fieldset>
   <fieldset id="laptimer_control">
@@ -46,10 +48,28 @@
           <tr>
             <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
             <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
-            <td style="width: 80px;"><input type='submit' value='Submit' id='laptimer_submit' style="width:80px;"></td>
+          </tr>
+          <tr>
+            <td><input placeholder="Pilot name" type='text' name='pilot' id='laptimer_pilot' size='32' maxlength='32'></td>
+            <td><span>...info...</span></td>
           </tr>
         </table>
+        <div style="width:100%; text-align: center;"><input type='submit' value='Save' id='laptimer_submit' style="width:80px;"></div>
       </form>
+    </div>
+    <hr>
+    <div>
+      <label for="laptimer_ctrl_btn">Laptimer: </label>
+      <button id="laptimer_ctrl_btn" onclick="window.jscommon.laptimer_ctrl_send(this)" class="green">START</button>
+    </div>
+    <hr>
+    <div>
+      <p style="text-align: center; padding: 2px;">LAP TIMES - Race ID: <span id="laptimer_race_id"></span></p>
+      <table id="laptimer_laps">
+        <tr><td style="width: 50px;">Lap</td><td style="width: 200px;">Time</td></tr>
+        <tr><td>1</td><td>00:11.123</td></tr>
+        <tr><td>2</td><td>00:11.123</td></tr>
+      </table>
     </div>
   </fieldset>
   <fieldset id="espnow_control">
@@ -59,7 +79,8 @@
     <script>function espnowclients_autosize(el){el.rows = el.value.split('\n').length;}</script>
     <button onclick="window.jscommon.espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
   </div></fieldset>
-  <fieldset><legend>WiFi Networs</legend><div>
+  <fieldset>
+    <legend>WiFi Networs</legend><div>
     <table class="wifinetworks" id="wifinetworks"><tr><td class="ssid">My WiFi Network SSID</td><td>DEL</td></tr></table>
     </div><div><hr/>
     <table id="wifinetworks_new" class="wifinetworks"><tr>
@@ -69,16 +90,18 @@
     </table>
     <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="window.jscommon.wifinetworks_add()">ADD</button></div></div>
   </fieldset>
-  <fieldset><legend>Log Messages</legend>
+  <fieldset>
+    <legend>Log Messages</legend>
     <textarea id="logField" readonly></textarea><br>
     <button type="button" onclick="window.jscommon.saveTextAsFile()" value="save" id="save">Save log to file...</button> |
     <input type="checkbox" id="autoscroll" checked><label for="autoscroll"> Auto scroll</label> |
     <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;"><label for="scrollsize"> Scroll len</label>
   </fieldset>
-  <fieldset><legend>Debug</legend>
+  <fieldset>
+    <legend>Debug</legend>
     <div id="osd_text_control">
       <label for="osdtext">OSD text[32]:</label>
-      <input type="text" id="osd_text" name="osdtext" onchange="window.jscommon.message_send_str('SET_text', this.value)" maxlength="32" style="width: 320px;">
+      <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32" style="width: 320px;">
     </div>
   </fieldset>
   <fieldset>
@@ -89,11 +112,14 @@
       <p id="vrxversion_control">VRX ver: <span id="firmware_version_vrx"></span></p>
     </div>
   </fieldset>
-  <fieldset><legend>Upgrade Own Firmware</legend>
-    <div><form method='POST' action='/doUpdate' enctype='multipart/form-data' target="hidden-iframe">
+  <fieldset>
+    <legend>Upgrade Own Firmware</legend>
+    <div>
+      <form method='POST' action='/doUpdate' enctype='multipart/form-data' target="hidden-iframe">
         <input type='file' accept='.bin,.bin.gz' name='backpack_fw' id="esp_fw" style="width:350px;">
         <input type='submit' value='FLASH' id='esp_submit' disabled='disabled'>
-    </form></div>
+      </form>
+    </div>
     <p><span id="validationMessage" class="hide">Please, select correct firmware file!</span></p>
   </fieldset>
   <script>

@@ -147,7 +147,7 @@ int HDZeroMsp::parseCommandPriv(char const * cmd, size_t const len, AsyncWebSock
     // ExLRS setting commands
     temp = strstr(cmd, "SET_text=");
     if (temp) {
-        handleUserTextCommand(&temp[9], (len - 9));
+        handleUserTextCommand(&temp[9], (len - 9), client);
         return 0;
     }
     return -1;
@@ -265,11 +265,10 @@ void HDZeroMsp::sendMspToHdzero(uint8_t const * const buff, uint16_t const len, 
     MSP::sendPacket(&msp_out, _serial);
 }
 
-void HDZeroMsp::handleUserTextCommand(const char * input, size_t const len)
+void HDZeroMsp::handleUserTextCommand(const char * input, size_t const len, AsyncWebSocketClient * const client)
 {
     if (input == NULL)
         return;
-
     // Write to HDZ VRX
     msp_out.type = MSP_PACKET_V2_COMMAND;
     msp_out.flags = 0;
@@ -284,9 +283,10 @@ void HDZeroMsp::handleUserTextCommand(const char * input, size_t const len)
     MSP::sendPacket(&msp_out, _serial);
 
     String dbg_info = "OSD Text: '";
-    dbg_info += input;
+    for (size_t iter = 0; iter < len; iter++)
+        dbg_info += input[iter];
     dbg_info += "'";
-    websocket_send_txt(dbg_info);
+    websocket_send_txt(dbg_info, client);
 }
 
 void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)

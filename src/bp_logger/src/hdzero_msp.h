@@ -41,7 +41,7 @@ private:
 
     void sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function);
 
-    void handleUserTextCommand(const char * input, size_t len);
+    void handleUserTextCommand(const char * input, size_t len, AsyncWebSocketClient * const client);
     void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
     void handleRecordingStateCommand(uint8_t start);
 

@@ -606,6 +606,21 @@ void async_event_handler(AsyncEventSourceClient * client)
     client->send("keepalive", NULL, millis(), 5000);
     // Send settings to client
     msp_handler.syncSettings(client);
+
+    String json = "{\"laptimer\":{\"ssid\":\"";
+    if (wifi_is_ssid_valid(&eeprom_storage.laptimer)) {
+        json += eeprom_storage.laptimer.ssid;
+    }
+    json += "\",\"mac\":\"";
+    if (wifi_is_mac_valid(&eeprom_storage.laptimer)) {
+        json += mac_addr_print(eeprom_storage.laptimer.mac);
+    }
+    json += "\",\"pilot\":\"";
+    if (eeprom_storage.laptimer_config.pilot_name) {
+        json += eeprom_storage.laptimer_config.pilot_name;
+    }
+    json += "\"}}";
+    async_event_send(json, "laptimer", client);
 }
 
 /***********************************************************************************/
@@ -877,6 +892,9 @@ static void handleFileRead(AsyncWebServerRequest * request)
         {"/vrx.js",     "text/javascript", (uint8_t *)VRX_JS,     sizeof(VRX_JS)},
 #endif
         {"/common.js",  "text/javascript", (uint8_t *)COMMON_JS,  sizeof(COMMON_JS)},
+#if FAVICON_IMPL
+        {"/favicon.ico","image/x-icon",    (uint8_t *)FAVICON,    sizeof(FAVICON)},
+#endif
     };
     // Check if matching to builtin files
     for (size_t i = 0; i < ARRAY_SIZE(files); i++) {

@@ -44,19 +44,23 @@ def compress(data):
 
 
 def build_html(mainfile, var, out):
-    with open(mainfile, 'r') as file:
+    opentype = ["r", "rb"][".ico" in mainfile]
+    with open(mainfile, opentype) as file:
         data = file.read()
-        data = data.replace("{%ESP_VERSION%}", get_version())
-        data = data.replace("{%TARGET_NAME%}", get_target_name())
+        if opentype == "r":
+            data = data.replace("{%ESP_VERSION%}", get_version())
+            data = data.replace("{%TARGET_NAME%}", get_target_name())
     if mainfile.endswith('.html'):
         data = html_minifier.html_minify(data)
     if mainfile.endswith('.css'):
         data = rcssmin.cssmin(data)
     if mainfile.endswith('.js'):
         data = rjsmin.jsmin(data)
+    if opentype == "r":
+        data = data.encode('utf-8')
     out.write('#define %s_IMPL 1\n' % var)
     out.write('static const char PROGMEM %s[] = {\n' % var)
-    out.write(','.join("0x{:02x}".format(c) for c in compress(data.encode('utf-8'))))
+    out.write(','.join("0x{:02x}".format(c) for c in compress(data)))
     out.write('\n};\n\n')
 
 

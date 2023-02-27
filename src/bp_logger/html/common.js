@@ -30,34 +30,65 @@ export const WSMSGID_RECORDING_CTRL        = 0x2401;
 export const WSMSGID_LAPTIMER_START_STOP   = 0x2500;
 export const WSMSGID_LAPTIMER_LAPTIME      = 0x2501;
 
-export function $id(id) {
+const message_id_map = {
+    "ERROR_IND": WSMSGID_ERROR_IND,
+    "ESPNOW_ADDR": WSMSGID_ESPNOW_ADDRS,
+    "STM32_RESET": WSMSGID_STM32_RESET,
+};
+
+function $id(id) {
     return document.getElementById(id);
 }
-
-export function time_current() {
+function $class(id) {
+    return document.getElementsByClassName(id);
+}
+function $name(name) {
+    return document.getElementsByName(name);
+}
+function $class_add(obj, type) {
+    if(obj) obj.classList.add(type);
+}
+function $class_del(obj, type) {
+    if(obj) obj.classList.remove(type);
+}
+function time_current() {
     const dateobj = new Date()
     return dateobj.toLocaleTimeString([], {hour12: false});
 }
-export function datetime_current() {
+function datetime_current() {
     const dateobj = new Date()
     return dateobj.toLocaleTimeString([], {hour12: false}) + '.' +
             `00${dateobj.getMilliseconds()}`.slice(-3);
 }
-
-export function show_error(msg) {
+function show_error(msg) {
     console.log(msg);
     alert(msg);
 }
-
-export function bufferToHex (buffer) {
+function bufferToHex(buffer) {
     return [...new Uint8Array (buffer)]
         .map (b => b.toString (16).padStart (2, "0"))
         .join ("");
 }
-
 function int2str_pad(num, size=2, base=10) {
     return num.toString(base).padStart(size,"0");
 }
+function msToTime(ms, hours=false) {
+    // Pad to 2 or 3 digits, default is 2
+    var pad = (n, z = 2) => ('00' + n).slice(-z);
+    var resp = "";
+    if (hours) resp = pad(ms/3.6e6|0) + ':';
+    return resp + pad((ms%3.6e6)/6e4 | 0) + ':' + pad((ms%6e4)/1000|0) + '.' + pad(ms%1000, 3);
+}
+
+export const generics = {
+    "$id": $id, "$class": $class, "$name": $name,
+    "$class_add": $class_add, "$class_del": $class_del,
+    "time_current": time_current, "datetime_current": datetime_current,
+    "show_error": show_error, "bufferToHex": bufferToHex, "int2str_pad": int2str_pad,
+};
+for (const [key, value] of Object.entries(generics)) { window[key] = value; }
+
+/******************* PROTOTYPES ***********************/
 
 DataView.prototype.nextUint8 = function () {
     if (this.offset_next == undefined) this.offset_next = 0;
@@ -99,6 +130,16 @@ DataView.prototype.nextInt16 = function (little_endian=false) {
         return undefined;
     }
 };
+DataView.prototype.nextUint32 = function (little_endian=false) {
+    if (this.offset_next == undefined) this.offset_next = 0;
+    const idx = this.offset_next; this.offset_next += 4;
+    try {
+        return this.getUint32(idx, little_endian);
+    } catch(e) {
+        console.error("error! nextUint32: idx: %o, buffer: %o", idx, this);
+        return undefined;
+    }
+};
 DataView.prototype.nextInt32 = function (little_endian=false) {
     if (this.offset_next == undefined) this.offset_next = 0;
     const idx = this.offset_next; this.offset_next += 4;
@@ -110,6 +151,29 @@ DataView.prototype.nextInt32 = function (little_endian=false) {
     }
 };
 
+/********************* CMN INIT *************************/
+export function common_init() {
+    const _bands = $id("vtx_band")
+    while (_bands.length > 1) { _bands.remove(_bands.length - 1); }
+    for (const band in vtx_table_get()) {
+        const option = document.createElement("option");
+        option.text = option.value = band;
+        _bands.add(option);
+    }
+
+    const logger = $id("logField");
+    logger.scrollTop = logger.scrollHeight;
+
+    const bytes = [0, 0, 3, 4, 0, 1, 1];
+    var sendarray = new ArrayBuffer(bytes.length);
+    var view = new Uint8Array(sendarray);
+    for (var iter = 0; iter < bytes.length; iter++)
+        view[iter] = bytes[iter];
+    const payload = new DataView(sendarray);
+    laptimer_laptime_parse(payload);
+
+}
+
 /********************* WEB EVENTS *************************/
 export function events_init(events) {
     if (!!window.EventSource) {
@@ -118,6 +182,9 @@ export function events_init(events) {
         source.addEventListener('error', function(e) {
             if (e.target.readyState != EventSource.OPEN) {/*console.log("Events Disconnected");*/}}, false);
         source.addEventListener('message', function(e) {console.log("message", e.data);}, false);
+        source.addEventListener('laptimer', function(e) {
+            const config = JSON.parse(e.data);
+            laptimer_info_handle(config.laptimer);}, false);
         for (var e in events) {
             source.addEventListener(e, events[e], false);
         }
@@ -150,12 +217,18 @@ export function websocket_init(callback) {
             const msgid = message.getUint16();
             const payload = new DataView(evt.data, 2);
             switch(msgid) {
-                case WSMSGID_ESPNOW_ADDRS: espnowclients_parse(payload);break;
-                case WSMSGID_VIDEO_FREQ: msp_vtx_freq(payload.getUint16()); break;
-
-                case WSMSGID_LAPTIMER_START_STOP: laptimer_ctrl_state(payload.getUint8()); break;
-                case WSMSGID_LAPTIMER_LAPTIME: laptimer_laptime_parse(payload); break;
-
+                case WSMSGID_ESPNOW_ADDRS:
+                    espnowclients_parse(payload);
+                    break;
+                case WSMSGID_VIDEO_FREQ:
+                    msp_vtx_freq(payload.nextUint16());
+                    break;
+                case WSMSGID_LAPTIMER_START_STOP:
+                    laptimer_ctrl_state(payload.nextUint16(), payload.nextUint8());
+                    break;
+                case WSMSGID_LAPTIMER_LAPTIME:
+                    laptimer_laptime_parse(payload);
+                    break;
                 default:
                     if (_callback) {
                         if (!_callback(msgid, payload))
@@ -193,6 +266,9 @@ export function message_send_str(type, value) {
 }
 
 export function message_send_binary(msg_id, bytes=[]) {
+    if (typeof msg_id === 'string') {
+        msg_id = message_id_map[msg_id];
+    }
     var sendarray = new ArrayBuffer(2 + bytes.length);
     var view = new Uint8Array(sendarray);
     view[0] = msg_id & 0xFF;
@@ -201,6 +277,10 @@ export function message_send_binary(msg_id, bytes=[]) {
         view[2+iter] = bytes[iter];
     return websock_validate_and_send(sendarray);
 }
+// Publish
+window.websock_validate_and_send = websock_validate_and_send;
+window.message_send_str = message_send_str;
+window.message_send_binary = message_send_binary;
 
 /********************* LOGGING *************************/
 function appendToLog(text) {
@@ -332,7 +412,7 @@ export function espnowclients_send() {
         if (mac.length != 6) { console.error("Invalid MAC address: %s", client); return; }
         mac.forEach(element => { bytes.push(element); });
     }
-    common.message_send_binary(common.WSMSGID_ESPNOW_ADDRS, bytes);
+    message_send_binary(WSMSGID_ESPNOW_ADDRS, bytes);
 }
 
 function espnowclients_parse(value) {
@@ -397,42 +477,63 @@ export function wifinetworks_add(event) {
     const ssid = $id("wifi_new_ssid").value;
     const mac = $id("wifi_new_mac").value;
     if (!ssid && !mac) {
-        common.show_error("SSID or MAC is mandatory!");
+        show_error("SSID or MAC is mandatory!");
         return;
     }
     const psk = $id("wifi_new_psk").value;
-    common.websock_validate_and_send(
+    websock_validate_and_send(
         "WIFIADD/" +
-        common.int2str_pad(ssid.length, 2) + "/" + ssid + "/" +
-        common.int2str_pad(psk.length, 2) + "/" + psk +
+        int2str_pad(ssid.length, 2) + "/" + ssid + "/" +
+        int2str_pad(psk.length, 2) + "/" + psk +
         (mac ? "/" + mac.split(":").join("") : "")
     );
 }
 function wifinetworks_del(event) {
-    if (common.websock_validate_and_send("WIFIDEL/" + common.int2str_pad(event.target.parentElement.parentElement.esp_index, 2))) {
+    if (websock_validate_and_send("WIFIDEL/" + int2str_pad(event.target.parentElement.parentElement.esp_index, 2))) {
         event.target.disabled = true;
     }
 }
+/********************* Lap Timer *****************************/
 function laptimernet_parse(network_str) {
     if (network_str == "") return;
-    const network = {"mac": network_str.substring(0, 17), "ssid": network_str.substring(17)}
-    // Not used, ignore for now
+    const network = {"mac": network_str.substring(0, 17), "ssid": network_str.substring(17), "pilot": ""};
+    //laptimer_info_handle(network);
+}
+function laptimer_info_handle(laptimer) {
+    $id("laptimer_ssid").value = !!laptimer.ssid ? laptimer.ssid : "";
+    $id("laptimer_mac").value = !!laptimer.mac ? laptimer.mac : "";
+    $id("laptimer_pilot").value = !!laptimer.pilot ? laptimer.pilot : "";
 }
 
-/********************* Lap Timer *****************************/
 export function laptimer_ctrl_send(btn) {
-    var start = btn.innerHTML == "START";
-    common.message_send_binary(common.WSMSGID_LAPTIMER_START_STOP, [start]);
+    const start = btn.innerHTML == "START";
+    message_send_binary(WSMSGID_LAPTIMER_START_STOP, [start]);
 }
-function laptimer_ctrl_state(state) {
+function laptimer_ctrl_state(state, race_id) {
     const button = $id("laptimer_ctrl_btn");
     $class_del(button, "green"); $class_del(button, "red");
     $class_add(button, state ? "red" : "green");
     button.innerHTML = state ? "STOP" : "START";
     if (state) {
-        /* TODO: New race started, cleanup times */
+        const table = $id("laptimer_laps");
+        while (1 < table.rows.length) {
+            table.deleteRow(table.rows.length-1);
+        }
+        $id("laptimer_race_id").innerHTML = race_id.toString(10);
     }
 }
 function laptimer_laptime_parse(payload) {
-    console.log();
+    const time = msToTime(payload.nextUint32());
+    const race_id = payload.nextUint16();
+    const lap_index = payload.nextUint8();
+    console.log(payload, " => ", time, race_id, lap_index);
+
+    $id("laptimer_race_id").innerHTML = race_id.toString(10);
+
+    const table = $id("laptimer_laps");
+    const newrow = table.insertRow();
+    var cell = newrow.insertCell(0);
+    cell.innerHTML = lap_index.toString(10);
+    var cell = newrow.insertCell(1);
+    cell.innerHTML = time.toString(10);
 }

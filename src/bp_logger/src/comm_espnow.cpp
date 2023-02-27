@@ -288,7 +288,7 @@ void espnow_vtxset_send(uint16_t const freq, int8_t const power, int8_t const pi
 {
 #if ESP_NOW
     uint8_t size = 2; // Default is only freq
-    uint8_t set[4] = {(uint8_t)(freq & 0xff), (uint8_t)freq};
+    uint8_t set[4] = {(uint8_t)freq, (uint8_t)(freq >> 8)};
     if (0 <= power)
         set[size++] = power;
     if (0 <= pitmode)

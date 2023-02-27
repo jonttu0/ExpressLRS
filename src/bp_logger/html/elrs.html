@@ -13,6 +13,7 @@
     window.jscommon = commands.cmn;
   </script>
 <body>
+  <iframe name="hidden-iframe" style="display: none;"></iframe>
   <div class="center-area">
     <div>
       <div class="heading_big">ExpressLRS TX</div>
@@ -259,7 +260,6 @@
                 </tr>
               </table>
             </form>
-            <iframe name="hidden-iframe" style="display: none;"></iframe>
           </div>
           <br>
           <div style="text-align: center;">
@@ -480,7 +480,7 @@
       <fieldset id="laptimer_control">
         <legend>Lap Timer</legend>
         <div>
-          <form method='POST' action='/laptimer_config' enctype='multipart/form-data'>
+          <form method='POST' action='/laptimer_config' enctype='multipart/form-data' target="hidden-iframe">
             <table style="width:100%;">
               <tr>
                 <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
