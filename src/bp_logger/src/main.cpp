@@ -868,9 +868,15 @@ static void handleFileRead(AsyncWebServerRequest * request)
         const uint8_t * content;
         const size_t size;
     } files[] = {
-        {"/index.html",       "text/html", (uint8_t *)INDEX_HTML, sizeof(INDEX_HTML)},
-        { "/style.css",        "text/css",  (uint8_t *)STYLE_CSS,  sizeof(STYLE_CSS)},
-        {"/scripts.js", "text/javascript", (uint8_t *)SCRIPTS_JS, sizeof(SCRIPTS_JS)},
+        {"/index.html", "text/html",       (uint8_t *)INDEX_HTML, sizeof(INDEX_HTML)},
+        {"/style.css",  "text/css",        (uint8_t *)STYLE_CSS,  sizeof(STYLE_CSS)},
+#if ELRS_JS_IMPL
+        {"/elrs.js",    "text/javascript", (uint8_t *)ELRS_JS,    sizeof(ELRS_JS)},
+#endif
+#if VRX_JS_IMPL
+        {"/vrx.js",     "text/javascript", (uint8_t *)VRX_JS,     sizeof(VRX_JS)},
+#endif
+        {"/common.js",  "text/javascript", (uint8_t *)COMMON_JS,  sizeof(COMMON_JS)},
     };
     // Check if matching to builtin files
     for (size_t i = 0; i < ARRAY_SIZE(files); i++) {

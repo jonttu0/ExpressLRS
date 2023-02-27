@@ -5,12 +5,15 @@
     <meta name="viewport" content="width = device-width, initial-scale = 1.0">
     <title>ExpressLRS</title>
     <link rel="stylesheet" type="text/css" href="style.css">
-    <script type="text/javascript" src="scripts.js"></script>
   </head>
-
-<body onload="javascript:start();">
+  <script type="module">
+    import * as commands from './elrs.js';
+    document.body.onload = () => {commands.start();};
+    window.commands = commands;
+    window.jscommon = commands.cmn;
+  </script>
+<body>
   <div class="center-area">
-
     <div>
       <div class="heading_big">ExpressLRS TX</div>
       <!-- TAB BAR -->
@@ -50,9 +53,9 @@
       <div style="text-align: center;">
         <textarea id="logField" readonly></textarea>
         <br>
-        <button type="button" onclick="saveTextAsFile()" value="save" id="save">Save log to file...</button> |
+        <button type="button" onclick="window.jscommon.saveTextAsFile()" value="save" id="save">Save log to file...</button> |
         <input type="checkbox" id="autoscroll" checked><label for="autoscroll"> Auto scroll</label> |
-        <input type='number' value='512' name='scrollsize' id='scrollsize' min="256"><label for="scrollsize"> Scroll len</label>
+        <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;"><label for="scrollsize"> Scroll len</label>
         <br>
       </div>
       <hr/>
@@ -85,7 +88,7 @@
               RF mode
             </td>
             <td>
-              <select name="rf_module" onchange="rf_module_changed(this)" id="rf_module" disabled>
+              <select name="rf_module" onchange="window.commands.rf_module_changed(this)" id="rf_module" disabled>
                 <option value="" selected disabled hidden></option>
                 <option value=0> 900 (SX127x)</option>
                 <option value=3>2400 (SX128x)</option>
@@ -100,7 +103,7 @@
               Packet Rate
             </td>
             <td colspan="2">
-              <select name="rate" onchange="message_send(this)" id="rates_input" disabled>
+              <select name="rate" onchange="window.commands.message_send(this)" id="rates_input" disabled>
                 <option value="" selected disabled hidden></option>
               </select>
             </td>
@@ -110,7 +113,7 @@
               TX Power
             </td>
             <td colspan="2">
-              <select name="power" onchange="message_send(this)" id="power_input" disabled>
+              <select name="power" onchange="window.commands.message_send(this)" id="power_input" disabled>
                 <option value="" selected disabled hidden></option>
                 <option value=255>Reset</option>
                 <option value=0>Dynamic</option>
@@ -130,7 +133,7 @@
               Telemetry Ratio
             </td>
             <td colspan="2">
-              <select name="telemetry" onchange="message_send(this)" id="tlm_input" disabled>
+              <select name="telemetry" onchange="window.commands.message_send(this)" id="tlm_input" disabled>
                 <option value="" selected disabled hidden></option>
                 <option value=255>Reset</option>
                 <option value=0>Off</option>
@@ -150,7 +153,7 @@
               RF PWR
             </td>
             <td colspan="2">
-              <select name="rf_pwr" onchange="message_send(this)" id="rf_pwr">
+              <select name="rf_pwr" onchange="window.commands.message_send(this)" id="rf_pwr">
                 <option value=-18>-18</option>
                 <option value=-17>-17</option>
                 <option value=-16>-16</option>
@@ -199,13 +202,13 @@
           <tr>
             <td>
               BAND
-              <select id="vtx_band" onchange="vtx_band_changed(this.value)">
+              <select id="vtx_band" onchange="window.jscommon.vtx_band_changed(this.value)">
                 <option value="" selected disabled hidden>Select band</option>
               </select>
             </td>
             <td>
               CHANNEL
-              <select id="vtx_channel" onchange="vtx_show_freq()">
+              <select id="vtx_channel" onchange="window.jscommon.vtx_show_freq()">
                 <option value="" selected disabled hidden>Select channel</option>
               </select>
             </td>
@@ -213,7 +216,7 @@
               <div id="vtx_freq" style="width: 100px;"></div>
             </td>
             <td>
-              <button onclick="msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button>
+              <button onclick="window.jscommon.msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button>
             </td>
           </tr>
         </table>
@@ -260,7 +263,7 @@
           </div>
           <br>
           <div style="text-align: center;">
-            <button onclick="command_stm32('reset')">RESET</button>
+            <button onclick="window.commands.command_stm32('reset')">RESET</button>
           </div>
         </fieldset>
       </p>
@@ -319,13 +322,13 @@
                 Scale
                 <input type="number" id="battery_scale"
                   min='50' max='150' value="100" style="width: 40px;"
-                  onchange="handset_battery_adjust();">
+                  onchange="window.commands.handset_battery_adjust();">
               </td>
               <td>
                 Warning (%)
                 <input type="number" id="battery_warning"
                   min='10' max='100' value="70" step="5" style="width: 45px;"
-                  onchange="handset_battery_adjust();">
+                  onchange="window.commands.handset_battery_adjust();">
               </td>
             </tr>
           </table>
@@ -338,7 +341,7 @@
         </table>
         <div style="padding: 10px; text-align: right;">
           <br/>
-          <button style="width: 100px;" onclick="handset_mixer_send()">SET</button>
+          <button style="width: 100px;" onclick="window.commands.handset_mixer_send()">SET</button>
         </div>
       </fieldset>
 
@@ -358,50 +361,50 @@
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left;">LEFT, 1</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L1_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L1_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L1_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L1_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L1_max')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L1_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">LEFT, 2</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L2_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L2_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L2_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L2_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L2_max')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L2_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 1</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R1_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R1_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R1_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R1_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R1_max')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R1_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 2</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R2_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R2_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R2_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R2_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R2_max')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R2_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr>
             <td id="handset_calibrate_stat" colspan="4">&nbsp;</td>
@@ -410,10 +413,10 @@
       </fieldset>
 
       <div style="padding: 10px; text-align: center;">
-        <button name="handset_reload" style="width: 100px;" value="0" onclick="message_send(this)">Refresh</button>
+        <button name="handset_reload" style="width: 100px;" value="0" onclick="window.commands.message_send(this)">Refresh</button>
       </div>
       <div style="padding: 10px; text-align: center;">
-        <button name="handset_save" style="width: 100px;" value="0" onclick="message_send(this)">Save</button>
+        <button name="handset_save" style="width: 100px;" value="0" onclick="window.commands.message_send(this)">Save</button>
       </div>
     </div>
     <!-- HANDSET END -->
@@ -494,7 +497,7 @@
         <hr>
         <div>
           <label for="laptimer_ctrl_btn">Laptimer: </label>
-          <button id="laptimer_ctrl_btn" onclick="laptimer_ctrl_send(this)" class="green">START</button>
+          <button id="laptimer_ctrl_btn" onclick="window.jscommon.laptimer_ctrl_send(this)" class="green">START</button>
         </div>
         <hr>
         <div>
@@ -510,7 +513,8 @@
         <div>
           <label for="espnowclients" class="valigntop">Add one per line</label>
           <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
-          <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
+          <script>function espnowclients_autosize(el){el.rows = el.value.split('\n').length;}</script>
+          <button onclick="window.jscommon.espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
         </div>
       </fieldset>
       <fieldset>
@@ -527,7 +531,7 @@
             <td><input id="wifi_new_psk" type='text' style="width:250px;" placeholder="PASSWORD" minlength="1" maxlength="32"></td>
             <td><input id="wifi_new_mac" type='text' style="width:130px;" placeholder="MAC (optional)" minlength="17" maxlength="17"></td>
           </table>
-          <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="wifinetworks_add()">ADD</button></div>
+          <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="window.jscommon.wifinetworks_add()">ADD</button></div>
         </div>
       </fieldset>
     </div>

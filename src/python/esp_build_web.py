@@ -54,6 +54,7 @@ def build_html(mainfile, var, out):
         data = rcssmin.cssmin(data)
     if mainfile.endswith('.js'):
         data = rjsmin.jsmin(data)
+    out.write('#define %s_IMPL 1\n' % var)
     out.write('static const char PROGMEM %s[] = {\n' % var)
     out.write(','.join("0x{:02x}".format(c) for c in compress(data.encode('utf-8'))))
     out.write('\n};\n\n')
