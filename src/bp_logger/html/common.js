@@ -163,15 +163,6 @@ export function common_init() {
 
     const logger = $id("logField");
     logger.scrollTop = logger.scrollHeight;
-
-    const bytes = [0, 0, 3, 4, 0, 1, 1];
-    var sendarray = new ArrayBuffer(bytes.length);
-    var view = new Uint8Array(sendarray);
-    for (var iter = 0; iter < bytes.length; iter++)
-        view[iter] = bytes[iter];
-    const payload = new DataView(sendarray);
-    laptimer_laptime_parse(payload);
-
 }
 
 /********************* WEB EVENTS *************************/
@@ -509,7 +500,7 @@ export function laptimer_ctrl_send(btn) {
     const start = btn.innerHTML == "START";
     message_send_binary(WSMSGID_LAPTIMER_START_STOP, [start]);
 }
-function laptimer_ctrl_state(state, race_id) {
+function laptimer_ctrl_state(race_id, state) {
     const button = $id("laptimer_ctrl_btn");
     $class_del(button, "green"); $class_del(button, "red");
     $class_add(button, state ? "red" : "green");
