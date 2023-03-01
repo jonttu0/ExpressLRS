@@ -24,7 +24,7 @@
 #define RC_BITS_FULL        12
 
 // current and sent switch values
-#define N_CONTROLS 4
+#define N_CONTROLS TX_NUM_ANALOGS
 #ifndef N_SWITCHES
 #define N_SWITCHES 5
 #endif

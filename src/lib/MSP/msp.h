@@ -21,6 +21,7 @@ enum {
     ELRS_HANDSET_TLM_LINK_STATS,
     ELRS_HANDSET_TLM_BATTERY, // not used, to be removed...
     ELRS_HANDSET_TLM_GPS,
+    ELRS_HANDSET_RC_DATA,
 };
 
 #define MSP_PORT_INBUF_SIZE 256

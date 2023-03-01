@@ -361,6 +361,7 @@ export function vtx_band_changed(band) {
 }
 
 export function msp_vtx_freq(freq) {
+    console.log("VTX freq: %o MHz", freq);
     $id("vtx_send_btn").disabled = true;
     if (freq == 0 || freq == undefined) {
         // Clear selections

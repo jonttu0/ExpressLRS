@@ -202,6 +202,7 @@ function handle_setting_generic(elem, value, max_value=null)
 
 function handle_settings(settings)
 {
+    console.log("ELRS settings: ", settings);
     if (handle_setting_region(settings.region)) {
         handle_setting_generic($id("rates_input"), settings.rate);
         handle_setting_generic($id("power_input"), settings.power, settings.power_max);

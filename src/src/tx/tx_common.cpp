@@ -849,11 +849,13 @@ bool tx_common_tlm_rx_handle(uint32_t const now)
    // Send MSP resp if allowed and packet ready
     static uint8_t retrx_count = 0;
     uint8_t const tlm_msp_tx_state = read_u8(&tlm_msp_send);
+    bool const wait_resp = TLM_MSP_STATE_WAIT_RESP == tlm_msp_tx_state;
     if (tlm_msp_rcvd) {
-        if (msp_packet_rx.sequence_nbr == 0 &&
+        // Check that resp match
+        if (wait_resp && msp_packet_rx.sequence_nbr == 0 &&
                 msp_packet_rx.type == msp_packet_tx.type &&
-                msp_packet_rx.function == msp_packet_tx.function &&
-                TLM_MSP_STATE_WAIT_RESP == tlm_msp_tx_state) {
+                msp_packet_rx.function == msp_packet_tx.function) {
+            msp_packet_rx.type = MSP_PACKET_V1_RESP; // Only v1 over OTA
             // Resp ok, free to send next one
             write_u8(&tlm_msp_send, TLM_MSP_STATE_FREE);
             msp_packet_rx.reset();
@@ -862,15 +864,16 @@ bool tx_common_tlm_rx_handle(uint32_t const now)
         } else {
             //DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
             //             msp_packet_rx.function, msp_packet_rx.payloadSize);
-            return true;
         }
-    } else if (TLM_MSP_STATE_WAIT_RESP == tlm_msp_tx_state) {
+        return true; // Allow forwarding to logger
+    } else if (wait_resp) {
         int32_t const timeout = (MSP_EEPROM_WRITE == msp_packet_tx.function) ? 200 : 1000;
         if (timeout <= (int32_t)(now - tlm_msp_sent_ms)) {
             if (2 < retrx_count++) {
                 // Give up...
                 write_u8(&tlm_msp_send, TLM_MSP_STATE_FREE);
                 retrx_count = 0;
+                DEBUG_PRINTF("MSP ignored after 3 retries\n");
             } else {
                 // retransmit if no resp received
                 write_u8(&tlm_msp_send, TLM_MSP_STATE_SEND);

@@ -330,13 +330,21 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
         laptimer_messages_t const * const p_command = (laptimer_messages_t *)msp_pkt.payload;
         switch (p_command->subcommand) {
             case CMD_LAP_TIMER_REGISTER: {
-                eeprom_storage.vtx_freq = p_command->register_resp.freq;
-                eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
+                uint16_t const freq = p_command->register_resp.freq;
 #if UART_DEBUG_EN
-                Serial.printf("CMD_LAP_TIMER_REGISTER: freq %u, node_index %u\r\n", p_command->register_resp.freq,
+                Serial.printf("CMD_LAP_TIMER_REGISTER: freq %u, node_index %u\r\n", freq,
                               p_command->register_resp.node_index);
 #endif
-                msp_handler.clientSendVtxFrequency(eeprom_storage.vtx_freq);
+                if (freq && freq != eeprom_storage.vtx_freq)
+                    eeprom_storage.markDirty();
+
+                eeprom_storage.vtx_freq = freq;
+                eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
+
+                msp_handler.clientSendVtxFrequency(freq);
+
+                if (current_state == STATE_LAPTIMER_WAIT)
+                    current_state = STATE_RUNNING;
                 break;
             }
             case CMD_LAP_TIMER_START: {
@@ -344,7 +352,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                 Serial.printf("CMD_LAP_TIMER_START: race_id: %u, node_index: %u\r\n", p_command->start.race_id,
                               p_command->start.node_index);
 #endif
-                msp_handler.clientSendLaptimerState(&p_command->start);
+                msp_handler.clientSendLaptimerStateStart(p_command->start.race_id);
                 break;
             }
             case CMD_LAP_TIMER_STOP: {
@@ -352,7 +360,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                 Serial.printf("CMD_LAP_TIMER_STOP: race_id: %u, node_index: %u\r\n", p_command->stop.race_id,
                               p_command->stop.node_index);
 #endif
-                msp_handler.clientSendLaptimerState(&p_command->stop);
+                msp_handler.clientSendLaptimerStateStop(p_command->stop.race_id);
                 break;
             }
             case CMD_LAP_TIMER_LAP: {
@@ -449,6 +457,7 @@ static void websocket_send_initial_data(AsyncWebSocketClient * const client)
     wifi_networks_report(client);
 
     msp_handler.syncSettings(client);
+    msp_handler.clientSendVtxFrequency(eeprom_storage.vtx_freq);
 }
 
 void webSocketEvent(AsyncWebSocket * server,
@@ -548,13 +557,14 @@ void webSocketEvent(AsyncWebSocket * server,
 
                     // ====================== LAPTIMER COMMANDS ==============
                     if (WSMSGID_LAPTIMER_START_STOP == header->msg_id) {
-                        uint16_t const node = eeprom_storage.laptimer_config.index;
-                        if (header->payload[0]) {
-                            espnow_laptimer_start_send(node);
-                        } else {
-                            espnow_laptimer_stop_send(node);
+                        int8_t const node = eeprom_storage.laptimer_config.index;
+                        if (0 <= node) {
+                            if (header->payload[0]) {
+                                espnow_laptimer_start_send(node);
+                            } else {
+                                espnow_laptimer_stop_send(node);
+                            }
                         }
-
                         // ====================== ESP-NOW COMMANDS ==============
                     } else if (WSMSGID_ESPNOW_ADDRS == header->msg_id) {
                         // ESP-Now client list
@@ -1089,6 +1099,9 @@ void onStationGotIP(const WiFiEventStationModeGotIP & evt)
     channel = wifi_get_channel();
 #endif
     espnow_init(channel, esp_now_msp_rcvd);
+    if (laptimer_channel) {
+        current_state = STATE_LAPTIMER_REGISTER;
+    }
 }
 
 void onStationDhcpTimeout(void)
@@ -1124,6 +1137,10 @@ static void wifi_config_ap(uint8_t const channel)
 #endif
         // Configure ESP-NOW
         espnow_init(channel, esp_now_msp_rcvd);
+
+        if (laptimer_channel) {
+            current_state = STATE_LAPTIMER_REGISTER;
+        }
     } else {
         wifi_scan_count = 0;
         current_state = STATE_WIFI_SCAN_START;
@@ -1375,6 +1392,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
         wifi_search_results.channel = WiFi.channel(own_ap_index);
     }
 
+#if 0 // DEBUG
     if (laptimer_channel && laptimer_channel != wifi_search_results.channel) {
         /* Force AP to move onto same channel with the laptimer */
         if (wifi_search_results.network_index != UINT8_MAX) {
@@ -1388,6 +1406,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
             return;
         }
     }
+#endif
 
     if (current_state == STATE_WIFI_SCAN_LAPTIMER) {
         // No need to reconfigure, just continue
@@ -1499,6 +1518,7 @@ int serialEvent(String & log_string)
 
 void loop()
 {
+    static uint32_t laptimer_wait_ms;
     static String input_log_string = "";
 
     if (0 <= serialEvent(input_log_string)) {
@@ -1605,10 +1625,18 @@ void loop()
         case STATE_LAPTIMER_REGISTER: {
             espnow_laptimer_register_send();
             current_state = STATE_LAPTIMER_WAIT;
+            laptimer_wait_ms = now;
             break;
         }
         case STATE_LAPTIMER_WAIT: {
             // Wait couple of seconds and resend if no response received
+            if (2000 <= (now - laptimer_wait_ms)) {
+                // give up...
+#if UART_DEBUG_EN
+                Serial.println("No response from Laptimer!");
+#endif
+                current_state = STATE_RUNNING;
+            }
             break;
         }
         default:

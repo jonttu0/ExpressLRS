@@ -2,7 +2,7 @@
 #include "handset.h"
 #include "led.h"
 #include "buzzer.h"
-#include "rc_channels.h"
+#include "tx/handset/handset.h"
 
 #define MSP_SAVE_DELAY_MS 100
 
@@ -87,14 +87,14 @@ void ExpresslrsMsp::elrsSettingsSendToWebsocket(AsyncWebSocketClient * const cli
 
 void ExpresslrsMsp::elrsSettingsSendEvent(AsyncEventSourceClient * const client)
 {
-    String json = "{";
+    String json = "{\"vtxfreq\":";
+    json += eeprom_storage.vtx_freq;
     if (settings_valid) {
-        json += "\"region\":" + String(settings_region);
+        json += ",\"region\":" + String(settings_region);
         json += ",\"rate\":" + String(settings_rate);
         json += ",\"power\":" + String(settings_power);
         json += ",\"power_max\":" + String(settings_power_max);
         json += ",\"telemetry\":" + String(settings_tlm);
-        json += ",\"vtxfreq\":" + String(eeprom_storage.vtx_freq);
     }
 #if CONFIG_HANDSET
     if (handset_mixer_ok) {
@@ -154,7 +154,9 @@ void ExpresslrsMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocke
     elrsSendMsp(payload, sizeof(payload), MSP_VTX_SET_CONFIG);
 
     // Request save to make set permanent
-    msp_send_save_requested_ms = millis();
+    // msp_send_save_requested_ms = millis();
+
+    websocket_send_txt("V1_CMD: MSP_VTX_SET_CONFIG sent.");
 }
 
 #if CONFIG_HANDSET
@@ -607,13 +609,48 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     handleHandsetTlmGps(payload);
                     break;
                 }
+                case ELRS_HANDSET_RC_DATA: {
+                    rc_channels_internal_u const * const p_rc = (rc_channels_internal_u *)msp_in.payload;
+                    uint8_t iter = 0;
+                    info = "RC: ";
+                    for (iter = 0; iter < TX_NUM_ANALOGS; iter++) {
+                        if (iter)
+                            info += '|';
+                        info += p_rc->ch[iter];
+                    }
+                    info += " -- ";
+                    for (; iter < ARRAY_SIZE(p_rc->ch); iter++) {
+                        info += p_rc->ch[iter];
+                        info += '|';
+                    }
+                    break;
+                }
 #endif /* CONFIG_HANDSET */
                 default:
                     info += "UNKNOWN";
                     break;
             };
+        } else if (MSP_PACKET_V1_RESP == msp_in.type) {
+            switch (msp_in.function) {
+                case MSP_VTX_SET_CONFIG:
+                    // Send save!
+                    elrsSendMsp(NULL, 0, MSP_EEPROM_WRITE);
+                    info += "VTX config ok. Len: ";
+                    info += msp_in.payloadSize;
+                    info += ". V1_CMD: EEPROM_WRITE sent.";
+                    break;
+                case MSP_EEPROM_WRITE:
+                    info += "EEPROM save success!";
+                    break;
+                default:
+                    info = "DL MSP rcvd. func: ";
+                    info += String(msp_in.function, HEX);
+                    info += ", size: ";
+                    info += msp_in.payloadSize;
+                    break;
+            }
         } else {
-            info = "DL MSP rcvd. func: ";
+            info = "Invalid DL MSP type rcvd from FC. func: ";
             info += String(msp_in.function, HEX);
             info += ", size: ";
             info += msp_in.payloadSize;
@@ -731,9 +768,11 @@ void ExpresslrsMsp::loop(void)
 {
     batteryVoltageMeasure();
 
+#if 0
     if (msp_send_save_requested_ms && (MSP_SAVE_DELAY_MS <= (millis() - msp_send_save_requested_ms))) {
         /* send write command and clear the flag */
         elrsSendMsp(NULL, 0, MSP_EEPROM_WRITE);
         msp_send_save_requested_ms = 0;
     }
+#endif
 }

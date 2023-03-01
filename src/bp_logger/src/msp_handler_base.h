@@ -55,13 +55,13 @@ public:
 
     // Laptimer commands parsing for Web UI
     void clientSendLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL);
-    void clientSendLaptimerState(laptimer_start_t const * state, AsyncWebSocketClient * const client = NULL)
+    void clientSendLaptimerStateStart(uint16_t const race_id, AsyncWebSocketClient * const client = NULL)
     {
-        clientSendLaptimerState(state->race_id, true, client);
+        clientSendLaptimerState(race_id, true, client);
     }
-    void clientSendLaptimerState(laptimer_stop_t const * state, AsyncWebSocketClient * const client = NULL)
+    void clientSendLaptimerStateStop(uint16_t const race_id, AsyncWebSocketClient * const client = NULL)
     {
-        clientSendLaptimerState(state->race_id, false, client);
+        clientSendLaptimerState(race_id, false, client);
     }
     void clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 

@@ -56,11 +56,36 @@ static void FAST_CODE_2 esp_now_recv_cb(uint8_t * mac_addr, uint8_t * data, uint
 
     if (!data_len)
         return;
-#if 1
-    String temp = "ESPNOW received: ";
+#define ESP_NOW_RX 1
+#if ESP_NOW_RX
+    String temp = "ESPNOW RX ";
     temp += mac_addr_print(mac_addr);
-    websocket_send_txt(temp);
+
+    if (data[0] == 'E' && data[1] == 'S') {
+        // Chorus32 command...
+        temp += " - Chorus32 EXT node:";
+        temp += (char)data[2];
+        temp += ", cmd:";
+        temp += (char)data[3];
+        websocket_send_txt(temp);
+#if UART_DEBUG_EN
+        Serial.printf("%s\r\n", temp.c_str());
 #endif
+        return;
+    } else if (data[0] == 'S' && (data[1] == '*' || ('0' <= data[1] && data[1] <= '9'))) {
+        // Chorus32 command...
+        temp += " - Chorus32 node:";
+        temp += (char)data[1];
+        temp += ", cmd:";
+        temp += (char)data[2];
+        websocket_send_txt(temp);
+#if UART_DEBUG_EN
+        Serial.printf("%s\r\n", temp.c_str());
+#endif
+        return;
+    }
+#endif // ESP_NOW_RX
+
     esp_now_msp_rx.markPacketFree();
 
     for (iter = 0; iter < data_len; iter++) {
@@ -80,20 +105,36 @@ static void FAST_CODE_2 esp_now_recv_cb(uint8_t * mac_addr, uint8_t * data, uint
                     }
                 }
             } else
-#endif
+#endif // BIND_EN
                 if (peer_exists) {
-                if (msp_handler)
-                    msp_handler(packet);
-            } else {
-                /* Handle broadcast messages */
-                if (packet.type == MSP_PACKET_V2_COMMAND /*||
+                    if (msp_handler)
+                        msp_handler(packet);
+                } else {
+#if ESP_NOW_RX
+                    if (packet.function == MSP_LAP_TIMER) {
+                        laptimer_messages_t const * const p_msg = (laptimer_messages_t *)packet.payload;
+                        temp += " !! - Laptimer cmd: ";
+                        temp += p_msg->subcommand;
+                    } else {
+                        temp += " !! unknown MSP func: 0x";
+                        temp += String(packet.function, HEX);
+                    }
+#endif // ESP_NOW_RX
+                    /* Handle broadcast messages */
+                    if (packet.type == MSP_PACKET_V2_COMMAND /*||
                     packet.type == MSP_PACKET_V2_RESPONSE*/) {
+                    }
                 }
-            }
             /* Done, clear the packet and proceed */
             esp_now_msp_rx.markPacketFree();
         }
     }
+#if ESP_NOW_RX
+    websocket_send_txt(temp);
+#if UART_DEBUG_EN
+    Serial.printf("%s\r\n", temp.c_str());
+#endif
+#endif // ESP_NOW_RX
 }
 
 #if DEBUG_TX_CALLBACK
@@ -293,7 +334,8 @@ void espnow_vtxset_send(uint16_t const freq, int8_t const power, int8_t const pi
         set[size++] = power;
     if (0 <= pitmode)
         set[size++] = !!pitmode;
-    size_t const len = MSP::bufferPacket(msp_tx_buffer, MSP_PACKET_V2_COMMAND, MSP_VTX_SET_CONFIG, 0, size, set);
+    size_t const len = MSP::bufferPacket(msp_tx_buffer, MSP_PACKET_V2_COMMAND, MSP_VTX_SET_CONFIG,
+                                         (uint8_t)eeprom_storage.laptimer_config.index, size, set);
     if (len) {
         esp_now_send(NULL, msp_tx_buffer, len);
     }
@@ -318,6 +360,9 @@ void espnow_send_update_channel(uint8_t const channel)
 #if ESP_NOW
 static void FAST_CODE_2 espnow_laptimer_send(size_t const len, uint8_t const * buffer)
 {
+    if (!wifi_is_mac_valid(&eeprom_storage.laptimer)) {
+        return;
+    }
     size_t const size = MSP::bufferPacket(msp_tx_buffer, MSP_PACKET_V2_COMMAND, MSP_LAP_TIMER, 0, len, buffer);
     if (size)
         esp_now_send(eeprom_storage.laptimer.mac, msp_tx_buffer, size);
@@ -327,9 +372,6 @@ static void FAST_CODE_2 espnow_laptimer_send(size_t const len, uint8_t const * b
 void FAST_CODE_2 espnow_laptimer_register_send(void)
 {
 #if ESP_NOW
-    if (!wifi_is_mac_valid(&eeprom_storage.laptimer)) {
-        return;
-    }
     laptimer_register_req_t command = {.subcommand = CMD_LAP_TIMER_REGISTER, .pilot = {0}};
     if (!strlen(eeprom_storage.laptimer_config.pilot_name))
         return;
