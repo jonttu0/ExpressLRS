@@ -2,14 +2,25 @@ import * as common from "./common.js";
 export let cmn = common;
 
 // HDZero supported bands and channels
-const channelFreqTable = {
+const hdzero_channelFreqTable = {
   "F": [  -1, 5760,   -1, 5800,   -1,   -1,   -1,   -1], // F / Airwave
   "R": [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917], // R / Immersion Raceband
 };
-common.vtx_table_set(channelFreqTable);
+
+const fusion_channelFreqTable = {
+  "A": [5865, 5845, 5825, 5805, 5785, 5765, 5745, 5725], // A
+  "B": [5733, 5752, 5771, 5790, 5809, 5828, 5847, 5866], // B
+  "E": [5705, 5685, 5665, 5645, 5885, 5905, 5925, 5945], // E
+  "F": [5740, 5760, 5780, 5800, 5820, 5840, 5860, 5880], // F / Airwave
+  "R": [5658, 5695, 5732, 5769, 5806, 5843, 5880, 5917], // R / Immersion Raceband
+  "L": [5362, 5399, 5436, 5473, 5510, 5547, 5584, 5621], // L
+};
 
 export function start() {
-  const fea_debug = {"recording":1, "osd_text":1, "laptimer":1, "espnow":1};
+  const fea_debug = {
+    "recording":1, "osd_text":1, "laptimer":1, "espnow":1,
+    "telemetrydebug":1
+  };
   feature_config(fea_debug);
 
   common.common_init();
@@ -44,11 +55,15 @@ function handle_input_msg(msgid, payload) {
 
 /********************* UI CONFIG *************************/
 function feature_config(config) {
+  if (config.model == "HDZero") {common.vtx_table_set(hdzero_channelFreqTable);}
+  else if (config.model == "TBS Fusion") {common.vtx_table_set(fusion_channelFreqTable);}
+
   $id("recording_control").style.display = !!config.recording ? "block" : "none";
   $id("osd_text_control").style.display = !!config.osd_text ? "block" : "none";
   $id("laptimer_control").style.display = !!config.laptimer ? "block" : "none";
   $id("espnow_control").style.display = !!config.espnow ? "block" : "none";
   $id("vrxversion_control").style.display = !!config.vrxversion ? "block" : "none";
+  $id("telemetry_debug").style.display = !!config.telemetrydebug ? "block" : "none";
 }
 
 /********************* RECORDING *************************/
@@ -69,4 +84,69 @@ function recording_control_received(state) {
   $class_del(button, "green"); $class_del(button, "red");
   $class_add(button, state ? "red" : "green");
   button.innerHTML = state ? "STOP" : "START";
+}
+/********************* DEBUG *************************/
+export function message_send_tlm_debug(field, data) {
+  var msg_id = undefined;
+  const hexToDecimal = hex => parseInt(hex, 16);
+  data = data.split(",");
+  data = data.map(t => hexToDecimal(t));
+  if (field == "battery") {
+    console.log("BATT:", data);
+    msg_id = common.WSMSGID_CRSF_DBG_TLM_BATT;
+    if (data.length < 8) {
+      console.error("Batt data is too short");
+    }
+  } else if (field == "link") {
+    console.log("LINK:", data);
+    msg_id = common.WSMSGID_CRSF_DBG_TLM_LINK;
+    if (data.length < 10) {
+      console.error("Link data is too short");
+    }
+  } else if (field == "gps") {
+    console.log("GPS:", data);
+    msg_id = common.WSMSGID_CRSF_DBG_TLM_GPS;
+    if (data.length < 16) {
+      console.error("GPS data is too short");
+    }
+  } else if (field == "bytes") {
+    console.log("BYTES:", data);
+    msg_id = common.WSMSGID_CRSF_DBG_TLM_BYTES;
+  } else {
+    console.error("Invalid type: ", field);
+    return;
+  }
+  var sendarray = new ArrayBuffer(2 + data.length);
+  var view = new Uint8Array(sendarray);
+  view[0] = msg_id & 0xFF;
+  view[1] = (msg_id >> 8) & 0xFF;
+  for (var iter = 0; iter < data.length; iter++)
+      view[2+iter] = data[iter];
+  return websock_validate_and_send(sendarray);
+}
+
+export function message_send_lap_time() {
+  const _lap = $id("dbg_lap_idx").value;
+  const _time = $id("dbg_lap_time").valueAsDate;
+  if (!_time || !_lap) return;
+
+  const d = new Date(_time);
+  var ms = 0;
+  ms += d.getMilliseconds();
+  ms += d.getSeconds() * 1000;
+  ms += d.getMinutes() * 60 * 1000;
+
+  console.log("Lap %o : %o ==> %o ms", _lap, _time, ms);
+
+  var data = [_lap, (ms & 0xff), ((ms >> 8) & 0xff), ((ms >> 16) & 0xff), ((ms >> 24) & 0xff)];
+
+  const msg_id = common.WSMSGID_CRSF_DBG_LAPTIME;
+  var sendarray = new ArrayBuffer(2 + data.length);
+  var view = new Uint8Array(sendarray);
+  view[0] = msg_id & 0xFF;
+  view[1] = (msg_id >> 8) & 0xFF;
+  for (var iter = 0; iter < data.length; iter++)
+      view[2+iter] = data[iter];
+  console.log("sendarray: %o", view);
+  return websock_validate_and_send(sendarray);
 }

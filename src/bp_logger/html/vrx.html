@@ -101,6 +101,33 @@
       <label for="osdtext">OSD text[32]:</label>
       <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32" style="width: 320px;">
     </div>
+    <div id="telemetry_debug" style="display: none;">
+      <table style="width: 100%;">
+        <tr>
+          <td style="width: 100px;">Battery</td>
+          <td><input type="text" onchange="window.commands.message_send_tlm_debug('battery', this.value)" style="width: 100%;"></td>
+        </tr>
+        <tr>
+          <td>LinkStat</td>
+          <td><input type="text" onchange="window.commands.message_send_tlm_debug('link', this.value)" style="width: 100%;"></td>
+        </tr>
+        <tr>
+          <td>GPS</td>
+          <td><input type="text" onchange="window.commands.message_send_tlm_debug('gps', this.value)" style="width: 100%;"></td>
+        </tr>
+        <tr>
+          <td>bytes</td>
+          <td><input type="text" onchange="window.commands.message_send_tlm_debug('bytes', this.value)" style="width: 100%;"></td>
+        </tr>
+        <tr>
+          <td>Laps</td>
+          <td>
+            <input id="dbg_lap_idx" type="number" onchange="window.commands.message_send_lap_time()" style="width: 100px;">
+            <input id="dbg_lap_time" type="time" step="0.001" onchange="window.commands.message_send_lap_time()" style="width: 200px;">
+          </td>
+        </tr>
+      </table>
+    </div>
   </fieldset>
   <fieldset>
     <legend>Firmware Version</legend>

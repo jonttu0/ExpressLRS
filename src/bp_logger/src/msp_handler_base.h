@@ -91,6 +91,8 @@ protected:
 
     virtual void handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client) = 0;
 
+    virtual void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL){};
+
     uint16_t parseFreq(uint8_t const * const payload)
     {
         uint16_t const freq = ((uint16_t)payload[1] << 8) + payload[0];

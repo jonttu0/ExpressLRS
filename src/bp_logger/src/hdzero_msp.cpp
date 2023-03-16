@@ -58,6 +58,7 @@ void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
     json += ",\"vrxversion\":1";
     json += ",\"espnow\":";
     json += ESP_NOW;
+    json += ",\"model\":\"HDZero\"";
     json += '}';
     async_event_send(json, "fea_config", client);
     async_event_send(m_version_info, "vrx_version", client);

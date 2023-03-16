@@ -30,6 +30,12 @@ export const WSMSGID_RECORDING_CTRL        = 0x2401;
 export const WSMSGID_LAPTIMER_START_STOP   = 0x2500;
 export const WSMSGID_LAPTIMER_LAPTIME      = 0x2501;
 
+export const WSMSGID_CRSF_DBG_TLM_BATT   = 0x3000;
+export const WSMSGID_CRSF_DBG_TLM_LINK   = 0x3001;
+export const WSMSGID_CRSF_DBG_TLM_GPS    = 0x3002;
+export const WSMSGID_CRSF_DBG_TLM_BYTES  = 0x3003;
+export const WSMSGID_CRSF_DBG_LAPTIME    = 0x3004;
+
 const message_id_map = {
     "ERROR_IND": WSMSGID_ERROR_IND,
     "ESPNOW_ADDR": WSMSGID_ESPNOW_ADDRS,

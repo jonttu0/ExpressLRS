@@ -21,7 +21,7 @@ BinPackParameters: false
 Cpp11BracedListStyle: true
 PointerAlignment: Middle
 AlignAfterOpenBracket: Align
-AlignArrayOfStructures: Right
+AlignArrayOfStructures: Left
 AlignConsecutiveMacros:
   Enabled: true
   AcrossEmptyLines: false
