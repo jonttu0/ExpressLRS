@@ -157,7 +157,7 @@ void CRSF_RX::negotiate_baud(void) const
     speed_req.proposal.portID = CRSF_v3_PORT_ID;
     speed_req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
     // CMD has also its own CRC
-    speed_req.crc_cmd = CalcCRC8len(&speed_req.header.type, (sizeof(req) - CRSF_FRAME_START_BYTES - 2), 0, CRSF_CMD_POLY);
+    speed_req.crc_cmd = CalcCRC8len(&speed_req.header.type, (sizeof(speed_req) - CRSF_FRAME_START_BYTES - 2), 0, CRSF_CMD_POLY);
     sendFrameToFC((uint8_t*)&speed_req, sizeof(speed_req));
     //delay(20); // Wait DMA to finish its job
 #endif // PROTOCOL_CRSF_V3_TO_FC
