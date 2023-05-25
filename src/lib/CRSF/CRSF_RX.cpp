@@ -148,7 +148,7 @@ void CRSF_RX::negotiate_baud(void) const
 
     static crsf_speed_req speed_req;
     speed_req.header.device_addr = CRSF_ADDRESS_BROADCAST;
-    speed_req.header.frame_size = sizeof(req) - CRSF_FRAME_START_BYTES;
+    speed_req.header.frame_size = sizeof(speed_req) - CRSF_FRAME_START_BYTES;
     speed_req.header.type = CRSF_FRAMETYPE_COMMAND;
     speed_req.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     speed_req.header.orig_addr = CRSF_ADDRESS_CRSF_RECEIVER;
