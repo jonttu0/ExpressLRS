@@ -123,7 +123,7 @@ int TbsFusion::parseSerialData(uint8_t const chr)
     if (_handler.processReceivedByte(chr)) {
         /* Handle the received MSP message */
         mspPacket_t & msp_in = _handler.getPacket();
-        if (msp_in.type != MSP_PACKET_V2_COMMAND || msp_in.type != MSP_PACKET_V2_RESPONSE) {
+        if (msp_in.type != MSP_PACKET_V2_COMMAND && msp_in.type != MSP_PACKET_V2_RESPONSE) {
             info = "Invalid MSP received! func: ";
             info += msp_in.function;
         } else {

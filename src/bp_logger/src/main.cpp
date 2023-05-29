@@ -893,17 +893,17 @@ static void handleFileRead(AsyncWebServerRequest * request)
         const uint8_t * content;
         const size_t size;
     } files[] = {
-        {"/index.html", "text/html",       (uint8_t *)INDEX_HTML, sizeof(INDEX_HTML)},
-        {"/style.css",  "text/css",        (uint8_t *)STYLE_CSS,  sizeof(STYLE_CSS)},
+        {"/index.html",  "text/html",       (uint8_t *)INDEX_HTML, sizeof(INDEX_HTML)},
+        {"/style.css",   "text/css",        (uint8_t *)STYLE_CSS,  sizeof(STYLE_CSS) },
 #if ELRS_JS_IMPL
-        {"/elrs.js",    "text/javascript", (uint8_t *)ELRS_JS,    sizeof(ELRS_JS)},
+        {"/elrs.js",     "text/javascript", (uint8_t *)ELRS_JS,    sizeof(ELRS_JS)   },
 #endif
 #if VRX_JS_IMPL
-        {"/vrx.js",     "text/javascript", (uint8_t *)VRX_JS,     sizeof(VRX_JS)},
+        {"/vrx.js",      "text/javascript", (uint8_t *)VRX_JS,     sizeof(VRX_JS)    },
 #endif
-        {"/common.js",  "text/javascript", (uint8_t *)COMMON_JS,  sizeof(COMMON_JS)},
+        {"/common.js",   "text/javascript", (uint8_t *)COMMON_JS,  sizeof(COMMON_JS) },
 #if FAVICON_IMPL
-        {"/favicon.ico","image/x-icon",    (uint8_t *)FAVICON,    sizeof(FAVICON)},
+        {"/favicon.ico", "image/x-icon",    (uint8_t *)FAVICON,    sizeof(FAVICON)   },
 #endif
     };
     // Check if matching to builtin files

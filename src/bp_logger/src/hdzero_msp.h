@@ -46,6 +46,7 @@ private:
     void handleUserTextCommand(const char * input, size_t len, AsyncWebSocketClient * const client);
     void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
     void handleRecordingStateCommand(uint8_t start);
+    void handleBuzzerCommand(uint16_t time_ms);
 
     //
     void getFwVersion(void);
