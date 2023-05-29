@@ -20,6 +20,8 @@
 #define SERIAL_BAUD 115200
 #endif
 
+extern const char version_string[];
+
 class AsyncWebSocketClient;
 class AsyncEventSourceClient;
 

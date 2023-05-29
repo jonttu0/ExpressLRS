@@ -1,11 +1,9 @@
 Import("env")
 import os
-import re
 import io
 import tempfile
 import filecmp
 import shutil
-import fnmatch
 import gzip
 try:
     from minify import (html_minifier, rcssmin, rjsmin)

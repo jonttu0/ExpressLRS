@@ -118,6 +118,7 @@ AsyncWebSocketClient * g_ws_client;
 #endif
 static const char hostname[] = LOGGER_HOST_NAME;
 static const char target_name[] = STR(TARGET_NAME);
+const char version_string[] = LATEST_COMMIT_STR;
 
 String boot_log = "";
 
@@ -341,7 +342,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                 eeprom_storage.vtx_freq = freq;
                 eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
 
-                msp_handler.clientSendVtxFrequency(freq);
+                msp_handler.handleVtxFrequencyCmd(freq);
 
                 if (current_state == STATE_LAPTIMER_WAIT)
                     current_state = STATE_RUNNING;
@@ -457,7 +458,6 @@ static void websocket_send_initial_data(AsyncWebSocketClient * const client)
     wifi_networks_report(client);
 
     msp_handler.syncSettings(client);
-    msp_handler.clientSendVtxFrequency(eeprom_storage.vtx_freq);
 }
 
 void webSocketEvent(AsyncWebSocket * server,
@@ -1244,6 +1244,10 @@ static void wifi_check(void)
 
 static void wifi_config_server(void)
 {
+#ifdef ARDUINO_ARCH_ESP32
+    // ESP32 crashes if the WiFi is not up while configuring services
+    WiFi.mode(WIFI_AP_STA);
+#endif
     server.on("/fs", handle_fs);
     server.on("/fs-format", handle_fs_format);
     server.on("/return", sendReturn);
@@ -1456,8 +1460,12 @@ void setup()
     reset_stm32_to_app_mode();
 #endif
 
+#ifdef ARDUINO_ARCH_ESP32
+    SPIFFS.begin(true);
+#else
     FILESYSTEM.begin();
     // FILESYSTEM.format();
+#endif
 
 #if UART_DEBUG_EN
 #warning "Serial debugging enabled!"

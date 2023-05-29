@@ -20,6 +20,8 @@ public:
 
     int parseSerialData(uint8_t chr);
 
+    void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
+
     void loop(void);
 
 private:
@@ -50,6 +52,8 @@ private:
     void getChannelIndex(void);
     void getFrequency(void);
     void getRecordingState(void);
+
+    void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
     uint16_t getFreqByIndex(uint8_t index)
     {

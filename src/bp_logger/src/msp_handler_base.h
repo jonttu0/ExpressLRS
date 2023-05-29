@@ -50,6 +50,10 @@ public:
     int parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client);
     int parseCommand(mspPacket_t & msp_in); // Handle received MSP packet
 
+    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL) {
+        clientSendVtxFrequency(freq);
+    };
+
     void clientSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
     void clientSendVRecordingState(uint8_t const state, AsyncWebSocketClient * const client = NULL);
 

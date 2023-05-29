@@ -5,6 +5,7 @@ import opentx
 import upload_via_wifi
 import esp_compress
 import upload_passthrough_edgetx
+import shutil, os
 
 
 FAIL = '\033[91m'
@@ -137,6 +138,15 @@ elif platform in ['espressif32']:
         title="Upload via WiFi", description="")
     if "_ETX" in target_name:
         env.AddPreAction("upload", upload_passthrough_edgetx.init_passthrough)
+    if "LOGGER_" in target_name:
+        def copy_bootfile(source, target, env):
+            BUILD_DIR = env.subst("$BUILD_DIR")
+            FRAMEWORK_DIR = env.PioPlatform().get_package_dir("framework-arduinoespressif32")
+            shutil.copyfile(FRAMEWORK_DIR + "/tools/partitions/boot_app0.bin", BUILD_DIR + "/boot_app0.bin")
+            image_name = env.subst("$PROGNAME")
+            shutil.copyfile(os.path.join(BUILD_DIR, image_name + ".bin"), os.path.join(BUILD_DIR, "firmware.bin"))
+
+        env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", copy_bootfile)
 
 else:
     raise SystemExit(FAIL + "\nNot supported platfrom! '%s'\n" % platform)
