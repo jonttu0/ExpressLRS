@@ -50,7 +50,8 @@ public:
     int parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client);
     int parseCommand(mspPacket_t & msp_in); // Handle received MSP packet
 
-    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL) {
+    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL)
+    {
         clientSendVtxFrequency(freq);
     };
 
@@ -95,6 +96,8 @@ protected:
 
     virtual void handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client) = 0;
 
+    virtual void
+    handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL){};
     virtual void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL){};
 
     uint16_t parseFreq(uint8_t const * const payload)
@@ -125,6 +128,31 @@ protected:
             eeprom_storage.markDirty();
         }
         return true;
+    }
+
+    typedef struct laptime {
+        uint16_t ms;
+        uint8_t s;
+        uint8_t m;
+    } lap_time_t;
+
+    lap_time_t convert_ms_to_time(uint32_t const lap_time)
+    {
+        uint32_t secs = lap_time / 1000;
+        uint16_t ms = lap_time % 1000;
+        uint8_t hours, mins;
+        hours = secs / 3600;
+        mins = (secs - (hours * 3600)) / 60;
+        secs = secs - (hours * 3600) - (mins * 60);
+        return (lap_time_t){.ms = ms, .s = (uint8_t)secs, .m = mins};
+    }
+
+    uint32_t convert_time_to_ms(lap_time_t const time)
+    {
+        uint32_t ms = time.ms;
+        ms += 1000LU * time.s;
+        ms += 60000LU * time.m;
+        return ms;
     }
 
 private:

@@ -1,6 +1,7 @@
 #include "hdzero_msp.h"
 
 #define RETRY_INTERVAL_MS 1000
+#define OSD_TIMEOUT_MS    2000
 
 /*
  *  Get band/channel index  0x0300
@@ -44,10 +45,27 @@
 #define MSP_ELRS_BACKPACK_GET_STATUS  0x0382 // get the status of the backpack
 #define MSP_ELRS_BACKPACK_SET_PTR     0x0383 // forwarded back to TX backpack
 
+enum {
+    OSD_CMD_HEARTBEAT = 0,
+    OSD_CMD_RELEASE_PORT = 1,
+    OSD_CMD_SCREEN_CLEAR = 2,
+    OSD_CMD_SCREEN_WRITE = 3,
+    OSD_CMD_SCREEN_DRAW = 4,
+};
+
+static bool check_retry(uint32_t const ms_now, uint32_t const timeout_ms)
+{
+    static uint32_t wait_started_ms;
+    if (!ms_now || !timeout_ms || timeout_ms <= (int32_t)(ms_now - wait_started_ms)) {
+        wait_started_ms = ms_now;
+        return true;
+    }
+    return false;
+}
+
 void HDZeroMsp::init(void)
 {
-    // init_called_ms = millis() + 2000; // Delay first query
-    init_state = STATE_GET_FW_VER;
+    current_state = STATE_GET_FW_VER;
 }
 
 void HDZeroMsp::syncSettings(void)
@@ -98,8 +116,8 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                 m_version_info += msp_in.payload[3];
             }
             info = m_version_info;
-            if (init_state == STATE_GET_FW_VER)
-                init_state = STATE_GET_CH_INDEX;
+            if (current_state < STATE_READY)
+                current_state = STATE_GET_CH_INDEX;
 
         } else if (msp_in.function == HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_GET) {
             info = "Channel index received: ";
@@ -114,11 +132,11 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                 if (freq && eeprom_storage.vtx_freq != freq) {
                     eeprom_storage.vtx_freq = freq;
                     eeprom_storage.markDirty();
-                    clientSendVtxFrequency(freq); // Forward to other receivers?
+                    clientSendVtxFrequency(freq);
                 }
 
-                if (init_state == STATE_GET_CH_INDEX)
-                    init_state = STATE_GET_FREQ;
+                if (current_state < STATE_READY)
+                    current_state = STATE_GET_FREQ;
             }
 
         } else if (msp_in.function == HDZ_MSP_FUNC_FREQUENCY_GET) {
@@ -131,11 +149,11 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                 if (freq && eeprom_storage.vtx_freq != freq) {
                     eeprom_storage.vtx_freq = freq;
                     eeprom_storage.markDirty();
-                    clientSendVtxFrequency(freq); // Forward to other receivers?
+                    clientSendVtxFrequency(freq);
                 }
 
-                if (init_state == STATE_GET_FREQ)
-                    init_state = STATE_GET_RECORDING;
+                if (current_state < STATE_READY)
+                    current_state = STATE_GET_RECORDING;
             }
 
         } else if (msp_in.function == HDZ_MSP_FUNC_RECORDING_STATE_GET) {
@@ -145,8 +163,11 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
 
                 clientSendVRecordingState(msp_in.payload[0]);
 
-                if (init_state == STATE_GET_RECORDING)
-                    init_state = STATE_READY;
+                if (current_state < STATE_READY) {
+                    check_retry(0, 0);
+                    current_state = STATE_CLEAR_OSD;
+                    // current_state = STATE_READY;
+                }
             }
 
         } else if (msp_in.function == HDZ_MSP_FUNC_VRX_MODE_GET) {
@@ -201,7 +222,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
             sendMspToHdzero(response, sizeof(response), MSP_ELRS_BACKPACK_GET_STATUS);
 
         } else if (msp_in.function == MSP_ELRS_BACKPACK_SET_PTR) {
-            //info = "MSP_ELRS_BACKPACK_SET_PTR...";
+            // info = "MSP_ELRS_BACKPACK_SET_PTR...";
             ignore = true;
         }
 
@@ -221,7 +242,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
 void HDZeroMsp::handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client)
 {
     if (freq && eeprom_storage.vtx_freq == freq) {
-        // Freq is already okhandleVtxFrequencyCommand
+        // Freq is already ok
         return;
     }
     // Adjust VRx
@@ -322,29 +343,48 @@ int HDZeroMsp::parseCommandPriv(mspPacket_t & msp_in)
 
 void HDZeroMsp::loop(void)
 {
-#if !UART_DEBUG_EN
     uint32_t const now = millis();
-    if (RETRY_INTERVAL_MS <= (int32_t)(now - init_called_ms)) {
-        init_called_ms = now;
-        switch (init_state) {
-            case STATE_GET_FW_VER:
+    switch (current_state) {
+        /************** INIT STATES **************/
+        case STATE_GET_FW_VER:
+#if UART_DEBUG_EN
+            check_retry(0, 0);
+            current_state = STATE_CLEAR_OSD;
+#else
+            if (check_retry(now, RETRY_INTERVAL_MS))
                 getFwVersion();
-                break;
-            case STATE_GET_CH_INDEX:
+#endif
+            break;
+        case STATE_GET_CH_INDEX:
+            if (check_retry(now, RETRY_INTERVAL_MS))
                 getChannelIndex();
-                break;
-            case STATE_GET_FREQ:
+            break;
+        case STATE_GET_FREQ:
+            if (check_retry(now, RETRY_INTERVAL_MS))
                 getFrequency();
-                break;
-            case STATE_GET_RECORDING:
+            break;
+        case STATE_GET_RECORDING:
+            if (check_retry(now, RETRY_INTERVAL_MS))
                 getRecordingState();
-                break;
-            case STATE_READY:
-            default:
-                break;
-        };
-    }
-#endif // !UART_DEBUG_EN
+            break;
+
+        /************** RUNTIME **************/
+        case STATE_CLEAR_OSD: {
+            if (check_retry(now, OSD_TIMEOUT_MS)) {
+                osdClear();
+                current_state = STATE_READY;
+            }
+            break;
+        }
+        case STATE_DRAW_OSD: {
+            osdDraw();
+            break;
+        }
+        case STATE_READY:
+        default:
+            check_retry(now, 0); // Reset retry time
+            break;
+    };
 }
 
 void HDZeroMsp::sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function)
@@ -362,51 +402,7 @@ void HDZeroMsp::sendMspToHdzero(uint8_t const * const buff, uint16_t const len, 
 
 void HDZeroMsp::handleUserTextCommand(const char * input, size_t const len, AsyncWebSocketClient * const client)
 {
-    enum {
-        OSD_CMD_HEARTBEAT = 0,
-        OSD_CMD_RELEASE_PORT = 1,
-        OSD_CMD_SCREEN_CLEAR = 2,
-        OSD_CMD_SCREEN_WRITE = 3,
-        OSD_CMD_SCREEN_DRAW = 4,
-    };
-
-    enum {
-        OSD_ATTR_PAGE0 = 0,
-        OSD_ATTR_PAGE1 = 1,
-        OSD_ATTR_BLINK = 0x80,
-    };
-
-    if (input == NULL)
-        return;
-
-    // Clear OSD
-    uint8_t payload = OSD_CMD_SCREEN_CLEAR;
-    sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
-
-    // Fill OSD data
-    msp_out.type = MSP_PACKET_V2_COMMAND;
-    msp_out.flags = 0;
-    msp_out.function = MSP_ELRS_SET_OSD;
-    msp_out.payloadSize = len + 4;
-    msp_out.payload[0] = OSD_CMD_SCREEN_WRITE;
-    // Use fixed position for now...
-    //  VMAX = 18
-    //  HMAX = 50
-    msp_out.payload[1] = 8; // row
-    msp_out.payload[2] = 0; // column
-    msp_out.payload[3] = 0; // attribute, 0x80 for DISPLAYPORT_ATTR_BLINK
-    memcpy(&msp_out.payload[4], input, len);
-    MSP::sendPacket(&msp_out, _serial);
-
-    // Draw OSD
-    payload = OSD_CMD_SCREEN_DRAW;
-    sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
-
-    String dbg_info = "OSD Text: '";
-    for (size_t iter = 0; iter < len; iter++)
-        dbg_info += input[iter];
-    dbg_info += "'";
-    websocket_send_txt(dbg_info, client);
+    osdText(input, len, 4, 0); // DEBUG
 }
 
 void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
@@ -419,7 +415,7 @@ void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketCli
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     sendMspToHdzero(payload, sizeof(payload), HDZ_MSP_FUNC_FREQUENCY_SET);
 #endif
-    getChannelIndex();
+    // getChannelIndex();
     getFrequency();
 }
 
@@ -452,26 +448,97 @@ void HDZeroMsp::getRecordingState(void)
     sendMspToHdzero(NULL, 0, HDZ_MSP_FUNC_RECORDING_STATE_GET);
 }
 
+void HDZeroMsp::osdClear(void)
+{
+    uint8_t payload = OSD_CMD_RELEASE_PORT;
+    sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
+#if UART_DEBUG_EN
+    Serial.println("OSD CLEAR");
+#endif
+}
+
+void HDZeroMsp::osdDraw(void)
+{
+    uint8_t payload = OSD_CMD_SCREEN_DRAW;
+    sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
+    current_state = STATE_CLEAR_OSD;
+#if UART_DEBUG_EN
+    Serial.println("OSD DRAW");
+#endif
+}
+
+void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t const row, uint8_t const column)
+{
+    enum {
+        OSD_ATTR_PAGE0 = 0,
+        OSD_ATTR_PAGE1 = 1,
+        OSD_ATTR_BLINK = 0x80,
+    };
+
+#define VMAX 18
+#define HMAX 50
+
+    if (p_text == NULL || !len)
+        return;
+
+    // Fill OSD data
+    msp_out.type = MSP_PACKET_V2_COMMAND;
+    msp_out.flags = 0;
+    msp_out.function = MSP_ELRS_SET_OSD;
+    msp_out.payloadSize = len + 4;
+    msp_out.payload[0] = OSD_CMD_SCREEN_WRITE;
+    msp_out.payload[1] = row;
+    msp_out.payload[2] = column;
+    msp_out.payload[3] = OSD_ATTR_PAGE0; // attribute
+    memcpy(&msp_out.payload[4], p_text, len);
+    MSP::sendPacket(&msp_out, _serial);
+
+#if UART_DEBUG_EN
+    Serial.println("OSD TEXT");
+#endif
+    // Draw OSD
+    current_state = STATE_DRAW_OSD;
+}
+
 void HDZeroMsp::handleBuzzerCommand(uint16_t const time_ms)
 {
     uint8_t payload[] = {(uint8_t)(time_ms & 0xff), (uint8_t)(time_ms >> 8)};
     sendMspToHdzero(payload, sizeof(payload), HDZ_MSP_FUNC_BUZZER_SET);
 }
 
+void HDZeroMsp::handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client)
+{
+    String info = "RACE ";
+    if (state) {
+        info += race_id;
+        info += " START";
+        handleBuzzerCommand(400);
+    } else {
+        info += "END";
+    }
+    osdText(info.c_str(), info.length(), 6, 0);
+}
+
 void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client)
 {
-    String info = "Lap time lap:";
-    info += lap->lap_index;
-    info += ", ms:";
-    info += lap->lap_time_ms;
-    info += ", ";
+    lap_time_t laptime = convert_ms_to_time(lap->lap_time_ms);
 
-    // uint32_t const milliseconds = lap->lap_time_ms % 1000;
-    // uint32_t const seconds = lap->lap_time_ms / 1000;
-    // lap->lap_index;
+    String info = "LAP ";
+    info += (lap->lap_index - 1);
+    info += " ";
+    info += laptime.m;
+    info += ":";
+    if (laptime.s < 10)
+        info += "0";
+    info += laptime.s;
+    info += ".";
+    if (laptime.ms < 10)
+        info += "00";
+    else if (laptime.ms < 100)
+        info += "0";
+    info += laptime.ms;
 
-    // TODO: Push to OSD
-
-    websocket_send_txt(info, client);
+    osdText(info.c_str(), info.length(), 6, 0);
     handleBuzzerCommand(400);
+    //websocket_send_txt(info, client);
 }

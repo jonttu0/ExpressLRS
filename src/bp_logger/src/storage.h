@@ -63,7 +63,11 @@ struct storage {
 extern struct storage eeprom_storage;
 
 static inline bool wifi_is_mac_valid(wifi_networks_t const * const net) {
-    return (!!net->mac[0] && !!net->mac[1] && !!net->mac[2]);
+    bool res = false;
+    for (uint8_t iter = 0; !res && iter < sizeof(net->mac); iter++) {
+        res = (net->mac[iter] == 0) || (net->mac[iter] == 0xff);
+    }
+    return !res;
 }
 static inline bool wifi_is_ssid_valid(wifi_networks_t const * const net) {
     return (!!net->ssid[0]);

@@ -84,9 +84,11 @@
 
 static enum state {
     STATE_RUNNING = 0,
+    STATE_WIFI_SCAN_INIT,
     STATE_WIFI_SCAN_START,
     STATE_WIFI_SCANNING,
     STATE_WIFI_SCAN_LAPTIMER,
+    STATE_WIFI_SELECT,
     STATE_WIFI_CONNECT,
     STATE_WIFI_WAIT,
     STATE_WIFI_START_AP,
@@ -336,13 +338,13 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                 Serial.printf("CMD_LAP_TIMER_REGISTER: freq %u, node_index %u\r\n", freq,
                               p_command->register_resp.node_index);
 #endif
-                if (freq && freq != eeprom_storage.vtx_freq)
-                    eeprom_storage.markDirty();
-
-                eeprom_storage.vtx_freq = freq;
                 eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
 
                 msp_handler.handleVtxFrequencyCmd(freq);
+
+                // Forward to other devices...
+                // TODO: check if this is ok?
+                espnow_vtxset_send(freq);
 
                 if (current_state == STATE_LAPTIMER_WAIT)
                     current_state = STATE_RUNNING;
@@ -827,6 +829,9 @@ static void handleApInfo(AsyncWebServerRequest * request)
     message += !!WIFI_AP_HIDDEN;
     message += "\n  - Conn max: ";
     message += WIFI_AP_MAX_CONN;
+    message += "\n\n  - MY UID: ";
+    uint8_t uid[] = {MY_UID};
+    message += mac_addr_print(uid);
     request->send(200, "text/plain", message);
 }
 
@@ -1027,8 +1032,7 @@ void onStationDisconnected(const WiFiEventStationModeDisconnected & evt)
         Serial.println("  CONNECTION LOST! Start new scan...");
 #endif
         /* Start scan again */
-        wifi_scan_count = 0;
-        current_state = STATE_WIFI_SCAN_START;
+        current_state = STATE_WIFI_SCAN_INIT;
     }
     MDNS.end();
     WiFi.reconnect(); // Force reconnect
@@ -1107,11 +1111,27 @@ void onStationGotIP(const WiFiEventStationModeGotIP & evt)
 void onStationDhcpTimeout(void)
 {
     /* Start scan again */
-    wifi_scan_count = 0;
-    current_state = STATE_WIFI_SCAN_START;
+    current_state = STATE_WIFI_SCAN_INIT;
     MDNS.end();
 #if UART_DEBUG_EN
     Serial.println("WiFi STA DHCP timeout");
+#endif
+}
+
+static void wifi_set_ap_mac(void)
+{
+    /* Set AP MAC to UID for ESP-NOW messaging */
+    uint8_t ap_mac[] = {MY_UID};
+    ap_mac[0] &= ~0x1;
+
+#ifdef ARDUINO_ARCH_ESP32
+    if (ESP_OK != esp_wifi_set_mac(WIFI_IF_AP, ap_mac)) {
+#if UART_DEBUG_EN
+        Serial.println("ERROR! Unable to set MAC address!");
+#endif
+    }
+#else
+    wifi_set_macaddr(SOFTAP_IF, ap_mac);
 #endif
 }
 
@@ -1135,6 +1155,10 @@ static void wifi_config_ap(uint8_t const channel)
         Serial.printf("WiFi AP '%s' on channel:%u hidden:%u (PSK:'%s')\r\n", WIFI_AP_SSID WIFI_AP_SUFFIX, channel,
                       !!WIFI_AP_HIDDEN, WIFI_AP_PSK);
 #endif
+#ifdef ARDUINO_ARCH_ESP32
+        wifi_set_ap_mac();
+#endif
+
         // Configure ESP-NOW
         espnow_init(channel, esp_now_msp_rcvd);
 
@@ -1142,8 +1166,7 @@ static void wifi_config_ap(uint8_t const channel)
             current_state = STATE_LAPTIMER_REGISTER;
         }
     } else {
-        wifi_scan_count = 0;
-        current_state = STATE_WIFI_SCAN_START;
+        current_state = STATE_WIFI_SCAN_INIT;
         WiFi.mode(WIFI_OFF);
 #if UART_DEBUG_EN
         Serial.println("WiFi AP start fail");
@@ -1166,6 +1189,10 @@ static void wifi_connect(wifi_info_t & results)
     WiFi.begin(wifi_ptr->ssid, wifi_ptr->psk, results.channel);
     wifi_connect_started = millis();
 
+#ifdef ARDUINO_ARCH_ESP32
+    wifi_set_ap_mac();
+#endif
+
     // Initial ESP-NOW configuration
     espnow_init(results.channel, esp_now_msp_rcvd);
 }
@@ -1178,15 +1205,8 @@ static void wifi_config(void)
     wifi_station_set_hostname(hostname);
 #endif
 
-    /* Set AP MAC to UID for ESP-NOW messaging */
-    uint8_t ap_mac[] = {MY_UID};
-    if (ap_mac[0] & 0x1)
-        ap_mac[0] &= ~0x1;
-
-#ifdef ARDUINO_ARCH_ESP32
-    esp_wifi_set_mac(WIFI_IF_AP, &ap_mac[0]);
-#else
-    wifi_set_macaddr(SOFTAP_IF, &ap_mac[0]);
+#ifdef ARDUINO_ARCH_ESP8266
+    wifi_set_ap_mac();
 #endif
 
     /* Force WIFI off until it is realy needed */
@@ -1291,14 +1311,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
     const char * own_ap_ssid = WIFI_AP_SSID;
     const size_t own_ap_ssid_len = strlen(own_ap_ssid);
     uint8_t own_ap_mac[] = {MY_UID};
-    if (own_ap_mac[0] & 0x1)
-        own_ap_mac[0] &= ~0x1;
-    int8_t own_ap_index = -1;
-
-    laptimer_channel = 0;
-
-    wifi_search_results.network_index = UINT8_MAX;
-    wifi_search_results.channel = wifi_ap_channel_get();
+    own_ap_mac[0] &= ~0x1;
 
 #if UART_DEBUG_EN
     Serial.println("-------------------------");
@@ -1338,10 +1351,13 @@ static void wifi_scan_ready(int const numberOfNetworks)
 
             // Store Laptimer's MAC address for ESP-NOW configuration
             if (!wifi_is_mac_valid(&eeprom_storage.laptimer)) {
+#if UART_DEBUG_EN
+                Serial.println("    ** Laptimer MAC updated...");
+#endif
                 memcpy(eeprom_storage.laptimer.mac, mac, sizeof(eeprom_storage.laptimer.mac));
                 eeprom_storage.markDirty();
             }
-            break;
+            continue;
         }
 
         if (rssi < WIFI_SEARCH_RSSI_MIN)
@@ -1350,7 +1366,9 @@ static void wifi_scan_ready(int const numberOfNetworks)
         if ((strncmp(ssid.c_str(), own_ap_ssid, own_ap_ssid_len) == 0) ||
             (memcmp(mac, own_ap_mac, sizeof(own_ap_mac)) == 0)) {
             // Match to own access points -> use this since EPS-NOW channel must match
-            own_ap_index = iter;
+            if (wifi_search_results.network_index == UINT8_MAX) {
+                wifi_search_results.channel = channel;
+            }
 #if UART_DEBUG_EN
             Serial.println("    ** My logger AP");
 #endif
@@ -1389,47 +1407,12 @@ static void wifi_scan_ready(int const numberOfNetworks)
         }
     }
 
-    WiFi.scanDelete(); // Cleanup scan results
-
-    if (wifi_search_results.network_index == UINT8_MAX && 0 <= own_ap_index) {
-        // Start AP since no matching network found
-        wifi_search_results.channel = WiFi.channel(own_ap_index);
+    // Cleanup scan results
+    WiFi.scanDelete();
+    // Stop scan if home network found or count exeeded
+    if ((wifi_search_results.network_index != UINT8_MAX) || (3 <= ++wifi_scan_count)) {
+        current_state = STATE_WIFI_SELECT;
     }
-
-#if 0 // DEBUG
-    if (laptimer_channel && laptimer_channel != wifi_search_results.channel) {
-        /* Force AP to move onto same channel with the laptimer */
-        if (wifi_search_results.network_index != UINT8_MAX) {
-            wifi_scan_count = 5; // stop scan
-        }
-
-        wifi_search_results.network_index = UINT8_MAX; // Force AP mode
-        wifi_search_results.channel = laptimer_channel;
-        if (current_state == STATE_WIFI_SCAN_LAPTIMER) {
-            current_state = STATE_WIFI_RECONFIGURE_ESPNOW;
-            return;
-        }
-    }
-#endif
-
-    if (current_state == STATE_WIFI_SCAN_LAPTIMER) {
-        // No need to reconfigure, just continue
-        current_state = STATE_RUNNING;
-        return;
-    }
-
-    if (wifi_search_results.network_index == UINT8_MAX) {
-        if (3 <= ++wifi_scan_count)
-            current_state = STATE_WIFI_START_AP;
-        else
-            // Restart scan if network not found
-            current_state = STATE_WIFI_SCAN_START;
-    } else {
-        current_state = STATE_WIFI_CONNECT;
-    }
-#if UART_DEBUG_EN
-    Serial.printf("Change state to %u\r\n", current_state);
-#endif
 }
 
 void setup()
@@ -1494,7 +1477,7 @@ void setup()
 #endif
 
     wifi_scan_count = 0;
-    current_state = STATE_WIFI_SCAN_START;
+    current_state = STATE_WIFI_SCAN_INIT;
 }
 
 int serialEvent(String & log_string)
@@ -1556,6 +1539,14 @@ void loop()
     uint32_t const now = millis();
 
     switch (current_state) {
+        case STATE_WIFI_SCAN_INIT: {
+            wifi_scan_count = 0;
+            laptimer_channel = 0;
+            wifi_search_results.network_index = UINT8_MAX;
+            wifi_search_results.channel = wifi_ap_channel_get();
+            current_state = STATE_WIFI_SCAN_START;
+            break;
+        }
         case STATE_WIFI_SCAN_START: {
             // Start async scan and wait for results
             WiFi.scanNetworks(true, true);
@@ -1588,9 +1579,36 @@ void loop()
             }
             break;
         }
+        case STATE_WIFI_SELECT: {
+#if UART_DEBUG_EN
+            Serial.println("...Select WiFi mode...");
+#endif
+            if (laptimer_channel && laptimer_channel != wifi_search_results.channel) {
+#if UART_DEBUG_EN
+                Serial.println("  ---laptimer on different channel, jump on it");
+#endif
+                /* Force AP mode and set onto same channel with the laptimer */
+                wifi_search_results.network_index = UINT8_MAX;
+                wifi_search_results.channel = laptimer_channel;
+            }
+
+            if (wifi_search_results.network_index == UINT8_MAX) {
+                current_state = STATE_WIFI_START_AP;
+            } else {
+                current_state = STATE_WIFI_CONNECT;
+            }
+#if UART_DEBUG_EN
+            Serial.printf("Change state to %u\r\n", current_state);
+#endif
+            break;
+        }
         case STATE_WIFI_CONNECT: {
-            wifi_connect(wifi_search_results);
-            current_state = STATE_WIFI_WAIT;
+            if (!WiFi.isConnected()) {
+                wifi_connect(wifi_search_results);
+                current_state = STATE_WIFI_WAIT;
+            } else {
+                current_state = STATE_RUNNING;
+            }
             break;
         }
         case STATE_WIFI_WAIT: {

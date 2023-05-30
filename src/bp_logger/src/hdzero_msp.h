@@ -26,15 +26,18 @@ public:
 
 private:
     enum {
+        /* Init states, keep first */
         STATE_GET_FW_VER,
         STATE_GET_CH_INDEX,
         STATE_GET_FREQ,
         STATE_GET_RECORDING,
+        /* Running states */
         STATE_READY,
+        STATE_CLEAR_OSD,
+        STATE_DRAW_OSD,
     };
 
-    uint32_t init_called_ms;
-    uint8_t init_state;
+    uint8_t current_state;
 
     // From WEB UI
     int parseCommandPriv(char const * cmd, size_t len, AsyncWebSocketClient * const client);
@@ -54,6 +57,11 @@ private:
     void getFrequency(void);
     void getRecordingState(void);
 
+    void osdClear(void);
+    void osdDraw(void);
+    void osdText(char const * const p_text, size_t len, uint8_t row, uint8_t column);
+
+    void handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL);
     void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
     uint16_t getFreqByIndex(uint8_t index)

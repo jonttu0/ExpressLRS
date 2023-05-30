@@ -72,6 +72,7 @@ void MspHandlerBase::clientSendLaptimerState(uint16_t const race_id,
         (uint8_t)state,
     };
     websocket_send_bin(response, sizeof(response), client);
+    handleLaptimerState(race_id, state, client);
 }
 
 void MspHandlerBase::clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client)
@@ -85,7 +86,7 @@ void MspHandlerBase::clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebS
         (uint8_t)lap->lap_time_ms,
         (uint8_t)(lap->race_id >> 8),
         (uint8_t)lap->race_id,
-        (uint8_t)lap->lap_index,
+        (uint8_t)(lap->lap_index - 1),
     };
     websocket_send_bin(response, sizeof(response), client);
     handleLaptimerLap(lap, client);

@@ -48,6 +48,27 @@ static bool validate_bind_key(uint8_t * key)
 }
 #endif
 
+static void add_peer(uint8_t const * const mac_addr, uint32_t const channel)
+{
+    LOG_ADD("[PEER ");
+    LOG_ADD(mac_addr_print(mac_addr));
+#ifdef ARDUINO_ARCH_ESP32
+    esp_now_peer_info_t peer_info = {
+        .peer_addr = {0}, .lmk = {0}, .channel = (uint8_t)channel, .ifidx = WIFI_IF_AP, .encrypt = false, .priv = NULL};
+    memcpy(peer_info.peer_addr, mac_addr, sizeof(peer_info.peer_addr));
+    if (esp_now_add_peer(&peer_info) != ESP_OK)
+#else
+    if (esp_now_add_peer((u8 *)mac_addr, ESP_NOW_ROLE_COMBO, channel, NULL, 0) != 0)
+#endif
+    {
+        LOG_ADD(" !FAILED!");
+    }
+    LOG_ADD("] ");
+#ifdef ARDUINO_ARCH_ESP8266
+    ESP.wdtFeed();
+#endif
+}
+
 static void FAST_CODE_2 esp_now_recv_cb(uint8_t * mac_addr, uint8_t * data, uint8_t const data_len)
 {
     static MSP esp_now_msp_rx;
@@ -56,6 +77,7 @@ static void FAST_CODE_2 esp_now_recv_cb(uint8_t * mac_addr, uint8_t * data, uint
 
     if (!data_len)
         return;
+
 #define ESP_NOW_RX 1
 #if ESP_NOW_RX
     String temp = "ESPNOW RX ";
@@ -114,7 +136,17 @@ static void FAST_CODE_2 esp_now_recv_cb(uint8_t * mac_addr, uint8_t * data, uint
                     if (packet.function == MSP_LAP_TIMER) {
                         laptimer_messages_t const * const p_msg = (laptimer_messages_t *)packet.payload;
                         temp += " !! - Laptimer cmd: ";
-                        temp += p_msg->subcommand;
+                        if (p_msg->subcommand == CMD_LAP_TIMER_REGISTER) {
+                            // Laptimer found. Store its MAC address...
+                            memcpy(eeprom_storage.laptimer.mac, mac_addr, sizeof(eeprom_storage.laptimer.mac));
+                            eeprom_storage.markDirty();
+                            add_peer(mac_addr, esp_now_channel);
+
+                            msp_handler(packet);
+                            temp += "LAP_TIMER_REGISTER - RESP";
+                        } else {
+                            temp += p_msg->subcommand;
+                        }
                     } else {
                         temp += " !! unknown MSP func: 0x";
                         temp += String(packet.function, HEX);
@@ -130,10 +162,12 @@ static void FAST_CODE_2 esp_now_recv_cb(uint8_t * mac_addr, uint8_t * data, uint
         }
     }
 #if ESP_NOW_RX
-    websocket_send_txt(temp);
+    if (temp.length()) {
+        websocket_send_txt(temp);
 #if UART_DEBUG_EN
-    Serial.printf("%s\r\n", temp.c_str());
+        Serial.printf("%s\r\n", temp.c_str());
 #endif
+    }
 #endif // ESP_NOW_RX
 }
 
@@ -146,27 +180,6 @@ static void esp_now_send_cb(uint8_t * mac_addr, u8 status)
     websocket_send_txt(temp);
 }
 #endif
-
-static void add_peer(uint8_t const * const mac_addr, uint32_t const channel)
-{
-    LOG_ADD("[PEER ");
-    LOG_ADD(mac_addr_print(mac_addr));
-#ifdef ARDUINO_ARCH_ESP32
-    esp_now_peer_info_t peer_info = {
-        .peer_addr = {0}, .lmk = {0}, .channel = (uint8_t)channel, .ifidx = WIFI_IF_AP, .encrypt = false, .priv = NULL};
-    memcpy(peer_info.peer_addr, mac_addr, sizeof(peer_info.peer_addr));
-    if (esp_now_add_peer(&peer_info) != ESP_OK)
-#else
-    if (esp_now_add_peer((u8 *)mac_addr, ESP_NOW_ROLE_COMBO, channel, NULL, 0) != 0)
-#endif
-    {
-        LOG_ADD(" !FAILED!");
-    }
-    LOG_ADD("] ");
-#ifdef ARDUINO_ARCH_ESP8266
-    ESP.wdtFeed();
-#endif
-}
 #endif // ESP_NOW
 
 void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb)
