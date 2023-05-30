@@ -68,6 +68,9 @@ public:
     {
         clientSendLaptimerState(race_id, false, client);
     }
+    bool clientLaptimerStateGet(void) const {
+        return m_laptimer_state;
+    }
     void clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
 protected:
@@ -77,6 +80,8 @@ protected:
     mspPacket_t msp_out;
 
     String m_version_info;
+
+    bool m_laptimer_state;
 
 #define VTX_BAND_MAX    6
 #define VTX_CHANNEL_MAX 8

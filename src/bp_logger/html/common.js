@@ -19,10 +19,13 @@ export const WSMSGID_HANDSET_RELOAD        = 0x2303;
 export const WSMSGID_HANDSET_SAVE          = 0x2304;
 export const WSMSGID_HANDSET_BATT_INFO     = 0x2305;
 export const WSMSGID_HANDSET_BATT_CONFIG   = 0x2306;
+export const WSMSGID_HANDSET_LAPTIMER_AUX  = 0x2307;
 
 export const WSMSGID_HANDSET_TLM_LINK_STATS = 0x2380;
 export const WSMSGID_HANDSET_TLM_BATTERY    = 0x2381; // not used
 export const WSMSGID_HANDSET_TLM_GPS        = 0x2382;
+
+
 
 export const WSMSGID_VIDEO_FREQ            = 0x2400;
 export const WSMSGID_RECORDING_CTRL        = 0x2401;

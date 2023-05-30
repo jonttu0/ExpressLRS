@@ -64,6 +64,7 @@ void MspHandlerBase::clientSendLaptimerState(uint16_t const race_id,
                                              bool const state,
                                              AsyncWebSocketClient * const client)
 {
+    m_laptimer_state = state;
     uint8_t response[] = {
         (uint8_t)(WSMSGID_LAPTIMER_START_STOP >> 8),
         (uint8_t)WSMSGID_LAPTIMER_START_STOP,

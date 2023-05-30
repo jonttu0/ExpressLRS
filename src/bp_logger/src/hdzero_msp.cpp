@@ -56,7 +56,7 @@ enum {
 static bool check_retry(uint32_t const ms_now, uint32_t const timeout_ms)
 {
     static uint32_t wait_started_ms;
-    if (!ms_now || !timeout_ms || timeout_ms <= (int32_t)(ms_now - wait_started_ms)) {
+    if (!ms_now || !timeout_ms || (int32_t)timeout_ms <= (int32_t)(ms_now - wait_started_ms)) {
         wait_started_ms = ms_now;
         return true;
     }
@@ -452,9 +452,6 @@ void HDZeroMsp::osdClear(void)
 {
     uint8_t payload = OSD_CMD_RELEASE_PORT;
     sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
-#if UART_DEBUG_EN
-    Serial.println("OSD CLEAR");
-#endif
 }
 
 void HDZeroMsp::osdDraw(void)
@@ -462,9 +459,6 @@ void HDZeroMsp::osdDraw(void)
     uint8_t payload = OSD_CMD_SCREEN_DRAW;
     sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
     current_state = STATE_CLEAR_OSD;
-#if UART_DEBUG_EN
-    Serial.println("OSD DRAW");
-#endif
 }
 
 void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t const row, uint8_t const column)
@@ -492,10 +486,6 @@ void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t con
     msp_out.payload[3] = OSD_ATTR_PAGE0; // attribute
     memcpy(&msp_out.payload[4], p_text, len);
     MSP::sendPacket(&msp_out, _serial);
-
-#if UART_DEBUG_EN
-    Serial.println("OSD TEXT");
-#endif
     // Draw OSD
     current_state = STATE_DRAW_OSD;
 }
@@ -537,8 +527,5 @@ void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     else if (laptime.ms < 100)
         info += "0";
     info += laptime.ms;
-
     osdText(info.c_str(), info.length(), 6, 0);
-    handleBuzzerCommand(400);
-    //websocket_send_txt(info, client);
 }

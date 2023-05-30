@@ -24,6 +24,7 @@ enum {
     WSMSGID_HANDSET_SAVE,
     WSMSGID_HANDSET_BATT_INFO,
     WSMSGID_HANDSET_BATT_CONFIG,
+    WSMSGID_HANDSET_LAPTIMER_AUX,
 
     WSMSGID_HANDSET_TLM_LINK_STATS = WSMSGID_BASE_HANDSET_TLM,
     WSMSGID_HANDSET_TLM_BATTERY,
@@ -544,6 +545,10 @@ void ExpresslrsMsp::syncSettings(AsyncEventSourceClient * const client)
 
 int ExpresslrsMsp::parseSerialData(uint8_t const chr)
 {
+#if CONFIG_HANDSET
+    static uint16_t aux_min_val = 0;
+    static bool laptimer_aux_last_value = false;
+#endif
     if (_handler.processReceivedByte(chr)) {
         /* Process the received MSP message */
         uint8_t forward = true;
@@ -564,6 +569,13 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     settings_region = msp_in.readByte();
                     settings_valid = 1;
 
+#if CONFIG_HANDSET
+                    if ((settings_region & 0x1F) == 6 /*RADIO_RF_MODE_2400_ISM_VANILLA*/) {
+                        aux_min_val = 50;
+                    } else {
+                        aux_min_val = 0;
+                    }
+#endif
                     // Read ELRS code version sha
                     m_version_info = "";
                     for (uint8_t iter = 0; (iter < 6) && !msp_in.iterated(); iter++)
@@ -622,6 +634,16 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     for (; iter < ARRAY_SIZE(p_rc->ch); iter++) {
                         info += p_rc->ch[iter];
                         info += '|';
+                    }
+                    if (eeprom_storage.laptimer_start_stop_aux < (ARRAY_SIZE(p_rc->ch) - TX_NUM_ANALOGS)) {
+                        uint16_t const aux_val = p_rc->ch[TX_NUM_ANALOGS + eeprom_storage.laptimer_start_stop_aux];
+                        bool const state = (aux_min_val < aux_val);
+                        if (laptimer_aux_last_value != state) {
+                            info += " > ";
+                            info += (uint8_t)state;
+                            laptimer_start_stop(state);
+                        }
+                        laptimer_aux_last_value = aux_val;
                     }
                     break;
                 }
@@ -738,6 +760,14 @@ int ExpresslrsMsp::parseCommandPriv(websoc_bin_hdr_t const * const cmd,
         }
         case WSMSGID_HANDSET_BATT_CONFIG: {
             handleBatteryVoltageCommand(cmd->payload[0], cmd->payload[1]);
+            break;
+        }
+        case WSMSGID_HANDSET_LAPTIMER_AUX: {
+            eeprom_storage.laptimer_start_stop_aux = UINT32_MAX;
+            if (cmd->payload[0] < (TX_NUM_ANALOGS + NUM_SWITCHES)) {
+                eeprom_storage.laptimer_start_stop_aux = cmd->payload[0];
+                eeprom_storage.markDirty();
+            }
             break;
         }
 #endif

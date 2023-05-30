@@ -472,6 +472,14 @@ export function handset_battery_adjust() {
     common.message_send_binary(common.WSMSGID_HANDSET_BATT_CONFIG, data);
 }
 
+export function handset_laptimer_aux_set(aux) {
+    const data = [parseInt(aux, 10)];
+    console.log("aux: %o", aux);
+    common.message_send_binary(common.WSMSGID_HANDSET_LAPTIMER_AUX, data);
+}
+
+
+
 /********************* TELEMETRY *****************************/
 var gps_mode = "kmh";
 function convert_gps_speed(speed)

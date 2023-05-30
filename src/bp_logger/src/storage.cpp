@@ -81,6 +81,9 @@ void storage::initDefaults()
         memset(&laptimer_config, 0, sizeof(laptimer_config));
         laptimer_config.index = -1;
     }
+    if (versionNumber < 0x11220005) {
+        laptimer_start_stop_aux = UINT32_MAX;
+    }
 
     versionNumber = LOGGER_STORAGE_VERSION;
     this->save();

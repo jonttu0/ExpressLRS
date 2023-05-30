@@ -308,6 +308,21 @@ void wifi_networks_report(AsyncWebSocketClient * client)
 
 /*************************************************************************/
 
+void laptimer_start_stop(bool const start)
+{
+    int8_t const node = eeprom_storage.laptimer_config.index;
+    if (node < 0 || start == msp_handler.clientLaptimerStateGet()) {
+        return;
+    }
+    if (start) {
+        espnow_laptimer_start_send(node);
+    } else {
+        espnow_laptimer_stop_send(node);
+    }
+}
+
+/*************************************************************************/
+
 int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
 {
     if (msp_pkt.type == MSP_PACKET_V1_ELRS && msp_pkt.function == ELRS_INT_MSP_ESPNOW_UPDATE &&
@@ -444,6 +459,14 @@ static void websocket_send_initial_data(AsyncWebSocketClient * const client)
     if (boot_log)
         client->text(boot_log);
 
+    info_str = "Laptimer start/stop AUX: ";
+    if (eeprom_storage.laptimer_start_stop_aux != UINT32_MAX) {
+        info_str += eeprom_storage.laptimer_start_stop_aux;
+    } else {
+        info_str += "DISABLED!";
+    }
+    client->text(info_str);
+
 #if ESP_NOW
     if (eeprom_storage.espnow_initialized == LOGGER_ESPNOW_INIT_KEY) {
         uint8_t const size = eeprom_storage.espnow_clients_count * 6;
@@ -559,14 +582,8 @@ void webSocketEvent(AsyncWebSocket * server,
 
                     // ====================== LAPTIMER COMMANDS ==============
                     if (WSMSGID_LAPTIMER_START_STOP == header->msg_id) {
-                        int8_t const node = eeprom_storage.laptimer_config.index;
-                        if (0 <= node) {
-                            if (header->payload[0]) {
-                                espnow_laptimer_start_send(node);
-                            } else {
-                                espnow_laptimer_stop_send(node);
-                            }
-                        }
+                        laptimer_start_stop(!!header->payload[0]);
+
                         // ====================== ESP-NOW COMMANDS ==============
                     } else if (WSMSGID_ESPNOW_ADDRS == header->msg_id) {
                         // ESP-Now client list
