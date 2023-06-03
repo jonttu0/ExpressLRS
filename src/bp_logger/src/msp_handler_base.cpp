@@ -16,6 +16,20 @@ int MspHandlerBase::parseCommand(websoc_bin_hdr_t const * const cmd,
             }
             break;
         }
+        case WSMSGID_LAPTIMER_OSD_POS: {
+            uint16_t const row = ((uint16_t)cmd->payload[1] << 8) + cmd->payload[0];
+            uint16_t const col = ((uint16_t)cmd->payload[3] << 8) + cmd->payload[2];
+            if (osdRowMax() <= row) {
+                websocket_send_txt("[ERROR] Invalid row value.");
+            } else if (osdColumnMax() <= col) {
+                websocket_send_txt("[ERROR] Invalid column value.");
+            } else {
+                eeprom_storage.laptimer_osd_pos.row = row;
+                eeprom_storage.laptimer_osd_pos.column = col;
+                eeprom_storage.markDirty();
+            }
+            break;
+        }
         default:
             return parseCommandPriv(cmd, len, client);
     }

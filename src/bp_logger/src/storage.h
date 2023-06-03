@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#define LOGGER_STORAGE_VERSION   0x11220005
+#define LOGGER_STORAGE_VERSION   0x11220006
 #define LOGGER_ESPNOW_INIT_KEY   0x4321
 #define LOGGER_WIFINETS_INIT_KEY 0x4322
 
@@ -48,6 +48,12 @@ struct storage {
 
     // --------------- 0x11220005 ---------------------------
     uint32_t laptimer_start_stop_aux;
+
+    // --------------- 0x11220006 ---------------------------
+    struct {
+        uint16_t row;
+        uint16_t column;
+    } laptimer_osd_pos;
 
     void setup();
     void update();

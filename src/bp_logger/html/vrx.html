@@ -46,7 +46,9 @@
       <form method='POST' action='/laptimer_config' enctype='multipart/form-data' target="hidden-iframe">
         <table style="width:100%;">
           <tr>
-            <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
+            <td><input placeholder="SSID" type='text' name='ss  const _row_obj = $id("laptimer_osd_row");
+              const _col_obj = $id("laptimer_osd_col");
+            id' id='laptimer_ssid' size='32' maxlength='32'></td>
             <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
           </tr>
           <tr>
@@ -96,12 +98,23 @@
     <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;"><label for="scrollsize"> Scroll len</label>
   </fieldset>
   <fieldset>
-    <legend>Debug</legend>
+    <legend>OSD Text</legend>
     <div id="osd_text_control">
-      <label for="osdtext">OSD text[32]:</label>
-      <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32" style="width: 320px;">
+      <div>
+        <label for="laptimer_osd_row">ROW</label>
+        <input type='number' name="laptimer_osd_row" id='laptimer_osd_row' size='32' maxlength='2' min="0" max="18" onchange="window.commands.osd_pos_send(event);">
+        <label for="laptimer_osd_col" >COLUMN</label>
+        <input type='number' name="laptimer_osd_col" id='laptimer_osd_col' size='32' maxlength='2' min="0" max="50" onchange="window.commands.osd_pos_send(event);">
+      </div>
+      <div>
+        <label for="osdtext">OSD text[32]:</label>
+        <input type="text" id="osd_text" name="osdtext" onchange="message_send_str('SET_text', this.value)" maxlength="32" style="width: 320px;">
+      </div>
     </div>
-    <div id="telemetry_debug" style="display: none;">
+  </fieldset>
+  <fieldset>
+    <legend>Debug</legend>
+      <div id="telemetry_debug" style="display: none;">
       <table style="width: 100%;">
         <tr>
           <td style="width: 100px;">Battery</td>

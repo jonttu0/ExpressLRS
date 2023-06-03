@@ -64,6 +64,15 @@ private:
     void handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL);
     void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
+    virtual uint16_t osdRowMax(void)
+    {
+        return 18; // VMAX
+    }
+    virtual uint16_t osdColumnMax(void)
+    {
+        return 50; // HMAX
+    }
+
     uint16_t getFreqByIndex(uint8_t index)
     {
         if (index == (3 * 8 + 1))

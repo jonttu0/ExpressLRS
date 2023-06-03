@@ -89,6 +89,14 @@ void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
     json += ",\"espnow\":";
     json += ESP_NOW;
     json += ",\"model\":\"HDZero\"";
+    json += ",\"osd_row\":";
+    json += eeprom_storage.laptimer_osd_pos.row;
+    json += ",\"osd_row_max\":";
+    json += osdRowMax() - 1;
+    json += ",\"osd_col\":";
+    json += eeprom_storage.laptimer_osd_pos.column;
+    json += ",\"osd_col_max\":";
+    json += osdColumnMax() - 1;
     json += '}';
     async_event_send(json, "fea_config", client);
     async_event_send(m_version_info, "vrx_version", client);
@@ -245,9 +253,11 @@ void HDZeroMsp::handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient 
         // Freq is already ok
         return;
     }
-    // Adjust VRx
-    handleVtxFrequencyCommand(freq, client);
-    // ... GUI is updated when channel query resp is received
+    if (storeVtxFreq(client, freq)) {
+        // Adjust VRx
+        handleVtxFrequencyCommand(freq, client);
+        // ... GUI is updated when channel query resp is received
+    }
 }
 
 int HDZeroMsp::parseCommandPriv(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
@@ -469,9 +479,6 @@ void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t con
         OSD_ATTR_BLINK = 0x80,
     };
 
-#define VMAX 18
-#define HMAX 50
-
     if (p_text == NULL || !len)
         return;
 
@@ -481,8 +488,8 @@ void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t con
     msp_out.function = MSP_ELRS_SET_OSD;
     msp_out.payloadSize = len + 4;
     msp_out.payload[0] = OSD_CMD_SCREEN_WRITE;
-    msp_out.payload[1] = row;
-    msp_out.payload[2] = column;
+    msp_out.payload[1] = eeprom_storage.laptimer_osd_pos.row + row;
+    msp_out.payload[2] = eeprom_storage.laptimer_osd_pos.column + column;
     msp_out.payload[3] = OSD_ATTR_PAGE0; // attribute
     memcpy(&msp_out.payload[4], p_text, len);
     MSP::sendPacket(&msp_out, _serial);
@@ -506,7 +513,7 @@ void HDZeroMsp::handleLaptimerState(uint16_t const race_id, bool const state, As
     } else {
         info += "END";
     }
-    osdText(info.c_str(), info.length(), 6, 0);
+    osdText(info.c_str(), info.length(), 0, 0);
 }
 
 void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client)
@@ -527,5 +534,5 @@ void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     else if (laptime.ms < 100)
         info += "0";
     info += laptime.ms;
-    osdText(info.c_str(), info.length(), 6, 0);
+    osdText(info.c_str(), info.length(), 1, 0);
 }

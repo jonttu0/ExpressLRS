@@ -84,6 +84,10 @@ void storage::initDefaults()
     if (versionNumber < 0x11220005) {
         laptimer_start_stop_aux = UINT32_MAX;
     }
+    if (versionNumber < 0x11220006) {
+        laptimer_osd_pos.row = 5;
+        laptimer_osd_pos.column = 0;
+    }
 
     versionNumber = LOGGER_STORAGE_VERSION;
     this->save();

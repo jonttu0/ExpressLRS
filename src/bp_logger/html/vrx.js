@@ -19,7 +19,8 @@ const fusion_channelFreqTable = {
 export function start() {
   const fea_debug = {
     "recording":1, "osd_text":1, "laptimer":1, "espnow":1,
-    "telemetrydebug":1
+    "telemetrydebug":1,
+    "osd_row": 1, "osd_row_max": 88, "osd_col": 2, "osd_col_max": 99
   };
   feature_config(fea_debug);
 
@@ -64,6 +65,25 @@ function feature_config(config) {
   $id("espnow_control").style.display = !!config.espnow ? "block" : "none";
   $id("vrxversion_control").style.display = !!config.vrxversion ? "block" : "none";
   $id("telemetry_debug").style.display = !!config.telemetrydebug ? "block" : "none";
+
+  const _row_obj = $id("laptimer_osd_row");
+  const _col_obj = $id("laptimer_osd_col");
+  _row_obj.value = config.osd_row;
+  _row_obj.max = config.osd_row_max;
+  _col_obj.value = config.osd_col;
+  _col_obj.max = config.osd_col_max;
+}
+
+/********************* RECORDING *************************/
+export function osd_pos_send(event) {
+  const _row_obj = $id("laptimer_osd_row");
+  const _col_obj = $id("laptimer_osd_col");
+  var row = parseInt(_row_obj.value, 10);
+  if (_row_obj.max < row) {row = _row_obj.value = _row_obj.max};
+  var col = parseInt(_col_obj.value, 10);
+  if (_col_obj.max < col) {col = _col_obj.value = _col_obj.max};
+  const payload = [row & 0xff, (row >> 8) & 0xff, col & 0xff, (col >> 8) & 0xff];
+  common.message_send_binary(common.WSMSGID_LAPTIMER_OSD_POS, payload);
 }
 
 /********************* RECORDING *************************/

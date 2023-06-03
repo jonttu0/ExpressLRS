@@ -109,6 +109,13 @@ protected:
     handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL){};
     virtual void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL){};
 
+    virtual uint16_t osdRowMax(void) {
+        return 0;
+    }
+    virtual uint16_t osdColumnMax(void) {
+        return 0;
+    }
+
     uint16_t parseFreq(uint8_t const * const payload)
     {
         uint16_t const freq = ((uint16_t)payload[1] << 8) + payload[0];
