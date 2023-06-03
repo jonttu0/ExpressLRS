@@ -52,7 +52,11 @@ public:
 
     virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL)
     {
-        clientSendVtxFrequency(freq);
+        /*
+        if (storeVtxFreq(client, freq)) {
+            clientSendVtxFrequency(freq);
+        }
+        */
     };
 
     void clientSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client = NULL);

@@ -763,11 +763,14 @@ int ExpresslrsMsp::parseCommandPriv(websoc_bin_hdr_t const * const cmd,
             break;
         }
         case WSMSGID_HANDSET_LAPTIMER_AUX: {
-            eeprom_storage.laptimer_start_stop_aux = UINT32_MAX;
-            if (cmd->payload[0] < (TX_NUM_ANALOGS + NUM_SWITCHES)) {
-                eeprom_storage.laptimer_start_stop_aux = cmd->payload[0];
-                eeprom_storage.markDirty();
+            uint8_t const aux_id = cmd->payload[0];
+            if (aux_id < NUM_SWITCHES) {
+                eeprom_storage.laptimer_start_stop_aux = aux_id;
+            } else {
+                // Disable
+                eeprom_storage.laptimer_start_stop_aux = UINT32_MAX;
             }
+            eeprom_storage.markDirty();
             break;
         }
 #endif

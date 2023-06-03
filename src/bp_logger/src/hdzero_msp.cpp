@@ -514,7 +514,7 @@ void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     lap_time_t laptime = convert_ms_to_time(lap->lap_time_ms);
 
     String info = "LAP ";
-    info += (lap->lap_index - 1);
+    info += lap->lap_index;
     info += " ";
     info += laptime.m;
     info += ":";

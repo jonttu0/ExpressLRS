@@ -137,13 +137,18 @@ static void FAST_CODE_2 esp_now_recv_cb(uint8_t * mac_addr, uint8_t * data, uint
                         laptimer_messages_t const * const p_msg = (laptimer_messages_t *)packet.payload;
                         temp += " !! - Laptimer cmd: ";
                         if (p_msg->subcommand == CMD_LAP_TIMER_REGISTER) {
-                            // Laptimer found. Store its MAC address...
-                            memcpy(eeprom_storage.laptimer.mac, mac_addr, sizeof(eeprom_storage.laptimer.mac));
-                            eeprom_storage.markDirty();
-                            add_peer(mac_addr, esp_now_channel);
+                            temp += "LAP_TIMER_REGISTER";
+                            if (packet.type == MSP_PACKET_V2_RESPONSE) {
+                                // Laptimer found. Store its MAC address...
+                                memcpy(eeprom_storage.laptimer.mac, mac_addr, sizeof(eeprom_storage.laptimer.mac));
+                                eeprom_storage.markDirty();
+                                add_peer(mac_addr, esp_now_channel);
 
-                            msp_handler(packet);
-                            temp += "LAP_TIMER_REGISTER - RESP";
+                                msp_handler(packet);
+                                temp += " RESP OK";
+                            } else {
+                                temp += " COMMAND ignored";
+                            }
                         } else {
                             temp += p_msg->subcommand;
                         }

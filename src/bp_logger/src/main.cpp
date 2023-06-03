@@ -344,58 +344,64 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
             wifi_search_results.channel = update->channel;
             current_state = STATE_WIFI_START_AP;
         }
-    } else if (msp_pkt.type == MSP_PACKET_V2_RESPONSE && msp_pkt.function == MSP_LAP_TIMER) {
-        laptimer_messages_t const * const p_command = (laptimer_messages_t *)msp_pkt.payload;
-        switch (p_command->subcommand) {
-            case CMD_LAP_TIMER_REGISTER: {
-                uint16_t const freq = p_command->register_resp.freq;
+    } else if (msp_pkt.function == MSP_LAP_TIMER) {
+        if (msp_pkt.type == MSP_PACKET_V2_RESPONSE) {
+            laptimer_messages_t const * const p_command = (laptimer_messages_t *)msp_pkt.payload;
+            switch (p_command->subcommand) {
+                case CMD_LAP_TIMER_REGISTER: {
+                    uint16_t const freq = p_command->register_resp.freq;
 #if UART_DEBUG_EN
-                Serial.printf("CMD_LAP_TIMER_REGISTER: freq %u, node_index %u\r\n", freq,
-                              p_command->register_resp.node_index);
+                    Serial.printf("CMD_LAP_TIMER_REGISTER: freq %u, node_index %u\r\n", freq,
+                                  p_command->register_resp.node_index);
 #endif
-                eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
+                    eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
 
-                msp_handler.handleVtxFrequencyCmd(freq);
+                    msp_handler.handleVtxFrequencyCmd(freq);
 
-                // Forward to other devices...
-                // TODO: check if this is ok?
-                espnow_vtxset_send(freq);
+                    // Forward to other devices...
+                    // TODO: check if this is ok?
+                    espnow_vtxset_send(freq);
 
-                if (current_state == STATE_LAPTIMER_WAIT)
-                    current_state = STATE_RUNNING;
-                break;
-            }
-            case CMD_LAP_TIMER_START: {
+                    if (current_state == STATE_LAPTIMER_WAIT)
+                        current_state = STATE_RUNNING;
+                    break;
+                }
+                case CMD_LAP_TIMER_START: {
 #if UART_DEBUG_EN
-                Serial.printf("CMD_LAP_TIMER_START: race_id: %u, node_index: %u\r\n", p_command->start.race_id,
-                              p_command->start.node_index);
+                    Serial.printf("CMD_LAP_TIMER_START: race_id: %u, node_index: %u\r\n", p_command->start.race_id,
+                                  p_command->start.node_index);
 #endif
-                msp_handler.clientSendLaptimerStateStart(p_command->start.race_id);
-                break;
-            }
-            case CMD_LAP_TIMER_STOP: {
+                    msp_handler.clientSendLaptimerStateStart(p_command->start.race_id);
+                    break;
+                }
+                case CMD_LAP_TIMER_STOP: {
 #if UART_DEBUG_EN
-                Serial.printf("CMD_LAP_TIMER_STOP: race_id: %u, node_index: %u\r\n", p_command->stop.race_id,
-                              p_command->stop.node_index);
+                    Serial.printf("CMD_LAP_TIMER_STOP: race_id: %u, node_index: %u\r\n", p_command->stop.race_id,
+                                  p_command->stop.node_index);
 #endif
-                msp_handler.clientSendLaptimerStateStop(p_command->stop.race_id);
-                break;
-            }
-            case CMD_LAP_TIMER_LAP: {
+                    msp_handler.clientSendLaptimerStateStop(p_command->stop.race_id);
+                    break;
+                }
+                case CMD_LAP_TIMER_LAP: {
 #if UART_DEBUG_EN
-                Serial.printf("CMD_LAP_TIMER_LAP: lap: %u = %ums, race_id: %u, node_index: %u\r\n",
-                              p_command->lap.lap_index, p_command->lap.lap_time_ms, p_command->lap.race_id,
-                              p_command->lap.node_index);
+                    Serial.printf("CMD_LAP_TIMER_LAP: lap: %u = %ums, race_id: %u, node_index: %u\r\n",
+                                  p_command->lap.lap_index, p_command->lap.lap_time_ms, p_command->lap.race_id,
+                                  p_command->lap.node_index);
 #endif
-                msp_handler.clientSendLaptimerLap(&p_command->lap);
-                // TODO: store laps internally if client drops for some reason??
-                break;
-            }
-            default:
+                    msp_handler.clientSendLaptimerLap(&p_command->lap);
+                    // TODO: store laps internally if client drops for some reason??
+                    break;
+                }
+                default:
 #if UART_DEBUG_EN
-                Serial.printf("MSP_LAP_TIMER: invalid subcommand %u\r\n", p_command->subcommand);
+                    Serial.printf("MSP_LAP_TIMER: invalid subcommand %u\r\n", p_command->subcommand);
 #endif
-                break;
+                    break;
+            }
+        } else {
+#if UART_DEBUG_EN
+            Serial.printf("MSP_LAP_TIMER: REQUEST received.. ignored\r\n");
+#endif
         }
     } else if (msp_handler.parseCommand(msp_pkt) < 0) {
         // Not handler internally, pass to serial

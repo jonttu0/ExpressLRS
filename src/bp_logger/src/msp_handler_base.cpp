@@ -87,7 +87,7 @@ void MspHandlerBase::clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebS
         (uint8_t)lap->lap_time_ms,
         (uint8_t)(lap->race_id >> 8),
         (uint8_t)lap->race_id,
-        (uint8_t)(lap->lap_index - 1),
+        (uint8_t)(lap->lap_index),
     };
     websocket_send_bin(response, sizeof(response), client);
     handleLaptimerLap(lap, client);
