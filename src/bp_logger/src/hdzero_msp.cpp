@@ -511,7 +511,8 @@ void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t con
     memcpy(&msp_out.payload[4], p_text, len);
     MSP::sendPacket(&msp_out, _serial);
     // Draw OSD
-    current_state = STATE_DRAW_OSD;
+    //current_state = STATE_DRAW_OSD;
+    osdDraw();
 }
 
 void HDZeroMsp::handleBuzzerCommand(uint16_t const time_ms)
