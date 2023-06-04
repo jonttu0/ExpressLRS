@@ -30,6 +30,12 @@ int MspHandlerBase::parseCommand(websoc_bin_hdr_t const * const cmd,
             }
             break;
         }
+        case WSMSGID_LAPTIMER_OSD_TIMEOUT: {
+            uint16_t const timeout = ((uint16_t)cmd->payload[1] << 8) + cmd->payload[0];
+            eeprom_storage.laptimer_osd_timeout = timeout * 1000;
+            eeprom_storage.markDirty();
+            break;
+        }
         default:
             return parseCommandPriv(cmd, len, client);
     }

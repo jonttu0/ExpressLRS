@@ -72,6 +72,7 @@ function feature_config(config) {
   _row_obj.max = config.osd_row_max;
   _col_obj.value = config.osd_col;
   _col_obj.max = config.osd_col_max;
+  $id("laptimer_osd_timeout").value = config.osd_timeout;
 }
 
 /********************* RECORDING *************************/
@@ -84,6 +85,14 @@ export function osd_pos_send(event) {
   if (_col_obj.max < col) {col = _col_obj.value = _col_obj.max};
   const payload = [row & 0xff, (row >> 8) & 0xff, col & 0xff, (col >> 8) & 0xff];
   common.message_send_binary(common.WSMSGID_LAPTIMER_OSD_POS, payload);
+}
+
+export function osd_timeout_send(event) {
+  const _to_obj = $id("laptimer_osd_timeout");
+  var timeout = parseInt(_to_obj.value, 10);
+  if (_to_obj.max < timeout) {timeout = _to_obj.value = _to_obj.max};
+  const payload = [timeout & 0xff, (timeout >> 8) & 0xff];
+  common.message_send_binary(common.WSMSGID_LAPTIMER_OSD_TIMEOUT, payload);
 }
 
 /********************* RECORDING *************************/

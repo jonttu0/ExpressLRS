@@ -98,13 +98,17 @@
     <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;"><label for="scrollsize"> Scroll len</label>
   </fieldset>
   <fieldset>
-    <legend>OSD Text</legend>
+    <legend>OSD</legend>
     <div id="osd_text_control">
       <div>
         <label for="laptimer_osd_row">ROW</label>
         <input type='number' name="laptimer_osd_row" id='laptimer_osd_row' size='32' maxlength='2' min="0" max="18" onchange="window.commands.osd_pos_send(event);">
         <label for="laptimer_osd_col" >COLUMN</label>
         <input type='number' name="laptimer_osd_col" id='laptimer_osd_col' size='32' maxlength='2' min="0" max="50" onchange="window.commands.osd_pos_send(event);">
+      </div>
+      <div>
+        <label for="laptimer_osd_timeout" >TIMEOUT (sec, 0=disable):</label>
+        <input type='number' name="laptimer_osd_timeout" id='laptimer_osd_timeout' size='32' maxlength='2' min="0" max="60" onchange="window.commands.osd_timeout_send(event);">
       </div>
       <div>
         <label for="osdtext">OSD text[32]:</label>

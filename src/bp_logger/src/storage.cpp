@@ -87,6 +87,7 @@ void storage::initDefaults()
     if (versionNumber < 0x11220006) {
         laptimer_osd_pos.row = 5;
         laptimer_osd_pos.column = 0;
+        laptimer_osd_timeout = 3;
     }
 
     versionNumber = LOGGER_STORAGE_VERSION;

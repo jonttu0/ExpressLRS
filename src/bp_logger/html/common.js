@@ -32,6 +32,7 @@ export const WSMSGID_RECORDING_CTRL        = 0x2401;
 export const WSMSGID_LAPTIMER_START_STOP   = 0x2500;
 export const WSMSGID_LAPTIMER_LAPTIME      = 0x2501;
 export const WSMSGID_LAPTIMER_OSD_POS      = 0x2502;
+export const WSMSGID_LAPTIMER_OSD_TIMEOUT  = 0x2503;
 
 export const WSMSGID_CRSF_DBG_TLM_BATT   = 0x3000;
 export const WSMSGID_CRSF_DBG_TLM_LINK   = 0x3001;

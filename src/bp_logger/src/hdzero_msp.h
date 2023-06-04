@@ -44,7 +44,7 @@ private:
     int parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
     int parseCommandPriv(mspPacket_t & msp_in);
 
-    void sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function);
+    void sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function, bool const resp = false);
 
     void handleUserTextCommand(const char * input, size_t len, AsyncWebSocketClient * const client);
     void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);

@@ -54,6 +54,7 @@ struct storage {
         uint16_t row;
         uint16_t column;
     } laptimer_osd_pos;
+    uint16_t laptimer_osd_timeout;
 
     void setup();
     void update();

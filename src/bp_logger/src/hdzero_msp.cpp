@@ -1,7 +1,6 @@
 #include "hdzero_msp.h"
 
 #define RETRY_INTERVAL_MS 1000
-#define OSD_TIMEOUT_MS    2000
 
 /*
  *  Get band/channel index  0x0300
@@ -97,6 +96,8 @@ void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
     json += eeprom_storage.laptimer_osd_pos.column;
     json += ",\"osd_col_max\":";
     json += osdColumnMax() - 1;
+    json += ",\"osd_timeout\":";
+    json += eeprom_storage.laptimer_osd_timeout;
     json += '}';
     async_event_send(json, "fea_config", client);
     async_event_send(m_version_info, "vrx_version", client);
@@ -109,129 +110,140 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
         mspPacket_t & msp_in = _handler.getPacket();
         String info = "";
         bool ignore = false;
-        if (msp_in.type != MSP_PACKET_V2_COMMAND && msp_in.type != MSP_PACKET_V2_RESPONSE) {
-            info = "Invalid MSP received! func: ";
+
+        if (msp_in.type == MSP_PACKET_V2_RESPONSE) {
+            if (msp_in.function == HDZ_MSP_FUNC_FIRMWARE_GET) {
+                m_version_info = "FW info not available!";
+                if ((4 <= msp_in.payloadSize) && (3 == msp_in.payload[0])) {
+                    m_version_info = "FW: ";
+                    m_version_info += msp_in.payload[1];
+                    m_version_info += '.';
+                    m_version_info += msp_in.payload[2];
+                    m_version_info += '.';
+                    m_version_info += msp_in.payload[3];
+                }
+                info = m_version_info;
+                if (current_state < STATE_READY)
+                    current_state = STATE_GET_CH_INDEX;
+
+            } else if (msp_in.function == HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_GET) {
+                info = "Channel index received: ";
+                if (1 == msp_in.payloadSize) {
+                    uint16_t const freq = getFreqByIndex(msp_in.payload[0]);
+                    info += msp_in.payload[0];
+                    info += " -> ";
+                    info += freq;
+                    info += "MHz";
+
+                    // TODO, FIXME: Do something with the current frequency!
+                    if (freq && eeprom_storage.vtx_freq != freq) {
+                        eeprom_storage.vtx_freq = freq;
+                        eeprom_storage.markDirty();
+                        clientSendVtxFrequency(freq);
+                    }
+
+                    if (current_state < STATE_READY)
+                        current_state = STATE_GET_FREQ;
+                }
+
+            } else if (msp_in.function == HDZ_MSP_FUNC_FREQUENCY_GET) {
+                info = "Frequency received: ";
+                if (2 == msp_in.payloadSize) {
+                    uint16_t const freq = parseFreq(msp_in.payload);
+                    info += freq;
+                    info += "MHz";
+
+                    if (freq && eeprom_storage.vtx_freq != freq) {
+                        eeprom_storage.vtx_freq = freq;
+                        eeprom_storage.markDirty();
+                        clientSendVtxFrequency(freq);
+                    }
+
+                    if (current_state < STATE_READY)
+                        current_state = STATE_GET_RECORDING;
+                }
+
+            } else if (msp_in.function == HDZ_MSP_FUNC_RECORDING_STATE_GET) {
+                info = "Recording state received: ";
+                if (1 == msp_in.payloadSize) {
+                    info += msp_in.payload[0] ? "ON" : "OFF";
+
+                    clientSendVRecordingState(msp_in.payload[0]);
+
+                    if (current_state < STATE_READY) {
+                        check_retry(0, 0);
+                        current_state = STATE_CLEAR_OSD;
+                        // current_state = STATE_READY;
+                    }
+                }
+
+            } else if (msp_in.function == HDZ_MSP_FUNC_VRX_MODE_GET) {
+                info += "HDZ_MSP_FUNC_VRX_MODE_GET";
+
+            } else if (msp_in.function == HDZ_MSP_FUNC_RSSI_GET) {
+                info = "RSSI: 1)";
+                if ((5 == msp_in.payloadSize) && (4 == msp_in.payload[0])) {
+                    info += msp_in.payload[1];
+                    info += " 2)";
+                    info += msp_in.payload[2];
+                    info += " 3)";
+                    info += msp_in.payload[3];
+                    info += " 4)";
+                    info += msp_in.payload[4];
+                }
+
+            } else if (msp_in.function == HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET) {
+                info = "Battery Voltage: ";
+                if (2 == msp_in.payloadSize) {
+                    uint16_t const voltage = ((uint16_t)msp_in.payload[1] << 8) + msp_in.payload[0];
+                    info += voltage;
+                }
+            }
+
+        } else if (msp_in.type == MSP_PACKET_V2_COMMAND) {
+            ignore = true; // don't forward
+
+            if (msp_in.function == MSP_ELRS_BACKPACK_SET_MODE) {
+                info = "BACKPACK Set Mode: ";
+                if (1 == msp_in.payloadSize) {
+                    uint8_t data = 'F'; // "FAILED" response by default
+                    if (msp_in.payload[0] == 'B') {
+                        info += "Enter binding...";
+                    } else if (msp_in.payload[0] == 'W') {
+                        info += "Enable WIFI...";
+                        data = 'P'; // "in-progress" response
+                        // 'P' = started...
+                        // 'O' = success...
+                    }
+                    sendMspToHdzero(&data, sizeof(data), MSP_ELRS_BACKPACK_SET_MODE, true);
+                } else {
+                    info += "invalid size!";
+                }
+            } else if (msp_in.function == MSP_ELRS_BACKPACK_GET_VERSION) {
+                // Resp max 32 char!
+                sendMspToHdzero((uint8_t *)version_string, strlen(version_string), MSP_ELRS_BACKPACK_GET_VERSION, true);
+
+            } else if (msp_in.function == MSP_ELRS_BACKPACK_GET_STATUS) {
+                enum {
+                    WIFI_UPDATE = 1 << 0,
+                    BINDING_MODE = 1 << 1,
+                    BOUND_OK = 1 << 2,
+                };
+                uint8_t const my_uid[] = {MY_UID};
+                uint8_t response[1 + sizeof(my_uid)];
+                response[0] = BOUND_OK;
+                memcpy(&response[1], my_uid, sizeof(my_uid));
+                sendMspToHdzero(response, sizeof(response), MSP_ELRS_BACKPACK_GET_STATUS, true);
+
+            } else if (msp_in.function == MSP_ELRS_BACKPACK_SET_PTR) {
+                // do nothing...
+            }
+
+        } else {
+            info = "Invalid MSP received! type: ";
+            info += msp_in.type;
+            info += ", func: ";
             info += msp_in.function;
-
-        } else if (msp_in.function == HDZ_MSP_FUNC_FIRMWARE_GET) {
-            m_version_info = "FW info not available!";
-            if ((4 <= msp_in.payloadSize) && (3 == msp_in.payload[0])) {
-                m_version_info = "FW: ";
-                m_version_info += msp_in.payload[1];
-                m_version_info += '.';
-                m_version_info += msp_in.payload[2];
-                m_version_info += '.';
-                m_version_info += msp_in.payload[3];
-            }
-            info = m_version_info;
-            if (current_state < STATE_READY)
-                current_state = STATE_GET_CH_INDEX;
-
-        } else if (msp_in.function == HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_GET) {
-            info = "Channel index received: ";
-            if (1 == msp_in.payloadSize) {
-                uint16_t const freq = getFreqByIndex(msp_in.payload[0]);
-                info += msp_in.payload[0];
-                info += " -> ";
-                info += freq;
-                info += "MHz";
-
-                // TODO, FIXME: Do something with the current frequency!
-                if (freq && eeprom_storage.vtx_freq != freq) {
-                    eeprom_storage.vtx_freq = freq;
-                    eeprom_storage.markDirty();
-                    clientSendVtxFrequency(freq);
-                }
-
-                if (current_state < STATE_READY)
-                    current_state = STATE_GET_FREQ;
-            }
-
-        } else if (msp_in.function == HDZ_MSP_FUNC_FREQUENCY_GET) {
-            info = "Frequency received: ";
-            if (2 == msp_in.payloadSize) {
-                uint16_t const freq = parseFreq(msp_in.payload);
-                info += freq;
-                info += "MHz";
-
-                if (freq && eeprom_storage.vtx_freq != freq) {
-                    eeprom_storage.vtx_freq = freq;
-                    eeprom_storage.markDirty();
-                    clientSendVtxFrequency(freq);
-                }
-
-                if (current_state < STATE_READY)
-                    current_state = STATE_GET_RECORDING;
-            }
-
-        } else if (msp_in.function == HDZ_MSP_FUNC_RECORDING_STATE_GET) {
-            info = "Recording state received: ";
-            if (1 == msp_in.payloadSize) {
-                info += msp_in.payload[0] ? "ON" : "OFF";
-
-                clientSendVRecordingState(msp_in.payload[0]);
-
-                if (current_state < STATE_READY) {
-                    check_retry(0, 0);
-                    current_state = STATE_CLEAR_OSD;
-                    // current_state = STATE_READY;
-                }
-            }
-
-        } else if (msp_in.function == HDZ_MSP_FUNC_VRX_MODE_GET) {
-            info += "HDZ_MSP_FUNC_VRX_MODE_GET";
-
-        } else if (msp_in.function == HDZ_MSP_FUNC_RSSI_GET) {
-            info = "RSSI: 1)";
-            if ((5 == msp_in.payloadSize) && (4 == msp_in.payload[0])) {
-                info += msp_in.payload[1];
-                info += " 2)";
-                info += msp_in.payload[2];
-                info += " 3)";
-                info += msp_in.payload[3];
-                info += " 4)";
-                info += msp_in.payload[4];
-            }
-
-        } else if (msp_in.function == HDZ_MSP_FUNC_BATTERY_VOLTAGE_GET) {
-            info = "Battery Voltage: ";
-            if (2 == msp_in.payloadSize) {
-                uint16_t const voltage = ((uint16_t)msp_in.payload[1] << 8) + msp_in.payload[0];
-                info += voltage;
-            }
-
-        } else if (msp_in.function == MSP_ELRS_BACKPACK_SET_MODE) {
-            info = "MSP_ELRS_BACKPACK_SET_MODE: ";
-            if (1 == msp_in.payloadSize) {
-                uint8_t data = 'F'; // "FAILED" response by default
-                if (msp_in.payload[0] == 'B') {
-                    info += "Enter binding...";
-                } else if (msp_in.payload[0] == 'W') {
-                    info += "Enable WIFI...";
-                    data = 'P'; // "in-progress" response
-                }
-                sendMspToHdzero(&data, sizeof(data), MSP_ELRS_BACKPACK_SET_MODE);
-            }
-        } else if (msp_in.function == MSP_ELRS_BACKPACK_GET_VERSION) {
-            info = "MSP_ELRS_BACKPACK_GET_VERSION...";
-            sendMspToHdzero((uint8_t *)version_string, strlen(version_string), MSP_ELRS_BACKPACK_GET_VERSION);
-
-        } else if (msp_in.function == MSP_ELRS_BACKPACK_GET_STATUS) {
-            info = "MSP_ELRS_BACKPACK_GET_STATUS...";
-            enum {
-                WIFI_UPDATE = 1 << 0,
-                BINDING_MODE = 1 << 1,
-                BOUND_OK = 1 << 2,
-            };
-            uint8_t const my_uid[] = {MY_UID};
-            uint8_t response[1 + sizeof(my_uid)];
-            response[0] = BOUND_OK;
-            memcpy(&response[1], my_uid, sizeof(my_uid));
-            sendMspToHdzero(response, sizeof(response), MSP_ELRS_BACKPACK_GET_STATUS);
-
-        } else if (msp_in.function == MSP_ELRS_BACKPACK_SET_PTR) {
-            // info = "MSP_ELRS_BACKPACK_SET_PTR...";
-            ignore = true;
         }
 
         if (info.length()) {
@@ -380,7 +392,7 @@ void HDZeroMsp::loop(void)
 
         /************** RUNTIME **************/
         case STATE_CLEAR_OSD: {
-            if (check_retry(now, OSD_TIMEOUT_MS)) {
+            if (check_retry(now, eeprom_storage.laptimer_osd_timeout)) {
                 osdClear();
                 current_state = STATE_READY;
             }
@@ -397,10 +409,13 @@ void HDZeroMsp::loop(void)
     };
 }
 
-void HDZeroMsp::sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function)
+void HDZeroMsp::sendMspToHdzero(uint8_t const * const buff,
+                                uint16_t const len,
+                                uint16_t const function,
+                                bool const resp)
 {
     // Fill MSP packet
-    msp_out.type = MSP_PACKET_V2_COMMAND;
+    msp_out.type = resp ? MSP_PACKET_V2_RESPONSE : MSP_PACKET_V2_COMMAND;
     msp_out.flags = 0;
     msp_out.function = function;
     msp_out.payloadSize = (!buff) ? 0 : len;
@@ -468,7 +483,9 @@ void HDZeroMsp::osdDraw(void)
 {
     uint8_t payload = OSD_CMD_SCREEN_DRAW;
     sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
-    current_state = STATE_CLEAR_OSD;
+    if (eeprom_storage.laptimer_osd_timeout) {
+        current_state = STATE_CLEAR_OSD;
+    }
 }
 
 void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t const row, uint8_t const column)
