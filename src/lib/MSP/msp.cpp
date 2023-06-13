@@ -232,13 +232,13 @@ size_t MSP::bufferPacket(uint8_t *output_ptr, mspPacketType_e type,
         // Unsupported packet type (note: ignoring '!' until we know what it is)
         return 0;
     }
-
+#if 0
     if ((type == MSP_PACKET_V1_RESP || type == MSP_PACKET_V2_RESPONSE) && payloadSize == 0)
     {
         // Response packet with no payload
         return 0;
     }
-
+#endif
     // Write out the framing chars
     *buff++ = ('$');
     if (type == MSP_PACKET_V2_RESPONSE || type == MSP_PACKET_V2_COMMAND)

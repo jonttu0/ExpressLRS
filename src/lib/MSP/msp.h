@@ -27,9 +27,10 @@ enum {
 #define MSP_PORT_INBUF_SIZE 256
 
 #define MSP_SEQUENCE_MASK (0xF)
-#define MSP_VERSION       (1U << 5)
 #define MSP_STARTFLAG     (1U << 4)
-#define MSP_ERRORFLAG     (1U << 5) // MSP RESP
+#define MSP_VERSION       (1U << 5) // MSPv1
+#define MSP_VERSION_V2    (2U << 5) // MSPv2
+#define MSP_ERRORFLAG     (1U << 7) // MSP RESP
 #define MSP_ELRS_INT      (3U << 0)
 
 typedef enum {
@@ -114,12 +115,14 @@ typedef struct {
     uint32_t subcommand;
     uint16_t node_index;
     uint16_t race_id;
+    uint16_t round_id;
 } PACKED laptimer_start_t;
 
 typedef struct {
     uint32_t subcommand;
     uint16_t node_index;
     uint16_t race_id;
+    uint16_t round_id;
 } PACKED laptimer_stop_t;
 
 typedef struct {
@@ -127,6 +130,7 @@ typedef struct {
     uint32_t lap_time_ms;
     uint16_t node_index;
     uint16_t race_id;
+    uint16_t round_id;
     uint8_t lap_index;
 } PACKED laptimer_lap_t;
 

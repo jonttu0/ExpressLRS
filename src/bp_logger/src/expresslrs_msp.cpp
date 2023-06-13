@@ -146,8 +146,46 @@ void ExpresslrsMsp::elrsSettingsSendEvent(AsyncEventSourceClient * const client)
     async_event_send(json, "fea_config", client);
 }
 
-void ExpresslrsMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
+void ExpresslrsMsp::handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client)
 {
+#if 0
+    // DEBUG!!
+    switch (freq) {
+        case 5760: // F2
+            freq = 3 * 8 + 1;
+            break;
+        case 5800: // F4
+            freq = 3 * 8 + 3;
+            break;
+        case 5658: // R1
+            freq = 4 * 8 + 0;
+            break;
+        case 5695: // R2
+            freq = 4 * 8 + 1;
+            break;
+        case 5732: // R3
+            freq = 4 * 8 + 2;
+            break;
+        case 5769: // R4
+            freq = 4 * 8 + 3;
+            break;
+        case 5806: // R5
+            freq = 4 * 8 + 4;
+            break;
+        case 5843: // R6
+            freq = 4 * 8 + 5;
+            break;
+        case 5880: // R7
+            freq = 4 * 8 + 6;
+            break;
+        case 5917: // R8
+            freq = 4 * 8 + 7;
+            break;
+        default:
+            break;
+    }
+#endif
+
     // Send to ELRS
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     // payload[2] = power;
@@ -157,7 +195,10 @@ void ExpresslrsMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocke
     // Request save to make set permanent
     // msp_send_save_requested_ms = millis();
 
-    websocket_send_txt("V1_CMD: MSP_VTX_SET_CONFIG sent.");
+    String info = "V1_CMD: MSP_VTX_SET_CONFIG sent. Freq = ";
+    info += freq;
+    info += "MHz";
+    websocket_send_txt(info);
 }
 
 #if CONFIG_HANDSET
@@ -653,6 +694,7 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     break;
             };
         } else if (MSP_PACKET_V1_RESP == msp_in.type) {
+            forward = false;
             switch (msp_in.function) {
                 case MSP_VTX_SET_CONFIG:
                     // Send save!
@@ -665,14 +707,16 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     info += "EEPROM save success!";
                     break;
                 default:
-                    info = "DL MSP rcvd. func: ";
+                    info = "DL MSPv1 RESP rcvd. func: ";
                     info += String(msp_in.function, HEX);
                     info += ", size: ";
                     info += msp_in.payloadSize;
                     break;
             }
+            info += " ERROR=";
+            info += (bool)(!!(msp_in.flags & MSP_ERRORFLAG));
         } else {
-            info = "Invalid DL MSP type rcvd from FC. func: ";
+            info = "DL MSP rcvd from FC (Not handled) func: ";
             info += String(msp_in.function, HEX);
             info += ", size: ";
             info += msp_in.payloadSize;

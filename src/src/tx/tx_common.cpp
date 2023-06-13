@@ -856,11 +856,10 @@ bool tx_common_tlm_rx_handle(uint32_t const now)
                 msp_packet_rx.type == msp_packet_tx.type &&
                 msp_packet_rx.function == msp_packet_tx.function) {
             msp_packet_rx.type = MSP_PACKET_V1_RESP; // Only v1 over OTA
-            // Resp ok, free to send next one
+            // Resp ok, free TX buffer to send next one
             write_u8(&tlm_msp_send, TLM_MSP_STATE_FREE);
-            msp_packet_rx.reset();
-            tlm_msp_rcvd = 0;
             retrx_count = 0;
+            //DEBUG_PRINTF("Expected MSP response\n");
         } else {
             //DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
             //             msp_packet_rx.function, msp_packet_rx.payloadSize);

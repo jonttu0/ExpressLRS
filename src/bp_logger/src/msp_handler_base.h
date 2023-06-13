@@ -50,8 +50,7 @@ public:
     int parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client);
     int parseCommand(mspPacket_t & msp_in); // Handle received MSP packet
 
-    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL)
-    {
+    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL){
         /*
         if (storeVtxFreq(client, freq)) {
             clientSendVtxFrequency(freq);
@@ -63,16 +62,24 @@ public:
     void clientSendVRecordingState(uint8_t const state, AsyncWebSocketClient * const client = NULL);
 
     // Laptimer commands parsing for Web UI
-    void clientSendLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL);
-    void clientSendLaptimerStateStart(uint16_t const race_id, AsyncWebSocketClient * const client = NULL)
+    void clientSendLaptimerState(uint16_t const race_id,
+                                 uint16_t const round_num,
+                                 bool const state,
+                                 AsyncWebSocketClient * const client = NULL);
+    void clientSendLaptimerStateStart(uint16_t const race_id,
+                                      uint16_t const round_num,
+                                      AsyncWebSocketClient * const client = NULL)
     {
-        clientSendLaptimerState(race_id, true, client);
+        clientSendLaptimerState(race_id, round_num, true, client);
     }
-    void clientSendLaptimerStateStop(uint16_t const race_id, AsyncWebSocketClient * const client = NULL)
+    void clientSendLaptimerStateStop(uint16_t const race_id,
+                                     uint16_t const round_num,
+                                     AsyncWebSocketClient * const client = NULL)
     {
-        clientSendLaptimerState(race_id, false, client);
+        clientSendLaptimerState(race_id, round_num, false, client);
     }
-    bool clientLaptimerStateGet(void) const {
+    bool clientLaptimerStateGet(void) const
+    {
         return m_laptimer_state;
     }
     void clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
@@ -105,14 +112,18 @@ protected:
 
     virtual void handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client) = 0;
 
-    virtual void
-    handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL){};
+    virtual void handleLaptimerState(uint16_t const race_id,
+                                     uint16_t const round_num,
+                                     bool const state,
+                                     AsyncWebSocketClient * const client = NULL){};
     virtual void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL){};
 
-    virtual uint16_t osdRowMax(void) {
+    virtual uint16_t osdRowMax(void)
+    {
         return 0;
     }
-    virtual uint16_t osdColumnMax(void) {
+    virtual uint16_t osdColumnMax(void)
+    {
         return 0;
     }
 

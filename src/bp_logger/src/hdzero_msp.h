@@ -44,7 +44,8 @@ private:
     int parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
     int parseCommandPriv(mspPacket_t & msp_in);
 
-    void sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function, bool const resp = false);
+    void
+    sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function, bool const resp = false);
 
     void handleUserTextCommand(const char * input, size_t len, AsyncWebSocketClient * const client);
     void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
@@ -61,7 +62,10 @@ private:
     void osdDraw(void);
     void osdText(char const * const p_text, size_t len, uint8_t row, uint8_t column);
 
-    void handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client = NULL);
+    void handleLaptimerState(uint16_t const race_id,
+                             uint16_t const round_num,
+                             bool const state,
+                             AsyncWebSocketClient * const client = NULL);
     void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
     virtual uint16_t osdRowMax(void)

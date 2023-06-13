@@ -198,6 +198,9 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     uint16_t const voltage = ((uint16_t)msp_in.payload[1] << 8) + msp_in.payload[0];
                     info += voltage;
                 }
+            } else {
+                info = "Invalid MSPv2 RESP function received! func: ";
+                info += msp_in.function;
             }
 
         } else if (msp_in.type == MSP_PACKET_V2_COMMAND) {
@@ -220,10 +223,12 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += "invalid size!";
                 }
             } else if (msp_in.function == MSP_ELRS_BACKPACK_GET_VERSION) {
+                info = "BACKPACK get version";
                 // Resp max 32 char!
                 sendMspToHdzero((uint8_t *)version_string, strlen(version_string), MSP_ELRS_BACKPACK_GET_VERSION, true);
 
             } else if (msp_in.function == MSP_ELRS_BACKPACK_GET_STATUS) {
+                info = "BACKPACK get status";
                 enum {
                     WIFI_UPDATE = 1 << 0,
                     BINDING_MODE = 1 << 1,
@@ -236,7 +241,11 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                 sendMspToHdzero(response, sizeof(response), MSP_ELRS_BACKPACK_GET_STATUS, true);
 
             } else if (msp_in.function == MSP_ELRS_BACKPACK_SET_PTR) {
+                info = "BACKPACK get status";
                 // do nothing...
+            } else {
+                info = "Invalid MSPv2 CMD function received! func: ";
+                info += msp_in.function;
             }
 
         } else {
@@ -511,7 +520,7 @@ void HDZeroMsp::osdText(char const * const p_text, size_t const len, uint8_t con
     memcpy(&msp_out.payload[4], p_text, len);
     MSP::sendPacket(&msp_out, _serial);
     // Draw OSD
-    //current_state = STATE_DRAW_OSD;
+    // current_state = STATE_DRAW_OSD;
     osdDraw();
 }
 
@@ -521,12 +530,20 @@ void HDZeroMsp::handleBuzzerCommand(uint16_t const time_ms)
     sendMspToHdzero(payload, sizeof(payload), HDZ_MSP_FUNC_BUZZER_SET);
 }
 
-void HDZeroMsp::handleLaptimerState(uint16_t const race_id, bool const state, AsyncWebSocketClient * const client)
+void HDZeroMsp::handleLaptimerState(uint16_t const race_id,
+                                    uint16_t const round_num,
+                                    bool const state,
+                                    AsyncWebSocketClient * const client)
 {
     String info = "RACE ";
     if (state) {
         info += race_id;
         info += " START";
+        if (round_num) {
+            info += "(round ";
+            info += round_num;
+            info += ')';
+        }
         handleBuzzerCommand(400);
     } else {
         info += "END";
@@ -536,7 +553,7 @@ void HDZeroMsp::handleLaptimerState(uint16_t const race_id, bool const state, As
 
 void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client)
 {
-    lap_time_t laptime = convert_ms_to_time(lap->lap_time_ms);
+    lap_time_t const laptime = convert_ms_to_time(lap->lap_time_ms);
 
     String info = "LAP ";
     info += lap->lap_index;

@@ -368,18 +368,18 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                 }
                 case CMD_LAP_TIMER_START: {
 #if UART_DEBUG_EN
-                    Serial.printf("CMD_LAP_TIMER_START: race_id: %u, node_index: %u\r\n", p_command->start.race_id,
-                                  p_command->start.node_index);
+                    Serial.printf("CMD_LAP_TIMER_START: race_id: %u, node_index: %u, round_num: %u\r\n",
+                                  p_command->start.race_id, p_command->start.node_index, p_command->start.round_id);
 #endif
-                    msp_handler.clientSendLaptimerStateStart(p_command->start.race_id);
+                    msp_handler.clientSendLaptimerStateStart(p_command->start.race_id, p_command->start.round_id);
                     break;
                 }
                 case CMD_LAP_TIMER_STOP: {
 #if UART_DEBUG_EN
-                    Serial.printf("CMD_LAP_TIMER_STOP: race_id: %u, node_index: %u\r\n", p_command->stop.race_id,
-                                  p_command->stop.node_index);
+                    Serial.printf("CMD_LAP_TIMER_STOP: race_id: %u, node_index: %u, round_num: %u\r\n",
+                                  p_command->stop.race_id, p_command->stop.node_index, p_command->stop.round_id);
 #endif
-                    msp_handler.clientSendLaptimerStateStop(p_command->stop.race_id);
+                    msp_handler.clientSendLaptimerStateStop(p_command->stop.race_id, p_command->stop.round_id);
                     break;
                 }
                 case CMD_LAP_TIMER_LAP: {

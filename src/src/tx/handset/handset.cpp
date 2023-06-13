@@ -254,11 +254,13 @@ void loop()
             }
         }
     }
+    bool need_delay = false;
 
 #if RC_CH_PRINT_INTERVAL
     static uint32_t last_rc_info;
     if (RC_CH_PRINT_INTERVAL <= (now - last_rc_info) && !_tlm_updated) {
         last_rc_info = now;
+        need_delay = true;
 
         // Push RC data to logger
         MSP::sendPacket(
@@ -275,7 +277,11 @@ void loop()
 
     // Send MSP resp if allowed and packet ready
     if (tx_common_tlm_rx_handle(now)) {
-        MSP::sendPacket(&msp_packet_rx, &ctrl_serial);
+        if (need_delay)
+            delay(2);
+        if (!MSP::sendPacket(&msp_packet_rx, &ctrl_serial)) {
+            DEBUG_PRINTF("unable to send MSP packet to Logger!");
+        }
         msp_packet_rx.reset();
         tlm_msp_rcvd = 0;
     }
