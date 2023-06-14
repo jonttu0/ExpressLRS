@@ -536,19 +536,22 @@ void HDZeroMsp::handleLaptimerState(uint16_t const race_id,
                                     AsyncWebSocketClient * const client)
 {
     String info = "RACE ";
+    info += race_id;
     if (state) {
-        info += race_id;
         info += " START";
         if (round_num) {
-            info += "(round ";
+            info += "(ROUND ";
             info += round_num;
             info += ')';
         }
-        handleBuzzerCommand(400);
     } else {
-        info += "END";
+        info += " END";
     }
     osdText(info.c_str(), info.length(), 0, 0);
+    if (state) {
+        delay(2);
+        handleBuzzerCommand(400);
+    }
 }
 
 void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client)
