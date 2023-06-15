@@ -79,9 +79,9 @@ private:
 
     uint16_t getFreqByIndex(uint8_t index)
     {
-        if (index == (3 * 8 + 1))
+        if (index == ((3 * 8) + 1))
             return 5760; // F2
-        if (index == (3 * 8 + 3))
+        if (index == ((3 * 8) + 3))
             return 5580; // F4
         index -= 4 * 8;
         if (index <= 7)

@@ -243,11 +243,34 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
             } else if (msp_in.function == MSP_ELRS_BACKPACK_SET_PTR) {
                 info = "BACKPACK get status";
                 // do nothing...
+            } else if (msp_in.function == HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_SET) {
+                info = "HDZ set band and channel to ";
+                if (1 == msp_in.payloadSize) {
+                    uint16_t const band_channel = msp_in.payload[0];
+                    uint16_t const freq = getFreqByIndex(band_channel);
+                    info += band_channel;
+                    info += " => ";
+                    info += freq;
+                    info += "MHz";
+
+                    // Store and broadcast if changed
+                    if (freq && eeprom_storage.vtx_freq != freq) {
+                        eeprom_storage.vtx_freq = freq;
+                        eeprom_storage.markDirty();
+                        clientSendVtxFrequency(freq);
+                        espnow_vtxset_send(freq);
+                    }
+                } else {
+                    info += "INVALID PAYLOAD LEN!";
+                }
             } else {
                 info = "Invalid MSPv2 CMD function received! func: ";
                 info += msp_in.function;
             }
 
+        } else if (msp_in.type == MSP_PACKET_ERROR) {
+            info = "MSP ERROR received! func: ";
+            info += msp_in.function;
         } else {
             info = "Invalid MSP received! type: ";
             info += msp_in.type;
