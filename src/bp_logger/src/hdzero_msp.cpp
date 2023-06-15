@@ -135,12 +135,13 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += freq;
                     info += "MHz";
 
-                    // TODO, FIXME: Do something with the current frequency!
                     if (freq && eeprom_storage.vtx_freq != freq) {
+                        /* Goggles freq does not match to internally stored... save and publish it */
                         eeprom_storage.vtx_freq = freq;
                         eeprom_storage.markDirty();
-                        clientSendVtxFrequency(freq);
+                        espnow_vtxset_send(freq);
                     }
+                    clientSendVtxFrequency(freq);
 
                     if (current_state < STATE_READY)
                         current_state = STATE_GET_FREQ;
@@ -154,10 +155,12 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += "MHz";
 
                     if (freq && eeprom_storage.vtx_freq != freq) {
+                        /* Goggles freq does not match to internally stored... save and publish it */
                         eeprom_storage.vtx_freq = freq;
                         eeprom_storage.markDirty();
-                        clientSendVtxFrequency(freq);
+                        espnow_vtxset_send(freq);
                     }
+                    clientSendVtxFrequency(freq);
 
                     if (current_state < STATE_READY)
                         current_state = STATE_GET_RECORDING;
@@ -264,12 +267,12 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += "INVALID PAYLOAD LEN!";
                 }
             } else {
-                info = "Invalid MSPv2 CMD function received! func: ";
+                info = "Invalid MSPv2 CMD! func: ";
                 info += msp_in.function;
             }
 
         } else if (msp_in.type == MSP_PACKET_ERROR) {
-            info = "MSP ERROR received! func: ";
+            info = "MSP ERROR! func: ";
             info += msp_in.function;
         } else {
             info = "Invalid MSP received! type: ";

@@ -148,44 +148,6 @@ void ExpresslrsMsp::elrsSettingsSendEvent(AsyncEventSourceClient * const client)
 
 void ExpresslrsMsp::handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client)
 {
-#if 0
-    // DEBUG!!
-    switch (freq) {
-        case 5760: // F2
-            freq = 3 * 8 + 1;
-            break;
-        case 5800: // F4
-            freq = 3 * 8 + 3;
-            break;
-        case 5658: // R1
-            freq = 4 * 8 + 0;
-            break;
-        case 5695: // R2
-            freq = 4 * 8 + 1;
-            break;
-        case 5732: // R3
-            freq = 4 * 8 + 2;
-            break;
-        case 5769: // R4
-            freq = 4 * 8 + 3;
-            break;
-        case 5806: // R5
-            freq = 4 * 8 + 4;
-            break;
-        case 5843: // R6
-            freq = 4 * 8 + 5;
-            break;
-        case 5880: // R7
-            freq = 4 * 8 + 6;
-            break;
-        case 5917: // R8
-            freq = 4 * 8 + 7;
-            break;
-        default:
-            break;
-    }
-#endif
-
     // Send to ELRS
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
     // payload[2] = power;
@@ -715,6 +677,9 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
             }
             info += " ERROR=";
             info += (bool)(!!(msp_in.flags & MSP_ERRORFLAG));
+        } else if (MSP_PACKET_ERROR == msp_in.type) {
+            info = "MSP ERROR received! func: ";
+            info += String(msp_in.function, HEX);
         } else {
             info = "DL MSP rcvd from FC (Not handled) func: ";
             info += String(msp_in.function, HEX);
