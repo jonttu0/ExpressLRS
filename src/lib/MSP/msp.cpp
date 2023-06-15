@@ -83,6 +83,9 @@ bool MSP::processReceivedByte(uint8_t c)
                 case '>':
                     m_packet.type = MSP_PACKET_V1_RESP;
                     break;
+                case '!':
+                    m_packet.type = MSP_PACKET_ERROR;
+                    break;
                 default:
                     m_packet.type = MSP_PACKET_UNKNOWN;
                     m_inputState = MSP_IDLE;
@@ -174,7 +177,7 @@ bool MSP::processReceivedByte(uint8_t c)
                 m_packet.flags = header->flags;
                 // reset the offset iterator for re-use in payload below
                 m_offset = 0;
-                m_inputState = MSP_PAYLOAD_V2_NATIVE;
+                m_inputState = m_packet.payloadSize ? MSP_PAYLOAD_V2_NATIVE : MSP_CHECKSUM_V2_NATIVE;
             }
             break;
 

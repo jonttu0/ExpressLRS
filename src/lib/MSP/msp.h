@@ -60,7 +60,8 @@ typedef enum {
     MSP_PACKET_V1_CMD,
     MSP_PACKET_V1_RESP,
     MSP_PACKET_V2_COMMAND,
-    MSP_PACKET_V2_RESPONSE
+    MSP_PACKET_V2_RESPONSE,
+    MSP_PACKET_ERROR,
 } mspPacketType_e;
 
 /* MSPv1 functions */
