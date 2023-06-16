@@ -50,12 +50,16 @@ public:
     int parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client);
     int parseCommand(mspPacket_t & msp_in); // Handle received MSP packet
 
-    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL){
-        /*
-        if (storeVtxFreq(client, freq)) {
-            clientSendVtxFrequency(freq);
+    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL)
+    {
+        if (freq && eeprom_storage.vtx_freq == freq) {
+            // Freq is already ok
+            return;
         }
-        */
+        if (storeVtxFreq(client, freq)) {
+            clientSendVtxFrequency(freq); // Update web UI
+            espnow_vtxset_send(freq);     // inform other peers
+        }
     };
 
     void clientSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
@@ -136,6 +140,16 @@ protected:
             return frequency_table[_band][_index];
         }
         return freq;
+    }
+    virtual int8_t getIndexByFreq(uint16_t const freq)
+    {
+        uint16_t const * const p_freq = &frequency_table[0][0];
+        for (uint8_t iter; iter < (VTX_BAND_MAX * VTX_CHANNEL_MAX); iter++) {
+            if (freq == p_freq[iter]) {
+                return iter;
+            }
+        }
+        return -1;
     }
 
     bool storeVtxFreq(AsyncWebSocketClient * const client, uint16_t const freq)

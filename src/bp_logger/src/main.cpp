@@ -358,10 +358,6 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
 
                     msp_handler.handleVtxFrequencyCmd(freq);
 
-                    // Forward to other devices...
-                    // TODO: check if this is ok?
-                    espnow_vtxset_send(freq);
-
                     if (current_state == STATE_LAPTIMER_WAIT)
                         current_state = STATE_RUNNING;
                     break;

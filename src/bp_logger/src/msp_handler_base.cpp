@@ -12,7 +12,13 @@ int MspHandlerBase::parseCommand(websoc_bin_hdr_t const * const cmd,
             uint16_t const freq = parseFreq(cmd->payload);
             if (storeVtxFreq(client, freq)) {
                 handleVtxFrequencyCommand(freq, client);
+#if LOGGER_HDZERO_USE_VTX_INDEX
+                int8_t const chan_index = getIndexByFreq(freq);
+                if (0 <= chan_index)
+                    espnow_vtxset_send(chan_index);
+#else
                 espnow_vtxset_send(freq);
+#endif
             }
             break;
         }

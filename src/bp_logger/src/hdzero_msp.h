@@ -89,7 +89,7 @@ private:
         return 0;
     }
 
-    uint8_t getIndexByFreq(uint16_t const freq)
+    int8_t getIndexByFreq(uint16_t const freq)
     {
         // MAP freq to HDZ supported channel indeces
         switch (freq) {
@@ -116,6 +116,6 @@ private:
             default:
                 break;
         }
-        return 0;
+        return -1;
     }
 };

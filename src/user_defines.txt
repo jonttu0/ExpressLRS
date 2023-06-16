@@ -124,3 +124,12 @@
 ### Use ELRS prtocol if FC supports it (!!experimental!!)
 #-DPROTOCOL_ELRS_TO_FC=1
 #-DPROTOCOL_ELRS_RX_BAUDRATE=1000000
+
+################################
+### Logger specific flags
+# Use indices (6 * 8 = 48) instead of direct frequency for VTX MSP commanding
+#-DLOGGER_HDZERO_USE_VTX_INDEX=1
+# Enable LapTimer commanding support
+-DHANDSET_LAPTIMER=1
+# Enable ESP-NOW commanding support
+-DESP_NOW=1

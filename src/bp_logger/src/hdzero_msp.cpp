@@ -139,7 +139,11 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                         /* Goggles freq does not match to internally stored... save and publish it */
                         eeprom_storage.vtx_freq = freq;
                         eeprom_storage.markDirty();
+#if LOGGER_HDZERO_USE_VTX_INDEX
+                        espnow_vtxset_send(msp_in.payload[0]);
+#else
                         espnow_vtxset_send(freq);
+#endif
                     }
                     clientSendVtxFrequency(freq);
 
@@ -158,7 +162,11 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                         /* Goggles freq does not match to internally stored... save and publish it */
                         eeprom_storage.vtx_freq = freq;
                         eeprom_storage.markDirty();
+#if LOGGER_HDZERO_USE_VTX_INDEX
+                        espnow_vtxset_send(getIndexByFreq(freq));
+#else
                         espnow_vtxset_send(freq);
+#endif
                     }
                     clientSendVtxFrequency(freq);
 
@@ -261,7 +269,11 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                         eeprom_storage.vtx_freq = freq;
                         eeprom_storage.markDirty();
                         clientSendVtxFrequency(freq);
+#if LOGGER_HDZERO_USE_VTX_INDEX
+                        espnow_vtxset_send(msp_in.payload[0]);
+#else
                         espnow_vtxset_send(freq);
+#endif
                     }
                 } else {
                     info += "INVALID PAYLOAD LEN!";
@@ -361,7 +373,7 @@ int HDZeroMsp::parseCommandPriv(mspPacket_t & msp_in)
             }
             case HDZ_MSP_FUNC_FREQUENCY_SET: {
                 uint16_t const freq = parseFreq(msp_in.payload);
-                if (!freq || !getIndexByFreq(freq))
+                if (!freq || getIndexByFreq(freq) < 0)
                     return 0; // ignore invalid freqs
                 if (eeprom_storage.vtx_freq != freq) {
                     eeprom_storage.vtx_freq = freq;
@@ -468,8 +480,10 @@ void HDZeroMsp::handleUserTextCommand(const char * input, size_t const len, Asyn
 void HDZeroMsp::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
 {
     // Send to HDZero
-#if 0
-    uint8_t chan_index = getIndexByFreq(freq);
+#if LOGGER_HDZERO_USE_VTX_INDEX
+    uint8_t chan_index = (uint8_t)getIndexByFreq(freq);
+    if (chan_index == (uint8_t)-1)
+        return;
     sendMspToHdzero(&chan_index, 1, HDZ_MSP_FUNC_BAND_CHANNEL_INDEX_SET);
 #else
     uint8_t payload[] = {(uint8_t)(freq & 0xff), (uint8_t)(freq >> 8)};
