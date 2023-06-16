@@ -20,7 +20,7 @@ public:
 
     int parseSerialData(uint8_t chr);
 
-    void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
+    void vtxFrequencySet(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
 
     void loop(void);
 
@@ -44,21 +44,24 @@ private:
     int parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, AsyncWebSocketClient * const client);
     int parseCommandPriv(mspPacket_t & msp_in);
 
-    void
-    sendMspToHdzero(uint8_t const * const buff, uint16_t const len, uint16_t const function, bool const resp = false);
+    void sendMspToHdzero(uint8_t const * const buff,
+                         uint16_t const len,
+                         uint16_t const function,
+                         bool const resp = false) const;
 
     void handleUserTextCommand(const char * input, size_t len, AsyncWebSocketClient * const client);
     void handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClient * const client);
-    void handleRecordingStateCommand(uint8_t start);
-    void handleBuzzerCommand(uint16_t time_ms);
+
+    void handleRecordingStateCommand(uint8_t start) const;
+    void handleBuzzerCommand(uint16_t time_ms) const;
 
     //
-    void getFwVersion(void);
-    void getChannelIndex(void);
-    void getFrequency(void);
-    void getRecordingState(void);
+    void getFwVersion(void) const;
+    void getChannelIndex(void) const;
+    void getFrequency(void) const;
+    void getRecordingState(void) const;
 
-    void osdClear(void);
+    void osdClear(void) const;
     void osdDraw(void);
     void osdText(char const * const p_text, size_t len, uint8_t row, uint8_t column);
 
@@ -68,16 +71,18 @@ private:
                              AsyncWebSocketClient * const client = NULL);
     void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
-    virtual uint16_t osdRowMax(void)
+    virtual uint16_t osdRowMax(void) const
     {
         return 18; // VMAX
     }
-    virtual uint16_t osdColumnMax(void)
+    virtual uint16_t osdColumnMax(void) const
     {
         return 50; // HMAX
     }
 
-    uint16_t getFreqByIndex(uint8_t index)
+    void checkFreqFromModule(uint16_t const freq) const;
+
+    uint16_t getFreqByIndex(uint8_t index) const
     {
         if (index == ((3 * 8) + 1))
             return 5760; // F2
@@ -89,7 +94,7 @@ private:
         return 0;
     }
 
-    int8_t getIndexByFreq(uint16_t const freq)
+    int8_t getIndexByFreq(uint16_t const freq) const
     {
         // MAP freq to HDZ supported channel indeces
         switch (freq) {

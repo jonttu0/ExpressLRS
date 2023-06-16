@@ -793,14 +793,7 @@ int ExpresslrsMsp::parseCommandPriv(websoc_bin_hdr_t const * const cmd,
 int ExpresslrsMsp::parseCommandPriv(mspPacket_t & msp_in)
 {
     if (msp_in.type == MSP_PACKET_V2_COMMAND || msp_in.type == MSP_PACKET_V2_RESPONSE) {
-        switch (msp_in.function) {
-            case MSP_ELRS_FUNC: {
-                /* Ignore */
-                break;
-            }
-            default:
-                break;
-        }
+        /* MSPv2 command will be ignored for now... */
         return 0;
     }
     return -1; // will trigger write to serial

@@ -57,15 +57,23 @@ int MspHandlerBase::parseCommand(mspPacket_t & msp_in)
             if (storeVtxFreq(NULL, freq)) {
                 handleVtxFrequencyCommand(freq, NULL);
                 /* Infrom web clients */
-                clientSendVtxFrequency(freq);
+                webUiSendVtxFrequency(freq);
             }
+            return 0;
+        } else if (msp_in.function == MSP_ELRS_FUNC) {
+            // vanilla elrs specific command... ignore
+            return 0;
+        }
+    } else if (msp_in.type == MSP_PACKET_V2_RESPONSE) {
+        if (msp_in.function == MSP_ELRS_FUNC) {
+            // vanilla elrs specific command... ignore
             return 0;
         }
     }
     return parseCommandPriv(msp_in);
 }
 
-void MspHandlerBase::clientSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client)
+void MspHandlerBase::webUiSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client) const
 {
     uint8_t response[] = {
         (uint8_t)(WSMSGID_VIDEO_FREQ >> 8),
@@ -76,7 +84,7 @@ void MspHandlerBase::clientSendVtxFrequency(uint16_t const freq, AsyncWebSocketC
     websocket_send_bin(response, sizeof(response), client);
 }
 
-void MspHandlerBase::clientSendVRecordingState(uint8_t const state, AsyncWebSocketClient * const client)
+void MspHandlerBase::webUiSendVRecordingState(uint8_t const state, AsyncWebSocketClient * const client) const
 {
     uint8_t response[] = {
         (uint8_t)(WSMSGID_RECORDING_CTRL >> 8),
@@ -86,12 +94,11 @@ void MspHandlerBase::clientSendVRecordingState(uint8_t const state, AsyncWebSock
     websocket_send_bin(response, sizeof(response), client);
 }
 
-void MspHandlerBase::clientSendLaptimerState(uint16_t const race_id,
-                                             uint16_t const round_num,
-                                             bool const state,
-                                             AsyncWebSocketClient * const client)
+void MspHandlerBase::webUiSendLaptimerState(uint16_t const race_id,
+                                            uint16_t const round_num,
+                                            bool const state,
+                                            AsyncWebSocketClient * const client) const
 {
-    m_laptimer_state = state;
     uint8_t response[] = {
         (uint8_t)(WSMSGID_LAPTIMER_START_STOP >> 8),
         (uint8_t)WSMSGID_LAPTIMER_START_STOP,
@@ -102,10 +109,9 @@ void MspHandlerBase::clientSendLaptimerState(uint16_t const race_id,
         (uint8_t)round_num,
     };
     websocket_send_bin(response, sizeof(response), client);
-    handleLaptimerState(race_id, round_num, state, client);
 }
 
-void MspHandlerBase::clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client)
+void MspHandlerBase::webUiSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client) const
 {
     uint8_t response[] = {
         (uint8_t)(WSMSGID_LAPTIMER_LAPTIME >> 8),
@@ -119,5 +125,4 @@ void MspHandlerBase::clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebS
         (uint8_t)(lap->lap_index),
     };
     websocket_send_bin(response, sizeof(response), client);
-    handleLaptimerLap(lap, client);
 }

@@ -14,6 +14,7 @@ public:
     {
         _handler.markPacketFree();
         m_version_info = "";
+        m_laptimer_state = false;
     }
     ~MspHandlerBase()
     {
@@ -26,7 +27,9 @@ public:
     {
     }
 
+    //
     // Send settings to client (websocket or event)
+    //
     virtual void syncSettings(void)
     {
     }
@@ -37,12 +40,17 @@ public:
     {
     }
 
+    //
     // Byte stream input to be checked for incoming MSP
+    //
     virtual int parseSerialData(uint8_t chr)
     {
         return -1;
     }
+
+    //
     // Message inputs from Web UI
+    //
     int parseCommand(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
     {
         return parseCommandPriv(cmd, len, client);
@@ -50,43 +58,46 @@ public:
     int parseCommand(websoc_bin_hdr_t const * const cmd, size_t const len, AsyncWebSocketClient * const client);
     int parseCommand(mspPacket_t & msp_in); // Handle received MSP packet
 
-    virtual void handleVtxFrequencyCmd(uint16_t const freq, AsyncWebSocketClient * const client = NULL)
+    //
+    // VTX freq control
+    //
+    virtual void vtxFrequencySet(uint16_t const freq, AsyncWebSocketClient * const client = NULL)
     {
         if (freq && eeprom_storage.vtx_freq == freq) {
             // Freq is already ok
             return;
         }
         if (storeVtxFreq(client, freq)) {
-            clientSendVtxFrequency(freq); // Update web UI
-            espnow_vtxset_send(freq);     // inform other peers
+            webUiSendVtxFrequency(freq); // Update web UI
+            espnow_vtxset_send(freq);    // inform other peers
         }
     };
 
-    void clientSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
-    void clientSendVRecordingState(uint8_t const state, AsyncWebSocketClient * const client = NULL);
-
-    // Laptimer commands parsing for Web UI
-    void clientSendLaptimerState(uint16_t const race_id,
-                                 uint16_t const round_num,
-                                 bool const state,
-                                 AsyncWebSocketClient * const client = NULL);
-    void clientSendLaptimerStateStart(uint16_t const race_id,
-                                      uint16_t const round_num,
-                                      AsyncWebSocketClient * const client = NULL)
+    //
+    // Laptimer control
+    //
+    void
+    LaptimerStateStart(uint16_t const race_id, uint16_t const round_num, AsyncWebSocketClient * const client = NULL)
     {
-        clientSendLaptimerState(race_id, round_num, true, client);
+        m_laptimer_state = true;
+        webUiSendLaptimerState(race_id, round_num, true, client);
+        handleLaptimerState(race_id, round_num, true, client);
     }
-    void clientSendLaptimerStateStop(uint16_t const race_id,
-                                     uint16_t const round_num,
-                                     AsyncWebSocketClient * const client = NULL)
+    void LaptimerStateStop(uint16_t const race_id, uint16_t const round_num, AsyncWebSocketClient * const client = NULL)
     {
-        clientSendLaptimerState(race_id, round_num, false, client);
+        m_laptimer_state = false;
+        webUiSendLaptimerState(race_id, round_num, false, client);
+        handleLaptimerState(race_id, round_num, false, client);
     }
-    bool clientLaptimerStateGet(void) const
+    void LaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL)
+    {
+        webUiSendLaptimerLap(lap, client);
+        handleLaptimerLap(lap, client);
+    }
+    bool LaptimerStateGet(void) const
     {
         return m_laptimer_state;
     }
-    void clientSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL);
 
 protected:
     CtrlSerial * _serial;
@@ -122,16 +133,24 @@ protected:
                                      AsyncWebSocketClient * const client = NULL){};
     virtual void handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL){};
 
-    virtual uint16_t osdRowMax(void)
+    virtual uint16_t osdRowMax(void) const
     {
         return 0;
     }
-    virtual uint16_t osdColumnMax(void)
+    virtual uint16_t osdColumnMax(void) const
     {
         return 0;
     }
 
-    uint16_t parseFreq(uint8_t const * const payload)
+    void webUiSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client = NULL) const;
+    void webUiSendVRecordingState(uint8_t const state, AsyncWebSocketClient * const client = NULL) const;
+    void webUiSendLaptimerState(uint16_t const race_id,
+                                uint16_t const round_num,
+                                bool const state,
+                                AsyncWebSocketClient * const client = NULL) const;
+    void webUiSendLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client = NULL) const;
+
+    uint16_t parseFreq(uint8_t const * const payload) const
     {
         uint16_t const freq = ((uint16_t)payload[1] << 8) + payload[0];
         if (freq < (VTX_BAND_MAX * VTX_CHANNEL_MAX)) {
@@ -141,34 +160,42 @@ protected:
         }
         return freq;
     }
-    virtual int8_t getIndexByFreq(uint16_t const freq)
+    virtual int8_t getIndexByFreq(uint16_t const freq) const
     {
-        uint16_t const * const p_freq = &frequency_table[0][0];
-        for (uint8_t iter; iter < (VTX_BAND_MAX * VTX_CHANNEL_MAX); iter++) {
-            if (freq == p_freq[iter]) {
-                return iter;
+        if (frequency_table[0][0] <= freq && freq <= frequency_table[(VTX_BAND_MAX - 1)][(VTX_CHANNEL_MAX - 1)]) {
+            // Lookup a correct index
+            uint16_t const * const p_freq = &frequency_table[0][0];
+            for (uint8_t iter = 0; iter < (VTX_BAND_MAX * VTX_CHANNEL_MAX); iter++) {
+                if (freq == p_freq[iter]) {
+                    return iter;
+                }
             }
+        } else if (freq < (VTX_BAND_MAX * VTX_CHANNEL_MAX)) {
+            // freq is already an index
+            return freq;
         }
         return -1;
     }
 
-    bool storeVtxFreq(AsyncWebSocketClient * const client, uint16_t const freq)
+    bool storeVtxFreq(AsyncWebSocketClient * const client, uint16_t const freq) const
     {
         String dbg_info = "Invalid VTX freq received!";
         if (freq == 0) {
             websocket_send_txt(dbg_info, client);
             return false;
         }
-        dbg_info = "Setting vtx freq to: ";
-        dbg_info += freq;
-        dbg_info += "MHz";
-        websocket_send_txt(dbg_info, client);
 
-        if (eeprom_storage.vtx_freq != freq) {
+        bool const change_freq = eeprom_storage.vtx_freq != freq;
+        if (change_freq) {
+            dbg_info = "Setting vtx freq to: ";
+            dbg_info += freq;
+            dbg_info += "MHz";
+            websocket_send_txt(dbg_info, client);
+
             eeprom_storage.vtx_freq = freq;
             eeprom_storage.markDirty();
         }
-        return true;
+        return change_freq;
     }
 
     typedef struct laptime {
@@ -177,7 +204,7 @@ protected:
         uint8_t m;
     } lap_time_t;
 
-    lap_time_t convert_ms_to_time(uint32_t const lap_time)
+    lap_time_t convert_ms_to_time(uint32_t const lap_time) const
     {
         uint32_t secs = lap_time / 1000;
         uint16_t ms = lap_time % 1000;
@@ -188,7 +215,7 @@ protected:
         return (lap_time_t){.ms = ms, .s = (uint8_t)secs, .m = mins};
     }
 
-    uint32_t convert_time_to_ms(lap_time_t const time)
+    uint32_t convert_time_to_ms(lap_time_t const time) const
     {
         uint32_t ms = time.ms;
         ms += 1000LU * time.s;

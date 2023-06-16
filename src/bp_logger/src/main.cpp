@@ -311,7 +311,7 @@ void wifi_networks_report(AsyncWebSocketClient * client)
 void laptimer_start_stop(bool const start)
 {
     int8_t const node = eeprom_storage.laptimer_config.index;
-    if (node < 0 || start == msp_handler.clientLaptimerStateGet()) {
+    if (node < 0 || start == msp_handler.LaptimerStateGet()) {
         return;
     }
     if (start) {
@@ -356,7 +356,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
 #endif
                     eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
 
-                    msp_handler.handleVtxFrequencyCmd(freq);
+                    msp_handler.vtxFrequencySet(freq);
 
                     if (current_state == STATE_LAPTIMER_WAIT)
                         current_state = STATE_RUNNING;
@@ -367,7 +367,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                     Serial.printf("CMD_LAP_TIMER_START: race_id: %u, node_index: %u, round_num: %u\r\n",
                                   p_command->start.race_id, p_command->start.node_index, p_command->start.round_id);
 #endif
-                    msp_handler.clientSendLaptimerStateStart(p_command->start.race_id, p_command->start.round_id);
+                    msp_handler.LaptimerStateStart(p_command->start.race_id, p_command->start.round_id);
                     break;
                 }
                 case CMD_LAP_TIMER_STOP: {
@@ -375,7 +375,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                     Serial.printf("CMD_LAP_TIMER_STOP: race_id: %u, node_index: %u, round_num: %u\r\n",
                                   p_command->stop.race_id, p_command->stop.node_index, p_command->stop.round_id);
 #endif
-                    msp_handler.clientSendLaptimerStateStop(p_command->stop.race_id, p_command->stop.round_id);
+                    msp_handler.LaptimerStateStop(p_command->stop.race_id, p_command->stop.round_id);
                     break;
                 }
                 case CMD_LAP_TIMER_LAP: {
@@ -384,7 +384,7 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
                                   p_command->lap.lap_index, p_command->lap.lap_time_ms, p_command->lap.race_id,
                                   p_command->lap.node_index);
 #endif
-                    msp_handler.clientSendLaptimerLap(&p_command->lap);
+                    msp_handler.LaptimerLap(&p_command->lap);
                     // TODO: store laps internally if client drops for some reason??
                     break;
                 }

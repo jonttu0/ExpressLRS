@@ -91,7 +91,7 @@ void TbsFusion::syncSettings(void)
 void TbsFusion::syncSettings(AsyncWebSocketClient * const client)
 {
     // Send settings
-    clientSendVtxFrequency(eeprom_storage.vtx_freq);
+    webUiSendVtxFrequency(eeprom_storage.vtx_freq);
 
 #if 1
     // Ping main CPU
@@ -150,7 +150,7 @@ int TbsFusion::parseSerialData(uint8_t const chr)
                         uint16_t freq = p_message->command.payload[0];
                         freq <<= 8;
                         freq += p_message->command.payload[1];
-                        clientSendVtxFrequency(freq);
+                        webUiSendVtxFrequency(freq);
                         espnow_vtxset_send(freq);
                         storeVtxFreq(NULL, freq);
                     }
@@ -314,17 +314,6 @@ int TbsFusion::parseCommandPriv(websoc_bin_hdr_t const * const cmd, size_t len, 
 // This is received from outside (ESP-NOW). Return -1 to get packet written to Serial
 int TbsFusion::parseCommandPriv(mspPacket_t & msp_in)
 {
-    if (msp_in.type == MSP_PACKET_V2_COMMAND || msp_in.type == MSP_PACKET_V2_RESPONSE) {
-        switch (msp_in.function) {
-            case MSP_ELRS_FUNC: {
-                /* Ignore */
-                break;
-            }
-            default:
-                break;
-        }
-    }
-
     /* Return 0 to ignore packet */
     return 0;
 }
