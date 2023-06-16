@@ -392,10 +392,11 @@ void FAST_CODE_2 espnow_laptimer_register_send(void)
 {
 #if ESP_NOW
     laptimer_register_req_t command = {.subcommand = CMD_LAP_TIMER_REGISTER, .pilot = {0}};
-    if (!strlen(eeprom_storage.laptimer_config.pilot_name))
+    size_t const name_len = strlen(eeprom_storage.laptimer_config.pilot_name);
+    if (!name_len)
         return;
     strcpy(command.pilot, eeprom_storage.laptimer_config.pilot_name);
-    espnow_laptimer_send(sizeof(command), (uint8_t *)&command);
+    espnow_laptimer_send((sizeof(command.subcommand) + name_len + 1), (uint8_t *)&command);
 #endif
 }
 
