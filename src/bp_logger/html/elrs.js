@@ -90,6 +90,8 @@ function handle_input_msg(msgid, payload) {
 function feature_config(config) {
     $id("espnow_control").style.display = !!config.espnow ? "block" : "none";
     $id("laptimer_control").style.display = !!config.laptimer ? "block" : "none";
+    $id("laptimer_aux_panel").style.display = !!config.laptimer ? "block" : "none";
+    $id("recording_aux_panel").style.display = !!config.recording_ctrl ? "block" : "none";
     /* Hide or show handset specific tabs */
     const isHandset = !!config.handset ? "block" : "none";
     var tabs = $name('handset');
@@ -211,6 +213,8 @@ function handle_settings(settings)
         $id("tlm_input").disabled = ($id("rf_module").domain_in_use == 6);
     }
     common.msp_vtx_freq(settings.vtxfreq);
+    $id("laptimer_aux").value = !!settings.laptimer_aux ? settings.laptimer_aux : 255;
+    $id("recording_aux").value = !!settings.recording_aux ? settings.recording_aux : 255;
 }
 
 function settings_parse(payload)
@@ -474,11 +478,13 @@ export function handset_battery_adjust() {
 
 export function handset_laptimer_aux_set(aux) {
     const data = [parseInt(aux, 10)];
-    console.log("aux: %o", aux);
     common.message_send_binary(common.WSMSGID_HANDSET_LAPTIMER_AUX, data);
 }
 
-
+export function handset_recording_aux_set(aux) {
+    const data = [parseInt(aux, 10)];
+    common.message_send_binary(common.WSMSGID_HANDSET_RECORDING_AUX, data);
+}
 
 /********************* TELEMETRY *****************************/
 var gps_mode = "kmh";

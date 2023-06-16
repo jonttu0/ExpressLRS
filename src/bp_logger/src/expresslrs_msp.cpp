@@ -25,6 +25,7 @@ enum {
     WSMSGID_HANDSET_BATT_INFO,
     WSMSGID_HANDSET_BATT_CONFIG,
     WSMSGID_HANDSET_LAPTIMER_AUX,
+    WSMSGID_HANDSET_RECORDING_AUX,
 
     WSMSGID_HANDSET_TLM_LINK_STATS = WSMSGID_BASE_HANDSET_TLM,
     WSMSGID_HANDSET_TLM_BATTERY,
@@ -130,6 +131,14 @@ void ExpresslrsMsp::elrsSettingsSendEvent(AsyncEventSourceClient * const client)
         }
         json += "]";
     }
+    if (eeprom_storage.recording_start_stop_aux != UINT32_MAX) {
+        json += ",\"recording_aux\":";
+        json += eeprom_storage.recording_start_stop_aux;
+    }
+    if (eeprom_storage.laptimer_start_stop_aux != UINT32_MAX) {
+        json += ",\"laptimer_aux\":";
+        json += eeprom_storage.laptimer_start_stop_aux;
+    }
 #endif
     json += "}";
     async_event_send(json, "elrs_settings", client);
@@ -141,6 +150,7 @@ void ExpresslrsMsp::elrsSettingsSendEvent(AsyncEventSourceClient * const client)
 #endif
 #if CONFIG_HANDSET
     json += ",\"handset\":1";
+    json += ",\"recording_ctrl\":0";  // TODO: not supported yet
 #endif
     json += '}';
     async_event_send(json, "fea_config", client);
@@ -522,6 +532,25 @@ void ExpresslrsMsp::init(void)
     batteryVoltageInit();
 }
 
+void ExpresslrsMsp::printConnectionInfo(AsyncWebSocketClient * const client)
+{
+    String info_str = "Laptimer start/stop AUX: ";
+    if (eeprom_storage.laptimer_start_stop_aux != UINT32_MAX) {
+        info_str += eeprom_storage.laptimer_start_stop_aux;
+    } else {
+        info_str += "DISABLED!";
+    }
+    websocket_send_txt(info_str, client);
+
+    info_str = "Recording start/stop AUX: ";
+    if (eeprom_storage.recording_start_stop_aux != UINT32_MAX) {
+        info_str += eeprom_storage.recording_start_stop_aux;
+    } else {
+        info_str += "DISABLED!";
+    }
+    websocket_send_txt(info_str, client);
+}
+
 void ExpresslrsMsp::syncSettings(void)
 {
     elrsSettingsLoad();
@@ -550,7 +579,8 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
 {
 #if CONFIG_HANDSET
     static uint16_t aux_min_val = 0;
-    static bool laptimer_aux_last_value = false;
+    static uint8_t laptimer_aux_last_value = 0xff;
+    static uint8_t recording_aux_last_value = 0xff;
 #endif
     if (_handler.processReceivedByte(chr)) {
         /* Process the received MSP message */
@@ -640,13 +670,27 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     }
                     if (eeprom_storage.laptimer_start_stop_aux < (ARRAY_SIZE(p_rc->ch) - TX_NUM_ANALOGS)) {
                         uint16_t const aux_val = p_rc->ch[TX_NUM_ANALOGS + eeprom_storage.laptimer_start_stop_aux];
-                        bool const state = (aux_min_val < aux_val);
+                        uint8_t const state = (aux_min_val < aux_val);
                         if (laptimer_aux_last_value != state) {
-                            info += " > ";
-                            info += (uint8_t)state;
-                            laptimer_start_stop(state);
+                            info += " ,L:";
+                            info += state;
+                            if (laptimer_aux_last_value != 0xff) {
+                                laptimer_start_stop(state);
+                            }
+                            laptimer_aux_last_value = aux_val;
                         }
-                        laptimer_aux_last_value = aux_val;
+                    }
+                    if (eeprom_storage.recording_start_stop_aux < (ARRAY_SIZE(p_rc->ch) - TX_NUM_ANALOGS)) {
+                        uint16_t const aux_val = p_rc->ch[TX_NUM_ANALOGS + eeprom_storage.recording_start_stop_aux];
+                        uint8_t const state = (aux_min_val < aux_val);
+                        if (recording_aux_last_value != state) {
+                            info += " ,R:";
+                            info += state;
+                            if (laptimer_aux_last_value != 0xff) {
+                                recording_start_stop(state);
+                            }
+                            recording_aux_last_value = aux_val;
+                        }
                     }
                     break;
                 }
@@ -773,12 +817,13 @@ int ExpresslrsMsp::parseCommandPriv(websoc_bin_hdr_t const * const cmd,
         }
         case WSMSGID_HANDSET_LAPTIMER_AUX: {
             uint8_t const aux_id = cmd->payload[0];
-            if (aux_id < NUM_SWITCHES) {
-                eeprom_storage.laptimer_start_stop_aux = aux_id;
-            } else {
-                // Disable
-                eeprom_storage.laptimer_start_stop_aux = UINT32_MAX;
-            }
+            eeprom_storage.laptimer_start_stop_aux = (aux_id < NUM_SWITCHES) ? aux_id : UINT32_MAX;
+            eeprom_storage.markDirty();
+            break;
+        }
+        case WSMSGID_HANDSET_RECORDING_AUX: {
+            uint8_t const aux_id = cmd->payload[0];
+            eeprom_storage.recording_start_stop_aux = (aux_id < NUM_SWITCHES) ? aux_id : UINT32_MAX;
             eeprom_storage.markDirty();
             break;
         }

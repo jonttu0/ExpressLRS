@@ -2,7 +2,7 @@
 
 #include <stdint.h>
 
-#define LOGGER_STORAGE_VERSION   0x11220006
+#define LOGGER_STORAGE_VERSION   0x11220007
 #define LOGGER_ESPNOW_INIT_KEY   0x4321
 #define LOGGER_WIFINETS_INIT_KEY 0x4322
 
@@ -55,6 +55,10 @@ struct storage {
         uint16_t column;
     } laptimer_osd_pos;
     uint16_t laptimer_osd_timeout;
+
+    // --------------- 0x11220007 ---------------------------
+    uint32_t recording_start_stop_aux;
+    uint8_t uid[6];
 
     void setup();
     void update();

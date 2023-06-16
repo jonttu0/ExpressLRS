@@ -172,6 +172,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += msp_in.payload[0] ? "ON" : "OFF";
 
                     webUiSendVRecordingState(msp_in.payload[0]);
+                    m_recording_state = !!msp_in.payload[0];
 
                     if (current_state < STATE_READY) {
                         check_retry(0, 0);
@@ -237,10 +238,9 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     BINDING_MODE = 1 << 1,
                     BOUND_OK = 1 << 2,
                 };
-                uint8_t const my_uid[] = {MY_UID};
-                uint8_t response[1 + sizeof(my_uid)];
+                uint8_t response[1 + sizeof(eeprom_storage.uid)];
                 response[0] = BOUND_OK;
-                memcpy(&response[1], my_uid, sizeof(my_uid));
+                memcpy(&response[1], eeprom_storage.uid, sizeof(eeprom_storage.uid));
                 sendMspToHdzero(response, sizeof(response), MSP_ELRS_BACKPACK_GET_STATUS, true);
 
             } else if (msp_in.function == MSP_ELRS_BACKPACK_SET_PTR) {
@@ -531,8 +531,11 @@ void HDZeroMsp::osdText(char const * const p_text, size_t len, uint8_t const row
     if (64 < len)
         len = 64;
     // Fill OSD data
-    uint8_t payload[len + 4] = {OSD_CMD_SCREEN_WRITE, (uint8_t)(row + eeprom_storage.laptimer_osd_pos.row),
-                                (uint8_t)(column + eeprom_storage.laptimer_osd_pos.column), OSD_ATTR_PAGE0};
+    uint8_t payload[len + 4];
+    payload[0] = OSD_CMD_SCREEN_WRITE;
+    payload[1] = row + eeprom_storage.laptimer_osd_pos.row;
+    payload[2] = column + eeprom_storage.laptimer_osd_pos.column;
+    payload[3] = OSD_ATTR_PAGE0;
     memcpy(&payload[4], p_text, len);
     sendMspToHdzero(payload, sizeof(payload), MSP_ELRS_SET_OSD);
     // Draw OSD

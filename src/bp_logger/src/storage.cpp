@@ -89,6 +89,12 @@ void storage::initDefaults()
         laptimer_osd_pos.column = 0;
         laptimer_osd_timeout = 3;
     }
+    if (versionNumber < 0x11220007) {
+        uint8_t default_uid[] = {MY_UID};
+        default_uid[0] &= ~0x1; // UID is used as a MAC address
+        memcpy(uid, default_uid, sizeof(default_uid));
+        recording_start_stop_aux = UINT32_MAX;
+    }
 
     versionNumber = LOGGER_STORAGE_VERSION;
     this->save();

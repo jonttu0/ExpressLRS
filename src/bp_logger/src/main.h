@@ -33,7 +33,8 @@ void websocket_send_bin(uint8_t const * data, uint8_t len, AsyncWebSocketClient 
 
 void async_event_send(String & data, const char * event, AsyncEventSourceClient * const client = NULL);
 
-void laptimer_start_stop(bool const start);
+void laptimer_start_stop(bool start);
+void recording_start_stop(bool start);
 
 typedef struct {
     uint16_t msg_id;

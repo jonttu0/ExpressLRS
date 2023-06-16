@@ -13,6 +13,7 @@ public:
     }
 
     void init(void);
+    void printConnectionInfo(AsyncWebSocketClient * const client);
 
     void syncSettings(void);
     void syncSettings(AsyncWebSocketClient * const client);

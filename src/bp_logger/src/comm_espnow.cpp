@@ -31,7 +31,7 @@ static esp_now_msp_rcvd_cb_t msp_handler;
 static bool esp_now_initialized = false;
 
 #if BIND_EN
-static uint8_t msp_bind_key[MAC_ADDR_LEN + 1] = {MY_UID, 0x0}; // UID[6] + channel
+static uint8_t msp_bind_key[MAC_ADDR_LEN + 1] = {0x0}; // UID[6] + channel
 
 static void send_binding_message(bool const req, uint8_t receiver[MAC_ADDR_LEN])
 {
@@ -199,6 +199,7 @@ void espnow_init(uint32_t const channel, esp_now_msp_rcvd_cb_t const cb)
 
     WiFi.softAPmacAddress(&my_uid[0]);
 #if BIND_EN
+    memcpy(msp_bind_key, my_uid, MAC_ADDR_LEN);
     msp_bind_key[MAC_ADDR_LEN] = channel;
 #endif
 

@@ -143,7 +143,7 @@ uint8_t hex_char_to_dec(uint8_t const chr)
 uint8_t wifi_ap_channel_get(void)
 {
     // Calculate WiFi channel (1...12) according to UID
-    uint8_t const my_uid[] = {MY_UID};
+    uint8_t const * my_uid = eeprom_storage.uid;
     return ((my_uid[3] + my_uid[4] + my_uid[5]) % 12) + 1;
 }
 
@@ -321,6 +321,19 @@ void laptimer_start_stop(bool const start)
     }
 }
 
+void recording_start_stop(bool const start)
+{
+    if (start != msp_handler.RecordingStateGet()) {
+#if 0
+        if (start) {
+            espnow_laptimer_start_send();
+        } else {
+            espnow_laptimer_stop_send();
+        }
+#endif
+    }
+}
+
 /*************************************************************************/
 
 int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
@@ -461,13 +474,7 @@ static void websocket_send_initial_data(AsyncWebSocketClient * const client)
     if (boot_log)
         client->text(boot_log);
 
-    info_str = "Laptimer start/stop AUX: ";
-    if (eeprom_storage.laptimer_start_stop_aux != UINT32_MAX) {
-        info_str += eeprom_storage.laptimer_start_stop_aux;
-    } else {
-        info_str += "DISABLED!";
-    }
-    client->text(info_str);
+    msp_handler.printConnectionInfo(client);
 
 #if ESP_NOW
     if (eeprom_storage.espnow_initialized == LOGGER_ESPNOW_INIT_KEY) {
@@ -849,7 +856,7 @@ static void handleApInfo(AsyncWebServerRequest * request)
     message += "\n  - Conn max: ";
     message += WIFI_AP_MAX_CONN;
     message += "\n\n  - MY UID: ";
-    uint8_t uid[] = {MY_UID};
+    uint8_t const * uid = eeprom_storage.uid;
     message += mac_addr_print(uid);
     request->send(200, "text/plain", message);
 }
@@ -1140,9 +1147,7 @@ void onStationDhcpTimeout(void)
 static void wifi_set_ap_mac(void)
 {
     /* Set AP MAC to UID for ESP-NOW messaging */
-    uint8_t ap_mac[] = {MY_UID};
-    ap_mac[0] &= ~0x1;
-
+    uint8_t * ap_mac = eeprom_storage.uid;
 #ifdef ARDUINO_ARCH_ESP32
     if (ESP_OK != esp_wifi_set_mac(WIFI_IF_AP, ap_mac)) {
 #if UART_DEBUG_EN
@@ -1329,8 +1334,6 @@ static void wifi_scan_ready(int const numberOfNetworks)
     int rssi_best = WIFI_SEARCH_RSSI_MIN;
     const char * own_ap_ssid = WIFI_AP_SSID;
     const size_t own_ap_ssid_len = strlen(own_ap_ssid);
-    uint8_t own_ap_mac[] = {MY_UID};
-    own_ap_mac[0] &= ~0x1;
 
 #if UART_DEBUG_EN
     Serial.println("-------------------------");
@@ -1383,7 +1386,7 @@ static void wifi_scan_ready(int const numberOfNetworks)
             continue; // Ignore very bad networks
 
         if ((strncmp(ssid.c_str(), own_ap_ssid, own_ap_ssid_len) == 0) ||
-            (memcmp(mac, own_ap_mac, sizeof(own_ap_mac)) == 0)) {
+            (memcmp(mac, eeprom_storage.uid, sizeof(eeprom_storage.uid)) == 0)) {
             // Match to own access points -> use this since EPS-NOW channel must match
             if (wifi_search_results.network_index == UINT8_MAX) {
                 wifi_search_results.channel = channel;

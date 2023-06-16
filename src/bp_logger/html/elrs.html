@@ -351,19 +351,35 @@
       </fieldset>
 
       <fieldset>
-        <legend>Lap Timer</legend>
-        START/STOP SWITCH:
-        <select name="laptimer_aux" id="laptimer_aux"
-                onchange="window.commands.handset_laptimer_aux_set(this.value);">
-          <option value="" selected disabled hidden></option>
-          <option value=255>DISABLE</option>
-          <option value=0>AUX1</option>
-          <option value=1>AUX2</option>
-          <option value=2>AUX3</option>
-          <option value=3>AUX4</option>
-          <option value=4>AUX5</option>
-          <option value=5>AUX6</option>
-        </select>
+        <legend>AUX Misc</legend>
+        <div style="width: 100%;" id="laptimer_aux_panel">
+          START/STOP Laptimer Switch:
+          <select name="laptimer_aux" id="laptimer_aux"
+                  onchange="window.commands.handset_laptimer_aux_set(this.value);">
+            <option value="" selected disabled hidden></option>
+            <option value=255>DISABLE</option>
+            <option value=0>AUX1</option>
+            <option value=1>AUX2</option>
+            <option value=2>AUX3</option>
+            <option value=3>AUX4</option>
+            <option value=4>AUX5</option>
+            <option value=5>AUX6</option>
+          </select>
+        </div>
+        <div style="width: 100%;" id="recording_aux_panel">
+          START/STOP Recording Switch:
+          <select name="recording_aux" id="recording_aux"
+                  onchange="window.commands.handset_recording_aux_set(this.value);">
+            <option value="" selected disabled hidden></option>
+            <option value=255>DISABLE</option>
+            <option value=0>AUX1</option>
+            <option value=1>AUX2</option>
+            <option value=2>AUX3</option>
+            <option value=3>AUX4</option>
+            <option value=4>AUX5</option>
+            <option value=5>AUX6</option>
+          </select>
+        </div>
       </fieldset>
 
       <fieldset>

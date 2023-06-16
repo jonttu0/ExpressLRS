@@ -15,6 +15,7 @@ public:
         _handler.markPacketFree();
         m_version_info = "";
         m_laptimer_state = false;
+        m_recording_state = false;
     }
     ~MspHandlerBase()
     {
@@ -24,6 +25,9 @@ public:
     {
     }
     virtual void loop(void)
+    {
+    }
+    virtual void printConnectionInfo(AsyncWebSocketClient * const client)
     {
     }
 
@@ -98,6 +102,10 @@ public:
     {
         return m_laptimer_state;
     }
+    bool RecordingStateGet(void) const
+    {
+        return m_recording_state;
+    }
 
 protected:
     CtrlSerial * _serial;
@@ -108,6 +116,7 @@ protected:
     String m_version_info;
 
     bool m_laptimer_state;
+    bool m_recording_state;
 
 #define VTX_BAND_MAX    6
 #define VTX_CHANNEL_MAX 8
