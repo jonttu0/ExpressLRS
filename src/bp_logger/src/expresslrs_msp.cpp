@@ -166,11 +166,6 @@ void ExpresslrsMsp::handleVtxFrequencyCommand(uint16_t freq, AsyncWebSocketClien
 
     // Request save to make set permanent
     // msp_send_save_requested_ms = millis();
-
-    String info = "V1_CMD: MSP_VTX_SET_CONFIG sent. Freq = ";
-    info += freq;
-    info += "MHz";
-    websocket_send_txt(info);
 }
 
 #if CONFIG_HANDSET

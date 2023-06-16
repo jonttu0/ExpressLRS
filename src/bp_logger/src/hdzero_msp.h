@@ -20,7 +20,7 @@ public:
 
     int parseSerialData(uint8_t chr);
 
-    void vtxFrequencySet(uint16_t const freq, AsyncWebSocketClient * const client = NULL);
+    void vtxFrequencySet(uint16_t const freq, bool const disable_change = false);
 
     void loop(void);
 

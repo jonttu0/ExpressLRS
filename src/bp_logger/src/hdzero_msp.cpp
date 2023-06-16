@@ -294,15 +294,12 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
     return 0;
 }
 
-void HDZeroMsp::vtxFrequencySet(uint16_t const freq, AsyncWebSocketClient * const client)
+void HDZeroMsp::vtxFrequencySet(uint16_t const freq, bool const disable_change)
 {
-    if (freq && eeprom_storage.vtx_freq == freq) {
-        // Freq is already ok
-        return;
-    }
-    if (storeVtxFreq(client, freq)) {
+    m_vtx_set_disabled = disable_change;
+    if (storeVtxFreq(NULL, freq, disable_change)) {
         // Adjust VRx
-        handleVtxFrequencyCommand(freq, client);
+        handleVtxFrequencyCommand(freq, NULL);
         delay(2);
         // ... GUI is updated when channel query resp is received
 #if LOGGER_HDZERO_USE_VTX_INDEX

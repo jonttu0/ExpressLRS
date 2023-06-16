@@ -363,13 +363,18 @@ int esp_now_msp_rcvd(mspPacket_t & msp_pkt)
             switch (p_command->subcommand) {
                 case CMD_LAP_TIMER_REGISTER: {
                     uint16_t const freq = p_command->register_resp.freq;
+                    String info = "Laptimer registeration ok. Freq: ";
+                    info += freq;
+                    info += ", node: ";
+                    info += p_command->register_resp.node_index;
+                    websocket_send_txt(info);
 #if UART_DEBUG_EN
                     Serial.printf("CMD_LAP_TIMER_REGISTER: freq %u, node_index %u\r\n", freq,
                                   p_command->register_resp.node_index);
 #endif
                     eeprom_storage.laptimer_config.index = p_command->register_resp.node_index;
 
-                    msp_handler.vtxFrequencySet(freq);
+                    msp_handler.vtxFrequencySet(freq, true);
 
                     if (current_state == STATE_LAPTIMER_WAIT)
                         current_state = STATE_RUNNING;

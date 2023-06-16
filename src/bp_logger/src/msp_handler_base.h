@@ -65,17 +65,18 @@ public:
     //
     // VTX freq control
     //
-    virtual void vtxFrequencySet(uint16_t const freq, AsyncWebSocketClient * const client = NULL)
+    virtual void vtxFrequencySet(uint16_t const freq, bool const disable_change = false)
     {
-        if (freq && eeprom_storage.vtx_freq == freq) {
-            // Freq is already ok
-            return;
-        }
-        if (storeVtxFreq(client, freq)) {
+        websocket_send_txt("vtxFrequencySet - BASE");
+        if (storeVtxFreq(NULL, freq, disable_change)) {
             webUiSendVtxFrequency(freq); // Update web UI
             espnow_vtxset_send(freq);    // inform other peers
         }
-    };
+        m_vtx_set_disabled = disable_change;
+    }
+    bool vtxFreqChangeAllowed(void) const {
+        return !m_vtx_set_disabled;
+    }
 
     //
     // Laptimer control
@@ -115,6 +116,7 @@ protected:
 
     String m_version_info;
 
+    bool m_vtx_set_disabled;
     bool m_laptimer_state;
     bool m_recording_state;
 
@@ -186,8 +188,13 @@ protected:
         return -1;
     }
 
-    bool storeVtxFreq(AsyncWebSocketClient * const client, uint16_t const freq) const
+    bool storeVtxFreq(AsyncWebSocketClient * const client, uint16_t const freq, bool const force = false) const
     {
+        if (!force && !vtxFreqChangeAllowed()) {
+            websocket_send_txt("VTX change is not allowed!", client);
+            return false;
+        }
+
         String dbg_info = "Invalid VTX freq received!";
         if (freq == 0) {
             websocket_send_txt(dbg_info, client);
