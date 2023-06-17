@@ -70,10 +70,10 @@ public:
     //
     virtual void vtxFrequencySet(uint16_t const freq, bool const disable_change = false)
     {
-        websocket_send_txt("vtxFrequencySet - BASE");
         if (storeVtxFreq(NULL, freq, disable_change)) {
-            webUiSendVtxFrequency(freq); // Update web UI
-            espnow_vtxset_send(freq);    // inform other peers
+            handleVtxFrequencyCommand(freq, NULL);
+            webUiSendVtxFrequency(freq);    // Update web UI
+            espnow_vtxset_send(freq);       // inform other peers
         }
         m_vtx_set_disabled = disable_change;
     }
@@ -189,7 +189,7 @@ protected:
     }
     virtual int8_t getIndexByFreq(uint16_t const freq) const
     {
-        if (frequency_table[0][0] <= freq && freq <= frequency_table[(VTX_BAND_MAX - 1)][(VTX_CHANNEL_MAX - 1)]) {
+        if (5000 <= freq && freq <= 6000) {
             // Lookup a correct index
             uint16_t const * const p_freq = &frequency_table[0][0];
             for (uint8_t iter = 0; iter < (VTX_BAND_MAX * VTX_CHANNEL_MAX); iter++) {

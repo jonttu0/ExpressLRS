@@ -574,8 +574,8 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
 {
 #if CONFIG_HANDSET
     static uint16_t aux_min_val = 0;
-    static uint8_t laptimer_aux_last_value = 0xff;
-    static uint8_t recording_aux_last_value = 0xff;
+    static bool laptimer_aux_last_value = false;
+    static bool recording_aux_last_value = false;
 #endif
     if (_handler.processReceivedByte(chr)) {
         /* Process the received MSP message */
@@ -665,25 +665,21 @@ int ExpresslrsMsp::parseSerialData(uint8_t const chr)
                     }
                     if (eeprom_storage.laptimer_start_stop_aux < (ARRAY_SIZE(p_rc->ch) - TX_NUM_ANALOGS)) {
                         uint16_t const aux_val = p_rc->ch[TX_NUM_ANALOGS + eeprom_storage.laptimer_start_stop_aux];
-                        uint8_t const state = (aux_min_val < aux_val);
+                        bool const state = (aux_min_val < aux_val);
                         if (laptimer_aux_last_value != state) {
                             info += " ,L:";
                             info += state;
-                            if (laptimer_aux_last_value != 0xff) {
-                                laptimer_start_stop(state);
-                            }
+                            laptimer_start_stop(state);
                             laptimer_aux_last_value = aux_val;
                         }
                     }
                     if (eeprom_storage.recording_start_stop_aux < (ARRAY_SIZE(p_rc->ch) - TX_NUM_ANALOGS)) {
                         uint16_t const aux_val = p_rc->ch[TX_NUM_ANALOGS + eeprom_storage.recording_start_stop_aux];
-                        uint8_t const state = (aux_min_val < aux_val);
+                        bool const state = (aux_min_val < aux_val);
                         if (recording_aux_last_value != state) {
                             info += " ,R:";
                             info += state;
-                            if (laptimer_aux_last_value != 0xff) {
-                                recording_start_stop(state);
-                            }
+                            recording_start_stop(state);
                             recording_aux_last_value = aux_val;
                         }
                     }

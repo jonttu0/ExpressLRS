@@ -308,13 +308,13 @@ void wifi_networks_report(AsyncWebSocketClient * client)
 
 /*************************************************************************/
 
-void laptimer_start_stop(bool const start)
+void laptimer_start_stop(bool const state)
 {
     int8_t const node = eeprom_storage.laptimer_config.index;
-    if (node < 0 || start == msp_handler.LaptimerStateGet()) {
+    if (/*node < 0 ||*/ state == msp_handler.LaptimerStateGet()) {
         return;
     }
-    if (start) {
+    if (state) {
         espnow_laptimer_start_send(node);
     } else {
         espnow_laptimer_stop_send(node);
