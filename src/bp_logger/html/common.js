@@ -164,13 +164,7 @@ DataView.prototype.nextInt32 = function (little_endian=false) {
 
 /********************* CMN INIT *************************/
 export function common_init() {
-    const _bands = $id("vtx_band")
-    while (_bands.length > 1) { _bands.remove(_bands.length - 1); }
-    for (const band in vtx_table_get()) {
-        const option = document.createElement("option");
-        option.text = option.value = band;
-        _bands.add(option);
-    }
+    vtx_init_freqs();
 
     const logger = $id("logField");
     logger.scrollTop = logger.scrollHeight;
@@ -331,9 +325,20 @@ var channelFreqTable = {
 
 export function vtx_table_set(table) {
     channelFreqTable = table;
+    vtx_init_freqs();
 }
 export function vtx_table_get() {
     return channelFreqTable;
+}
+
+function vtx_init_freqs() {
+    const _bands = $id("vtx_band")
+    while (_bands.length > 1) { _bands.remove(_bands.length - 1); }
+    for (const band in vtx_table_get()) {
+        const option = document.createElement("option");
+        option.text = option.value = band;
+        _bands.add(option);
+    }
 }
 
 export function vtx_show_freq() {
