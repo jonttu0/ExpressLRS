@@ -22,6 +22,8 @@ public:
 
     void vtxFrequencySet(uint16_t const freq, bool const disable_change = false);
 
+    void OsdShowText(const char * text, uint32_t const timeout_ms = 0);
+
     void loop(void);
 
 private:
@@ -37,6 +39,7 @@ private:
         STATE_DRAW_OSD,
     };
 
+    uint32_t osd_timeout;
     uint8_t current_state;
 
     // From WEB UI

@@ -7,6 +7,9 @@
 #include "storage.h"
 #include <stdint.h>
 
+#define VTX_BAND_MAX    6
+#define VTX_CHANNEL_MAX 8
+
 class MspHandlerBase
 {
 public:
@@ -74,9 +77,24 @@ public:
         }
         m_vtx_set_disabled = disable_change;
     }
-    bool vtxFreqChangeAllowed(void) const {
+    bool vtxFreqChangeAllowed(void) const
+    {
         return !m_vtx_set_disabled;
     }
+    String vtxFreqGetBandChannel(uint16_t freq);
+
+    //
+    // OSD test
+    //
+    void OsdShowText(String & text, uint32_t const timeout_ms = 0)
+    {
+        OsdShowText(text.c_str(), timeout_ms);
+    }
+    virtual void OsdShowText(const char * text, uint32_t const timeout_ms = 0)
+    {
+        (void)text;
+        (void)timeout_ms;
+    };
 
     //
     // Laptimer control
@@ -120,8 +138,6 @@ protected:
     bool m_laptimer_state;
     bool m_recording_state;
 
-#define VTX_BAND_MAX    6
-#define VTX_CHANNEL_MAX 8
     const uint16_t frequency_table[VTX_BAND_MAX][VTX_CHANNEL_MAX] = {
         {5865, 5845, 5825, 5805, 5785, 5765, 5745, 5725}, // A
         {5733, 5752, 5771, 5790, 5809, 5828, 5847, 5866}, // B

@@ -73,6 +73,23 @@ int MspHandlerBase::parseCommand(mspPacket_t & msp_in)
     return parseCommandPriv(msp_in);
 }
 
+String MspHandlerBase::vtxFreqGetBandChannel(uint16_t freq)
+{
+    String info = "--";
+    if (!freq) {
+        freq = eeprom_storage.vtx_freq;
+    }
+    int8_t index = getIndexByFreq(freq);
+    if (0 <= index) {
+        uint8_t const _band = index / VTX_CHANNEL_MAX;
+        uint8_t const _index = index % VTX_CHANNEL_MAX;
+        char const bands[VTX_CHANNEL_MAX] = {'A', 'B', 'E', 'F', 'R', 'L'};
+        info = bands[_band];
+        info += (_index + 1);
+    }
+    return info;
+}
+
 void MspHandlerBase::webUiSendVtxFrequency(uint16_t const freq, AsyncWebSocketClient * const client) const
 {
     uint8_t response[] = {

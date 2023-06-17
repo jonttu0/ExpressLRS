@@ -87,7 +87,7 @@ void storage::initDefaults()
     if (versionNumber < 0x11220006) {
         laptimer_osd_pos.row = 5;
         laptimer_osd_pos.column = 0;
-        laptimer_osd_timeout = 3;
+        laptimer_osd_timeout = 3000;
     }
     if (versionNumber < 0x11220007) {
         uint8_t default_uid[] = {MY_UID};

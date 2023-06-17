@@ -65,6 +65,7 @@ static bool check_retry(uint32_t const ms_now, uint32_t const timeout_ms)
 void HDZeroMsp::init(void)
 {
     current_state = STATE_GET_FW_VER;
+    osd_timeout = eeprom_storage.laptimer_osd_timeout;
 }
 
 void HDZeroMsp::syncSettings(void)
@@ -97,7 +98,7 @@ void HDZeroMsp::syncSettings(AsyncEventSourceClient * const client)
     json += ",\"osd_col_max\":";
     json += osdColumnMax() - 1;
     json += ",\"osd_timeout\":";
-    json += eeprom_storage.laptimer_osd_timeout;
+    json += eeprom_storage.laptimer_osd_timeout / 1000;  // convert to seconds
     json += '}';
     async_event_send(json, "fea_config", client);
     async_event_send(m_version_info, "vrx_version", client);
@@ -310,6 +311,13 @@ void HDZeroMsp::vtxFrequencySet(uint16_t const freq, bool const disable_change)
     }
 }
 
+void HDZeroMsp::OsdShowText(const char * text, uint32_t const timeout_ms)
+{
+    size_t const len = strlen(text);
+    osd_timeout = timeout_ms;
+    osdText(text, len, 0, 0);
+}
+
 int HDZeroMsp::parseCommandPriv(char const * cmd, size_t const len, AsyncWebSocketClient * const client)
 {
     char * temp;
@@ -419,7 +427,7 @@ void HDZeroMsp::loop(void)
 
         /************** RUNTIME **************/
         case STATE_CLEAR_OSD: {
-            if (check_retry(now, eeprom_storage.laptimer_osd_timeout)) {
+            if (check_retry(now, osd_timeout)) {
                 osdClear();
                 current_state = STATE_READY;
             }
@@ -510,7 +518,7 @@ void HDZeroMsp::osdDraw(void)
 {
     uint8_t payload = OSD_CMD_SCREEN_DRAW;
     sendMspToHdzero(&payload, sizeof(payload), MSP_ELRS_SET_OSD);
-    if (eeprom_storage.laptimer_osd_timeout) {
+    if (osd_timeout) {
         current_state = STATE_CLEAR_OSD;
     }
 }
@@ -557,6 +565,7 @@ void HDZeroMsp::handleLaptimerState(uint16_t const race_id,
     } else {
         info += " END";
     }
+    osd_timeout = eeprom_storage.laptimer_osd_timeout;
     osdText(info.c_str(), info.length(), 0, 0);
     if (state) {
         delay(2);
@@ -582,6 +591,7 @@ void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     else if (laptime.ms < 100)
         info += "0";
     info += laptime.ms;
+    osd_timeout = eeprom_storage.laptimer_osd_timeout;
     osdText(info.c_str(), info.length(), 1, 0);
 }
 
