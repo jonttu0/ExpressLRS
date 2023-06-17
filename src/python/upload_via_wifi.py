@@ -22,8 +22,8 @@ def on_upload(source, target, env):
     if "backpack.bin" in source_file:
         # Logger firmware update
         elrs_bin_target = source_file + ".gz"
-        if not os.path.exists(source_file + ".gz"):
-            # compressed binary does not exist
+        if not os.path.exists(source_file + ".gz") or platform in ['espressif32']:
+            # compressed binary does not exist or ESP32 (gz OTA update fails os use bin)
             elrs_bin_target = source_file
     else:
         bin_path = os.path.dirname(source_file)
