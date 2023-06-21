@@ -83,8 +83,8 @@ static LPF DRAM_FORCE_ATTR LPF_UplinkSNR(5);
 
 static uint32_t DRAM_ATTR LastValidPacket_ms; //Time the last valid packet was recv
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_rx;
-static uint32_t DRAM_ATTR msp_packet_rx_sent;
-static uint32_t DRAM_ATTR msp_packet_received_us;
+//static uint32_t DRAM_ATTR msp_packet_rx_sent;
+static uint32_t DRAM_ATTR msp_packet_received_ms;
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_tx;
 static uint8_t DRAM_ATTR tlm_msp_send;
 static uint8_t DRAM_ATTR tlm_msp_rcvd;
@@ -108,31 +108,31 @@ struct gpio_out dbg_pin_rx;
 #endif
 
 #if AUX_CHANNEL_ARM == 0
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch4))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch4))
 #elif AUX_CHANNEL_ARM == 1
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch5))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch5))
 #elif AUX_CHANNEL_ARM == 2
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch6))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch6))
 #elif AUX_CHANNEL_ARM == 3
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch7))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch7))
 #elif AUX_CHANNEL_ARM == 4
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch8))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch8))
 #elif AUX_CHANNEL_ARM == 5
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch9))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch9))
 #elif AUX_CHANNEL_ARM == 6
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch10))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch10))
 #elif AUX_CHANNEL_ARM == 7
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch11))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch11))
 #elif AUX_CHANNEL_ARM == 8
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch12))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch12))
 #elif AUX_CHANNEL_ARM == 9
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch13))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch13))
 #elif AUX_CHANNEL_ARM == 10
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch14))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch14))
 #elif AUX_CHANNEL_ARM == 11
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch15))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch15))
 #else
-    #define ARM_CH_CHECK() 1
+    #define IS_ARMED_CHECK() 1
 #endif
 
 ///////////////////////////////////////
@@ -542,7 +542,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                         LostConnection();
                         goto exit_rx_isr;
                     }
-                } else if (numOfTxPerRc == 1 && no_sync_armed && ARM_CH_CHECK()) {
+                } else if (numOfTxPerRc == 1 && no_sync_armed && IS_ARMED_CHECK()) {
                     /* Sync should not be received, ignore it */
                     goto exit_rx_isr;
                 }
@@ -578,7 +578,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
             break;
 
         case UL_PACKET_MSP: {
-            if (no_sync_armed && ARM_CH_CHECK()) {
+            if (IS_ARMED_CHECK()) {
                 /* Not a valid packet, ignore it */
                 goto exit_rx_isr;
             }
@@ -586,7 +586,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
             //DEBUG_PRINTF(" M");
             if (RcChannels_tlm_ota_receive(rx_buffer, msp_packet_rx)) {
                 tlm_msp_rcvd = 1;
-                msp_packet_received_us = current_us;
+                msp_packet_received_ms = millis();
             }
 #endif
             break;
@@ -932,12 +932,12 @@ void loop()
     if (read_u8(&tlm_msp_rcvd) /*&& (10 <= (now - msp_packet_rx_sent))*/) {
         if (!msp_packet_rx.error)
             crsf.sendMSPFrameToFC(msp_packet_rx);
-        if (msp_packet_rx.iterated() || msp_packet_rx.error || (100 <= (now - (msp_packet_rx_sent / 1000)))) {
+        if (msp_packet_rx.iterated() || msp_packet_rx.error || (100 <= (now - read_u32(&msp_packet_received_ms)))) {
             msp_packet_rx.reset();
             write_u8(&tlm_msp_rcvd, 0);
             DEBUG_PRINTF("MSP done!\n");
         }
-        msp_packet_rx_sent = now;
+        //msp_packet_rx_sent = now;
     }
 
 #if PRINT_RATE && NO_DATA_TO_FC
