@@ -135,7 +135,8 @@ function handle_setting_region(domain)
     const FLAGS = {
         dual: 0x80,
         handset: 0x40,
-        mask: 0x3F,
+        flrc: 0x20,
+        mask: 0x1F,
     };
 
     const rf_module = $id("rf_module");
