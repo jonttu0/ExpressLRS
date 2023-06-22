@@ -90,7 +90,12 @@ void storage::initDefaults()
         laptimer_osd_timeout = 3000;
     }
     if (versionNumber < 0x11220007) {
-        uint8_t default_uid[] = {MY_UID};
+#if defined(MY_UID)
+        uint8_t default_uid[6] = {MY_UID};
+#else
+        uint8_t default_uid[6];
+        WiFi.softAPmacAddress(&default_uid[0]);
+#endif
         default_uid[0] &= ~0x1; // UID is used as a MAC address
         memcpy(uid, default_uid, sizeof(default_uid));
         recording_start_stop_aux = UINT32_MAX;

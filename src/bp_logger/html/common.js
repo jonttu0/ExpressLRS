@@ -2,6 +2,7 @@
 export const WSMSGID_ERROR_IND             = 0xCAFE;
 
 export const WSMSGID_ESPNOW_ADDRS          = 0x1100;
+export const WSMSGID_ESPNOW_BIND_ADDR      = 0x1101;
 
 export const WSMSGID_STM32_RESET           = 0x1200;
 
@@ -44,6 +45,7 @@ export const WSMSGID_CRSF_DBG_LAPTIME    = 0x3004;
 const message_id_map = {
     "ERROR_IND": WSMSGID_ERROR_IND,
     "ESPNOW_ADDR": WSMSGID_ESPNOW_ADDRS,
+    "ESPNOW_BIND_ADDR": WSMSGID_ESPNOW_BIND_ADDR,
     "STM32_RESET": WSMSGID_STM32_RESET,
 };
 
@@ -215,6 +217,9 @@ export function websocket_init(callback) {
             switch(msgid) {
                 case WSMSGID_ESPNOW_ADDRS:
                     espnowclients_parse(payload);
+                    break;
+                case WSMSGID_ESPNOW_BIND_ADDR:
+                    espnow_bind_address_parse(payload);
                     break;
                 case WSMSGID_VIDEO_FREQ:
                     msp_vtx_freq(payload.nextUint16());
@@ -417,7 +422,7 @@ export function espnowclients_send() {
     for (const client of clients) {
         if (!client || client.length == 0) continue;
         const mac = client.split(":").map(function (val) { return parseInt(val, 16) });
-        if (mac.length != 6) { console.error("Invalid MAC address: %s", client); return; }
+        if (mac.length != 6) { show_error(`Invalid MAC address: ${client}`); return; }
         mac.forEach(element => { bytes.push(element); });
     }
     message_send_binary(WSMSGID_ESPNOW_ADDRS, bytes);
@@ -441,6 +446,27 @@ function espnowclients_parse(value) {
     }
     // Resize the text field
     target.rows = target.value.split('\n').length;
+}
+
+export function espnow_bind_address_send(event) {
+    const bind_addr = event.target.value;
+    const mac = bind_addr.split(":").map(function (val) { return parseInt(val, 16) });
+    if (mac.length != 6) { show_error(`Invalid BIND address: ${bind_addr}`); return; }
+    var bytes = [];
+    mac.forEach(element => { bytes.push(element); });
+    message_send_binary(WSMSGID_ESPNOW_BIND_ADDR, bytes);
+}
+function espnow_bind_address_parse(value) {
+    var target = $id("espnow_bind_address");
+    target.value = "Parsing error!";
+    if (value.byteLength == 6) {
+        var mac = "";
+        for (var iter = 0; iter < 6; iter++) {
+            if (0 < iter) mac += ":";
+            mac += value.getUint8(iter).toString(16).padStart(2, "0");
+        }
+        target.value = mac;
+    }
 }
 
 /********************* WiFi Nets *****************************/

@@ -547,6 +547,11 @@
           <script>function espnowclients_autosize(el){el.rows = el.value.split('\n').length;}</script>
           <button onclick="window.jscommon.espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
         </div>
+        <div style="padding-top: 10px;">
+          <label for="espnow_bind_address" class="valigntop">BIND ADDRESS:</label>
+          <input placeholder="MAC" type='text' name='bindaddr' id='espnow_bind_address' size='17' maxlength='17' style="width:130px;"
+                 onchange="window.jscommon.espnow_bind_address_send(event);">
+        </div>
       </fieldset>
       <fieldset>
         <legend>WiFi Networks</legend>

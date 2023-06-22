@@ -78,7 +78,13 @@
     <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
     <script>function espnowclients_autosize(el){el.rows = el.value.split('\n').length;}</script>
     <button onclick="window.jscommon.espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
-  </div></fieldset>
+    </div>
+    <div style="padding-top: 5px;">
+      <label for="espnow_bind_address" class="valigntop">BIND ADDRESS:</label>
+      <input placeholder="MAC" type='text' name='bindaddr' id='espnow_bind_address' size='17' maxlength='17' style="width:130px;"
+             onchange="window.jscommon.espnow_bind_address_send(event);">
+    </div>
+</fieldset>
   <fieldset>
     <legend>WiFi Networs</legend><div>
     <table class="wifinetworks" id="wifinetworks"><tr><td class="ssid">My WiFi Network SSID</td><td>DEL</td></tr></table>

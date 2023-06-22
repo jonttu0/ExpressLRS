@@ -56,6 +56,7 @@ enum {
 enum {
     // ESP-NOW configuration
     WSMSGID_ESPNOW_ADDRS = WSMSGID_BASE_ESPNOW,
+    WSMSGID_ESPNOW_BIND_ADDR,
 
     // STM32 control messages
     WSMSGID_STM32_RESET = WSMSGID_BASE_STM32,

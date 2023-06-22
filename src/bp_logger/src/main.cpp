@@ -497,6 +497,11 @@ static void websocket_send_initial_data(AsyncWebSocketClient * const client)
     }
 #endif
 
+    uint8_t bind_addr[2 + sizeof(eeprom_storage.uid)] = {
+        (WSMSGID_ESPNOW_BIND_ADDR >> 8), WSMSGID_ESPNOW_BIND_ADDR & 0xff};
+    memcpy(&bind_addr[2], eeprom_storage.uid, sizeof(eeprom_storage.uid));
+    client->binary(bind_addr, sizeof(bind_addr));
+
     wifi_networks_report(client);
 
     msp_handler.syncSettings(client);
@@ -606,6 +611,19 @@ void webSocketEvent(AsyncWebSocket * server,
                         // ESP-Now client list
                         espnow_update_clients(header->payload, length);
                         client->text(espnow_get_info());
+
+                    } else if (WSMSGID_ESPNOW_BIND_ADDR == header->msg_id) {
+                        // Bind address update
+                        if (length == sizeof(eeprom_storage.uid)) {
+                            client->text("BIND ADDR will be updated and reboot...!");
+                            memcpy(eeprom_storage.uid, header->payload, sizeof(eeprom_storage.uid));
+                            eeprom_storage.uid[0] &= ~0x1; // Make it MAC address compatible
+                            eeprom_storage.markDirty();
+                            eeprom_storage.save();
+                            // Forced reboot to make change permanent
+                            current_state = STATE_REBOOT;
+                            reboot_req_ms = millis() + 500;
+                        }
 
 #if CONFIG_STM_UPDATER
                     } else if (WSMSGID_STM32_RESET == header->msg_id) {
