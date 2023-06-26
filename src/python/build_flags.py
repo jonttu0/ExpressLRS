@@ -70,8 +70,22 @@ def parse_env_defines():
     build_flags = env['BUILD_FLAGS']
     elrs_flags = env.get('ENV', {}).get('EXPRESSLRS_FLAGS', "")
     if elrs_flags:
+        print_info(f" == ENV FLAGS DEFINED ==")
+        # check if 'Regulatory_Domain_' is set
+        if 'Regulatory_Domain_' in elrs_flags:
+            # ... and remove existing values
+            build_flags_copy = list(build_flags)
+            for flag in build_flags_copy:
+                if 'Regulatory_Domain_' in flag:
+                    print_warning(f"  Regulatory_Domain '{flag}' removed")
+                    build_flags.remove(flag)
+        # add flags
         elrs_flags = elrs_flags.split()
         for flag in elrs_flags:
+            if flag in build_flags:
+                print_warning(f"  flag '{flag}' removed")
+                build_flags.remove(flag)
+            print_info(f"  flag '{flag}' added")
             build_flags.append(flag)
 
 def parse_flags(path):
