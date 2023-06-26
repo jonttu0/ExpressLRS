@@ -136,13 +136,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += freq;
                     info += "MHz";
 
-                    webUiSendVtxFrequency(freq);
-#if LOGGER_HDZERO_USE_VTX_INDEX
-                    espnow_vtxset_send(msp_in.payload[0]);
-#else
-                    espnow_vtxset_send(freq);
-#endif
-                    storeVtxFreq(NULL, freq);
+                    checkFreqFromModule(freq, msp_in.payload[0]);
 
                     if (current_state < STATE_READY)
                         current_state = STATE_GET_FREQ;
@@ -155,13 +149,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += freq;
                     info += "MHz";
 
-                    webUiSendVtxFrequency(freq);
-#if LOGGER_HDZERO_USE_VTX_INDEX
-                    espnow_vtxset_send(getIndexByFreq(freq));
-#else
-                    espnow_vtxset_send(freq);
-#endif
-                    storeVtxFreq(NULL, freq);
+                    checkFreqFromModule(freq, getIndexByFreq(freq));
 
                     if (current_state < STATE_READY)
                         current_state = STATE_GET_RECORDING;
@@ -257,13 +245,7 @@ int HDZeroMsp::parseSerialData(uint8_t const chr)
                     info += freq;
                     info += "MHz";
 
-                    webUiSendVtxFrequency(freq);
-#if LOGGER_HDZERO_USE_VTX_INDEX
-                    espnow_vtxset_send(msp_in.payload[0]);
-#else
-                    espnow_vtxset_send(freq);
-#endif
-                    storeVtxFreq(NULL, freq);
+                    checkFreqFromModule(freq, band_channel);
                 } else {
                     info += "INVALID PAYLOAD LEN!";
                 }
@@ -363,15 +345,16 @@ int HDZeroMsp::parseCommandPriv(mspPacket_t & msp_in)
                 uint16_t const freq = (1 == msp_in.payloadSize) ? getFreqByIndex(msp_in.payload[0]) : 0;
                 if (!freq)
                     return 0;
-                checkFreqFromModule(freq); // Broadcasted to other ESP-NOW peers
+                checkFreqFromModule(freq, msp_in.payload[0]); // Broadcasted to other ESP-NOW peers
                 break;
             }
 
             case HDZ_MSP_FUNC_FREQUENCY_SET: {
                 uint16_t const freq = (2 <= msp_in.payloadSize) ? parseFreq(msp_in.payload) : 0;
-                if (!freq || getIndexByFreq(freq) < 0)
-                    return 0;              // ignore invalid freqs
-                checkFreqFromModule(freq); // Broadcasted to other ESP-NOW peers
+                int8_t const index = getIndexByFreq(freq);
+                if (!freq || index < 0)
+                    return 0;
+                checkFreqFromModule(freq, index); // Broadcasted to other ESP-NOW peers
                 break;
             }
 
@@ -595,11 +578,12 @@ void HDZeroMsp::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     osdText(info.c_str(), info.length(), 1, 0);
 }
 
-void HDZeroMsp::checkFreqFromModule(uint16_t const freq) const
+void HDZeroMsp::checkFreqFromModule(uint16_t const freq, uint8_t const index) const
 {
     webUiSendVtxFrequency(freq);
+
 #if LOGGER_HDZERO_USE_VTX_INDEX
-    espnow_vtxset_send(msp_in.payload[0]);
+    espnow_vtxset_send(index);
 #else
     espnow_vtxset_send(freq);
 #endif

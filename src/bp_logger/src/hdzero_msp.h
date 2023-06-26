@@ -83,7 +83,7 @@ private:
         return 50; // HMAX
     }
 
-    void checkFreqFromModule(uint16_t const freq) const;
+    void checkFreqFromModule(uint16_t freq, uint8_t index) const;
 
     uint16_t getFreqByIndex(uint8_t index) const
     {
