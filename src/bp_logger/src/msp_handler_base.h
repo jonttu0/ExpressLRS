@@ -239,10 +239,9 @@ protected:
     lap_time_t convert_ms_to_time(uint32_t const lap_time) const
     {
         uint32_t secs = lap_time / 1000;
-        uint16_t ms = lap_time % 1000;
-        uint8_t hours, mins;
-        hours = secs / 3600;
-        mins = (secs - (hours * 3600)) / 60;
+        uint16_t const ms = lap_time % 1000;
+        uint8_t const hours = secs / 3600;
+        uint8_t const mins = (secs - (hours * 3600)) / 60;
         secs = secs - (hours * 3600) - (mins * 60);
         return (lap_time_t){.ms = ms, .s = (uint8_t)secs, .m = mins};
     }

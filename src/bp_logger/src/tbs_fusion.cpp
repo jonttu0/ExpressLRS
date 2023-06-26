@@ -76,8 +76,6 @@ typedef union {
     } PACKED;
     uint8_t payload[8];
 } crsf_battery_info_t;
-static crsf_battery_info_t lap_info;
-
 
 void TbsFusion::init(void)
 {
@@ -353,19 +351,54 @@ void TbsFusion::CrsfWriteCommand(uint8_t * const buff, size_t const size) const
     CrsfWrite(buff, size);
 }
 
+static int32_t split_test_string(char * p_out, size_t const out_max, char const * p_in, size_t const left)
+{
+    int32_t _temp = (left < out_max ? left : (out_max - 1));
+    memcpy(p_out, p_in, _temp);
+    return (left - _temp);
+}
+
 void TbsFusion::handleUserTextCommand(const char * input, size_t const len, AsyncWebSocketClient * const client)
 {
     if (input == NULL)
         return;
 
-        // TODO: write text to OSD
-#if 0
+    char text1[16] = {0};
+    char text2[16] = {0};
+    char text3[21] = {0};
+
+    int32_t left = split_test_string(text1, sizeof(text1), input, len);
+    if (0 < left) {
+        left = split_test_string(text2, sizeof(text2), &input[sizeof(text1) - 1], left);
+        if (0 < left) {
+            left = split_test_string(text3, sizeof(text3), &input[sizeof(text1) + sizeof(text2) - 2], left);
+        }
+    }
+    handleUserTextCommand(text1, text2, text3, 0, 0);
+
+#if 1
+    String dbg_info = "OSD text1: '";
+    dbg_info += text1;
+    dbg_info += "', text2: '";
+    dbg_info += text2;
+    dbg_info += "', text3: '";
+    dbg_info += text3;
+    dbg_info += '\'';
+    websocket_send_txt(dbg_info);
+#endif
+}
+
+void TbsFusion::handleUserTextCommand(
+    const char * text1, const char * text2, const char * text3, uint8_t pos, uint8_t lap)
+{
     struct crsf_freq_set {
         crsf_ext_header_t header;
-        uint8_t tlm_type;
-
-        // ??
-
+        uint8_t msg_type;
+        uint8_t pos;
+        uint8_t lap;
+        char text1[16];
+        char text2[16];
+        char text3[21];
         uint8_t crc;
     } command;
     command.header.device_addr = CRSF_SYNC_BYTE;
@@ -373,16 +406,19 @@ void TbsFusion::handleUserTextCommand(const char * input, size_t const len, Asyn
     command.header.type = CRSF_FRAMETYPE_ENCAPSULATED_TLM;
     command.header.dest_addr = CRSF_ADDRESS_VRX;
     command.header.orig_addr = CRSF_ADDRESS_WIFI;
-    command.tlm_type = CRSF_TLM_TYPE_OSD_TEXT;
-
+    command.msg_type = CRSF_TLM_TYPE_OSD_TEXT;
+    command.pos = pos;
+    command.lap = lap;
+    command.text1[0] = 0;
+    command.text2[0] = 0;
+    command.text3[0] = 0;
+    if (text1)
+        strcpy(command.text1, text1);
+    if (text2)
+        strcpy(command.text2, text2);
+    if (text3)
+        strcpy(command.text3, text3);
     CrsfWrite((uint8_t *)&command, sizeof(command));
-#endif
-
-    String dbg_info = "OSD Text: '";
-    for (size_t iter = 0; iter < len; iter++)
-        dbg_info += input[iter];
-    dbg_info += "' (NOT SUPPORTED ATM)";
-    websocket_send_txt(dbg_info);
 }
 
 void TbsFusion::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
@@ -410,14 +446,43 @@ void TbsFusion::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketCli
     CrsfWrite((uint8_t *)&command, sizeof(command));
 }
 
+void TbsFusion::handleLaptimerState(uint16_t const race_id,
+                                    uint16_t const round_num,
+                                    bool const state,
+                                    AsyncWebSocketClient * const client)
+{
+    char heat_info[16] = {0};
+    char round_info[16] = {0};
+    sprintf(heat_info, "RACE %u %s", race_id, (state ? "START" : "END"));
+    sprintf(round_info, "ROUND %u", round_num);
+
+    handleUserTextCommand(heat_info, round_info, NULL, 0, 0);
+
+#if 1
+    String info = "Laptimer state:";
+    info += state;
+    info += ", heat:";
+    info += race_id;
+    info += ", round:";
+    info += round_num;
+    websocket_send_txt(info, client);
+#endif
+}
+
 void TbsFusion::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClient * const client)
 {
-    String info = "Lap time lap:";
-    info += lap->lap_index;
-    info += ", ms:";
-    info += lap->lap_time_ms;
-    info += ", ";
+#if 1
+    lap_time_t const laptime = convert_ms_to_time(lap->lap_time_ms);
+
+    char lap_info[16];
+    sprintf(lap_info, "%u:%02u.%03u", laptime.m, laptime.s, laptime.ms);
+
+    handleUserTextCommand(lap_info, NULL, NULL, 99, lap->lap_index);
+
+#else
     // Lap time is shown as a battery info...
+    static crsf_battery_info_t lap_info;
+
 #if 0
     // Capacity shows the milliseconds + single seconds
     uint32_t const cap = __builtin_bswap32(lap->lap_time_ms % 10000) >> 8;
@@ -440,9 +505,16 @@ void TbsFusion::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     // remaining is the lap index
     lap_info.remaining = lap->lap_index;
 
-    handleTelemetryBattery((uint8_t*)&lap_info);
+    handleTelemetryBattery((uint8_t *)&lap_info);
+#endif
 
+#if 1
+    String info = "Laptimer lap:";
+    info += lap->lap_index;
+    info += ", ms:";
+    info += lap->lap_time_ms;
     websocket_send_txt(info, client);
+#endif
 }
 
 void TbsFusion::handleTelemetryGps(uint8_t const * const payload)
@@ -571,7 +643,7 @@ bool TbsFusion::param_entry_send(uint8_t const param_index, uint8_t const dest_a
                 (crsf_param_entry_footer_command_t *)&p_header->name[name_len + 1];
             p_footer->value = p_param->current;
             p_footer->timeout = 20;
-            p_footer->info_msg[0] = 0;  // terminate string
+            p_footer->info_msg[0] = 0; // terminate string
             if (info_msg) {
                 strcpy(p_footer->info_msg, info_msg);
             }
