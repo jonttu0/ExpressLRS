@@ -453,7 +453,7 @@ void TbsFusion::handleLaptimerState(uint16_t const race_id,
 {
     char heat_info[16] = {0};
     char round_info[16] = {0};
-    sprintf(heat_info, "RACE %u %s", race_id, (state ? "START" : "END"));
+    sprintf(heat_info, "RACE %u %s", race_id & 0x1fff, (state ? "START" : "END"));
     sprintf(round_info, "ROUND %u", round_num);
 
     handleUserTextCommand(heat_info, round_info, NULL, 0, 0);
