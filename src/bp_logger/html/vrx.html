@@ -46,14 +46,12 @@
       <form method='POST' action='/laptimer_config' enctype='multipart/form-data' target="hidden-iframe">
         <table style="width:100%;">
           <tr>
-            <td><input placeholder="SSID" type='text' name='ss  const _row_obj = $id("laptimer_osd_row");
-              const _col_obj = $id("laptimer_osd_col");
-            id' id='laptimer_ssid' size='32' maxlength='32'></td>
+            <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
             <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
           </tr>
           <tr>
             <td><input placeholder="Pilot name" type='text' name='pilot' id='laptimer_pilot' size='32' maxlength='32'></td>
-            <td><span>...info...</span></td>
+            <td><span><!-- some info? --></span></td>
           </tr>
         </table>
         <div style="width:100%; text-align: center;"><input type='submit' value='Save' id='laptimer_submit' style="width:80px;"></div>
@@ -106,7 +104,7 @@
   <fieldset>
     <legend>OSD</legend>
     <div id="osd_text_control">
-      <div>
+      <div id="laptimer_osd_pos_control">
         <label for="laptimer_osd_row">ROW</label>
         <input type='number' name="laptimer_osd_row" id='laptimer_osd_row' size='32' maxlength='2' min="0" max="18" onchange="window.commands.osd_pos_send(event);">
         <label for="laptimer_osd_col" >COLUMN</label>

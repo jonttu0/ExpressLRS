@@ -66,12 +66,16 @@ function feature_config(config) {
   $id("vrxversion_control").style.display = !!config.vrxversion ? "block" : "none";
   $id("telemetry_debug").style.display = !!config.telemetrydebug ? "block" : "none";
 
-  const _row_obj = $id("laptimer_osd_row");
-  const _col_obj = $id("laptimer_osd_col");
-  _row_obj.value = config.osd_row;
-  _row_obj.max = config.osd_row_max;
-  _col_obj.value = config.osd_col;
-  _col_obj.max = config.osd_col_max;
+  if (config.osd_row_max == undefined || config.osd_col_max == undefined) {
+    $id("laptimer_osd_pos_control").style.display = "none";
+  } else {
+    const _row_obj = $id("laptimer_osd_row");
+    const _col_obj = $id("laptimer_osd_col");
+    _row_obj.value = config.osd_row;
+    _row_obj.max = config.osd_row_max;
+    _col_obj.value = config.osd_col;
+    _col_obj.max = config.osd_col_max;
+  }
   $id("laptimer_osd_timeout").value = config.osd_timeout;
 }
 
