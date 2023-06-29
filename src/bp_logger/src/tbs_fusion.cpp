@@ -77,8 +77,20 @@ typedef union {
     uint8_t payload[8];
 } crsf_battery_info_t;
 
+static bool check_retry(uint32_t const ms_now, uint32_t const timeout_ms)
+{
+    static uint32_t wait_started_ms;
+    if (!ms_now || !timeout_ms || (int32_t)timeout_ms <= (int32_t)(ms_now - wait_started_ms)) {
+        wait_started_ms = ms_now;
+        return true;
+    }
+    return false;
+}
+
 void TbsFusion::init(void)
 {
+    current_state = STATE_READY;
+    osd_timeout = eeprom_storage.laptimer_osd_timeout;
     _handler.markPacketFree();
 }
 
@@ -103,12 +115,14 @@ void TbsFusion::syncSettings(AsyncEventSourceClient * const client)
     String json = "{\"vtxfreq\":";
     json += eeprom_storage.vtx_freq;
     json += ",\"recording_control\":0"; // No support
-    json += ",\"osd_text\":0";          // No support atm
+    json += ",\"osd_text\":1";          // No support atm
     json += ",\"telemetrydebug\":1";
     json += ",\"laptimer\":1";
     json += ",\"espnow\":";
     json += ESP_NOW;
     json += ",\"model\":\"TBS Fusion\"";
+    json += ",\"osd_timeout\":";
+    json += eeprom_storage.laptimer_osd_timeout / 1000;  // convert to seconds
     json += '}';
     async_event_send(json, "fea_config", client);
     async_event_send(m_version_info, "vrx_version", client);
@@ -323,6 +337,20 @@ void TbsFusion::loop(void)
         ping_sent_ms = now_ms;
         param_read_send(params_read++, 0);
     }
+    switch (current_state) {
+        /************** RUNTIME **************/
+        case STATE_CLEAR_OSD: {
+            if (check_retry(now_ms, osd_timeout)) {
+                handleUserTextCommand(NULL, NULL, NULL, 0, 0);
+                current_state = STATE_READY;
+            }
+            break;
+        }
+        case STATE_READY:
+        default:
+            check_retry(now_ms, 0); // Reset retry time
+            break;
+    };
 }
 
 void TbsFusion::sendMspToUart(uint8_t const * const buff, uint16_t const len, uint16_t const function)
@@ -376,7 +404,7 @@ void TbsFusion::handleUserTextCommand(const char * input, size_t const len, Asyn
     }
     handleUserTextCommand(text1, text2, text3, 0, 0);
 
-#if 1
+#if 0
     String dbg_info = "OSD text1: '";
     dbg_info += text1;
     dbg_info += "', text2: '";
@@ -401,6 +429,7 @@ void TbsFusion::handleUserTextCommand(
         char text3[21];
         uint8_t crc;
     } command;
+    memset(&command, 0, sizeof(command));
     command.header.device_addr = CRSF_SYNC_BYTE;
     command.header.frame_size = sizeof(command) - CRSF_FRAME_START_BYTES;
     command.header.type = CRSF_FRAMETYPE_ENCAPSULATED_TLM;
@@ -409,9 +438,6 @@ void TbsFusion::handleUserTextCommand(
     command.msg_type = CRSF_TLM_TYPE_OSD_TEXT;
     command.pos = pos;
     command.lap = lap;
-    command.text1[0] = 0;
-    command.text2[0] = 0;
-    command.text3[0] = 0;
     if (text1)
         strcpy(command.text1, text1);
     if (text2)
@@ -419,6 +445,9 @@ void TbsFusion::handleUserTextCommand(
     if (text3)
         strcpy(command.text3, text3);
     CrsfWrite((uint8_t *)&command, sizeof(command));
+
+    osd_timeout = eeprom_storage.laptimer_osd_timeout;
+    current_state = STATE_CLEAR_OSD;
 }
 
 void TbsFusion::handleVtxFrequencyCommand(uint16_t const freq, AsyncWebSocketClient * const client)
@@ -454,11 +483,12 @@ void TbsFusion::handleLaptimerState(uint16_t const race_id,
     char heat_info[16] = {0};
     char round_info[16] = {0};
     sprintf(heat_info, "RACE %u %s", race_id & 0x1fff, (state ? "START" : "END"));
-    sprintf(round_info, "ROUND %u", round_num);
+    if (round_num)
+        sprintf(round_info, "ROUND %u", round_num);
 
-    handleUserTextCommand(heat_info, round_info, NULL, 0, 0);
+    handleUserTextCommand(heat_info, (round_num ? round_info : NULL), NULL, 0, 0);
 
-#if 1
+#if 0
     String info = "Laptimer state:";
     info += state;
     info += ", heat:";
@@ -477,7 +507,7 @@ void TbsFusion::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     char lap_info[16];
     sprintf(lap_info, "%u:%02u.%03u", laptime.m, laptime.s, laptime.ms);
 
-    handleUserTextCommand(lap_info, NULL, NULL, 99, lap->lap_index);
+    handleUserTextCommand(lap_info, NULL, NULL, 0, lap->lap_index);
 
 #else
     // Lap time is shown as a battery info...
@@ -508,7 +538,7 @@ void TbsFusion::handleLaptimerLap(laptimer_lap_t const * lap, AsyncWebSocketClie
     handleTelemetryBattery((uint8_t *)&lap_info);
 #endif
 
-#if 1
+#if 0
     String info = "Laptimer lap:";
     info += lap->lap_index;
     info += ", ms:";

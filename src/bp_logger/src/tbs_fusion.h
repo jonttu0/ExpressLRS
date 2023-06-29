@@ -25,11 +25,11 @@ public:
 
 private:
     enum {
-        STATE_GET_CH_INDEX,
-        STATE_GET_FREQ,
-        STATE_GET_RECORDING,
         STATE_READY,
+        STATE_CLEAR_OSD,
     };
+    uint8_t current_state;
+    uint32_t osd_timeout;
 
     bool fetch_dev_info;
 
