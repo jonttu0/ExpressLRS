@@ -57,7 +57,7 @@ void CRSF_RX::Begin(void)
 
     p_crsf_channels.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     p_crsf_channels.header.frame_size = sizeof(p_crsf_channels) - CRSF_FRAME_START_BYTES;
-#if PROTOCOL_CRSF_V3_TO_FC
+#if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
     p_crsf_channels.header.type = CRSF_FRAMETYPE_SUBSET_RC_CHANNELS_PACKED;
 #else // !PROTOCOL_CRSF_V3_TO_FC
     p_crsf_channels.header.type = CRSF_FRAMETYPE_RC_CHANNELS_PACKED;
