@@ -128,6 +128,7 @@ void FAST_CODE_1 CRSF_RX::sendRCFrameToFC(rc_channels_rx_t * channels) const
 void FAST_CODE_1 CRSF_RX::sendMSPFrameToFC(mspPacket_t & msp) const
 {
     uint8_t * p_dst = msp_packet.msp.payload;
+    uint8_t payload_max = sizeof(msp_packet.msp.payload);
     uint8_t i;
     msp_packet.msp.flags = MSP_VERSION + (msp.sequence_nbr & MSP_SEQUENCE_MASK);
     if (msp.payloadIterator == 0 && msp.sequence_nbr == 0) {
@@ -135,10 +136,15 @@ void FAST_CODE_1 CRSF_RX::sendMSPFrameToFC(mspPacket_t & msp) const
         msp_packet.msp.hdr.payloadSize = msp.payloadSize;
         msp_packet.msp.hdr.function = msp.function;
         p_dst = msp_packet.msp.hdr.payload;
+        payload_max = sizeof(msp_packet.msp.hdr.payload);
     }
     msp.sequence_nbr++;
-    for (i = 0; i < sizeof(msp_packet.msp.payload) && !msp.iterated(); i++) {
+    for (i = 0; i < payload_max && !msp.iterated(); i++) {
         p_dst[i] = msp.readByte();
+    }
+    // Fill dummy data to rest
+    for (; i < payload_max; i++) {
+        p_dst[i] = 0xE0 + i;
     }
     sendFrameToFC((uint8_t*)&msp_packet, sizeof(msp_packet));
 }
