@@ -10,7 +10,6 @@ import shutil, os
 
 
 FAIL = '\033[91m'
-#FAIL = '\033[47;31m'
 
 tgt_UART = "uart"
 tgt_WIFI = "wifi"

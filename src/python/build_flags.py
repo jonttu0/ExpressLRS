@@ -202,8 +202,8 @@ print_info("------------------------")
 
 # Set upload_protovol = 'custom' for STM32 MCUs
 #  otherwise firmware.bin is not generated
-stm = env.get('PIOPLATFORM', '') in ['ststm32']
-if stm:
+pioplatform = env.get('PIOPLATFORM', '')
+if pioplatform in ['ststm32']:
     env['UPLOAD_PROTOCOL'] = 'custom'
 
     def print_src(node):
@@ -231,3 +231,5 @@ if stm:
         return None
     env.AddBuildMiddleware(filter_stm_ll_files, "*stm32*_ll_*.c*")
 
+elif pioplatform in ['arterytekat32']:
+    env['UPLOAD_PROTOCOL'] = 'custom'
