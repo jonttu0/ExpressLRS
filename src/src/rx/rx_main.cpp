@@ -772,7 +772,13 @@ void radio_prepare(uint8_t const type)
     if (!Radio) {
         /* Infinite loop in case of failure */
         while(1) {
-            led_toggle();
+            led_set_state(true);
+            delay(100);
+            led_set_state(false);
+            delay(100);
+            led_set_state(true);
+            delay(100);
+            led_set_state(false);
             DEBUG_PRINTF("RADIO CONFIG ERROR!\n");
             delay(1000);
         }
