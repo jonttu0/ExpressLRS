@@ -53,6 +53,7 @@ jobs:
       run: |
         mkdir -p ~/artifacts
         cd src
+        pio pkg install -e ${{ matrix.target }}
         rm -rf .pio
         export EXPRESSLRS_FLAGS="-DRegulatory_Domain_EU_868 -DRegulatory_Domain_ISM_2400_800kHz -DRegulatory_Domain_ISM_2400_FLRC"
         pio run -e ${{ matrix.target }}
