@@ -1,4 +1,5 @@
 Import("env", "projenv")
+import dfu
 import stlink
 import UARTupload
 import opentx
@@ -14,9 +15,12 @@ FAIL = '\033[91m'
 tgt_UART = "uart"
 tgt_WIFI = "wifi"
 tgt_STLINK = "stlink"
+tgt_OPENOCD = "openocd"
 tgt_PASSTHROUGH = "passthrough"
 tgt_DFU = "dfu"
 
+# pioplatform = env.PioPlatform()
+# platform = pioplatform.name
 platform = env.get('PIOPLATFORM', '')
 target_name = env['PIOENV'].upper()
 
@@ -32,12 +36,12 @@ def find_build_flag(search):
 
 # don't overwrite if custom command defined
 #if stm and "$UPLOADER $UPLOADERFLAGS" in env.get('UPLOADCMD', '$UPLOADER $UPLOADERFLAGS'):
-if platform in ['ststm32']:
+if platform in ['ststm32', 'arterytekat32']:
     features = env.GetProjectOption("custom_features", "")
+    # default_protocol = env.GetProjectOption("upload_protocol", "")
 
-    board = env.BoardConfig()
-    hwids_list = board.get("build.hwids", [])
-    upload_protocols = board.get("upload.protocols", "")
+    board_config = env.BoardConfig()
+    upload_protocols = board_config.get("upload.protocols", "")
 
     # Default to ST-Link uploading
     default_upload_cmd = stlink.on_upload
@@ -46,6 +50,11 @@ if platform in ['ststm32']:
         ["$BUILD_DIR/${PROGNAME}.bin"],
         [stlink.on_upload],
         title="Upload via ST-Link", description="")
+    env.AddCustomTarget(tgt_OPENOCD,
+        ["$BUILD_DIR/${PROGNAME}.bin"],
+        [stlink.on_upload_openocd],
+        title="Upload via OpenOCD", description="")
+
     if "_TX" in target_name or "_HANDSET" in target_name:
         upload_flags = env.GetProjectOption("upload_flags", "")
         wifi_targets = []
@@ -79,15 +88,10 @@ if platform in ['ststm32']:
             [UARTupload.on_upload],
             title="Upload via FC Passthrough", description="")
 
-    if "dfu" in upload_protocols:
-        if not hwids_list:
-            raise SystemExit("DFU enabled but no HW IDs available!")
-        hwids = [s.replace("0x", "") for s in hwids_list[0]]
-        command = 'dfu-util -d %s -s %s:leave -D "$BUILD_DIR/${PROGNAME}.bin"' % (
-            ":".join(hwids), board.get("upload.offset_address", "0x08001000"))
+    if "dfu" in upload_protocols or platform =='arterytekat32':
         env.AddCustomTarget(tgt_DFU,
-            dependencies=["$BUILD_DIR/${PROGNAME}.bin"],
-            actions=command,
+            ["$BUILD_DIR/${PROGNAME}.bin"],
+            [dfu.on_upload],
             title="Upload via DFU", description="")
 
     # Override default upload command

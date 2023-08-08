@@ -384,7 +384,7 @@ void FAST_CODE_1 SendDataToFcCallback(uint32_t const us)
 {
 #if PLATFORM_ESP8266
     #define TIMER_ADJUST_EXTRA  7
-#elif PLATFORM_STM32
+#elif PLATFORM_STM32 || PLATFORM_AT32
     #define TIMER_ADJUST_EXTRA  6
 #else
     #define TIMER_ADJUST_EXTRA  0
