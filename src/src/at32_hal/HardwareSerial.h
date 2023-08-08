@@ -21,9 +21,6 @@
 #define UART_DMA_TX_BUFF    16
 #endif
 
-/* This is to avoid unnecessary data copy */
-#define UART_USE_TX_POOL_ONLY 0
-
 // Used by the TX DMA
 // Note: make sure the TX is not called ofter for same buffer!
 struct tx_pool_s {
@@ -56,14 +53,9 @@ public:
     uint8_t rx_tail;
     uint8_t rx_buffer[UART_BUFF_SIZE];
 
-#if UART_USE_TX_POOL_ONLY
-    uint8_t * tx_buffer_ptr;
-    uint32_t tx_buffer_len;
-#else
     uint8_t tx_head;
     uint8_t tx_tail;
     uint8_t tx_buffer[UART_BUFF_SIZE];
-#endif
 
     // for DMA TX
     uint8_t* tx_pool_get(uint32_t * len)

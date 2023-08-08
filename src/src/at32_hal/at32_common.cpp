@@ -293,7 +293,7 @@ void platform_reboot_into_bootloader(const uint8_t * info)
         return;
 #if !USE_DEFAULT_LD_SCRIPT
     /* Fill reset info into RAM for bootloader */
-    extern __IO uint32_t _bootloader_data;
+    extern __IO struct bootloader _bootloader_data;
     volatile struct bootloader * blinfo = ((struct bootloader*)&_bootloader_data) + 0;
     blinfo->key = 0x454c5253; // ELRS
     blinfo->reset_type = 0xACDC;
