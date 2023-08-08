@@ -2,6 +2,7 @@ import os
 import platform
 from platformio.util import get_systype
 from SCons.Script import ARGUMENTS
+from console_log import *
 
 
 FLASH_BASE = 0x08000000
@@ -13,8 +14,14 @@ def parse_flags(env):
     for line in build_flags:
         for flag in line.split():
             if "FLASH_APP_OFFSET=" in flag:
-                offset = flag.split("FLASH_APP_OFFSET=")[1].replace("K", "")
-                flags["addr app"] = FLASH_BASE + int(offset) * 1024
+                offset = flag.split("FLASH_APP_OFFSET=")[1]
+                if "0x" in offset:
+                    offset = int(offset, 16)
+                elif "K" in offset:
+                    offset = int(offset.replace("K", "")) * 1024
+                else:
+                    offset = int(offset)
+                flags["addr app"] = FLASH_BASE + offset
     # upload_flags = env.get('UPLOAD_FLAGS', [])
     upload_flags = env.GetProjectOption("upload_flags", [])
     for line in upload_flags:
@@ -28,10 +35,7 @@ def parse_flags(env):
 
 
 def get_commands(env, firmware):
-    platform_name = platform.system().lower()
-
-    BL_CMD = []
-    APP_CMD = []
+    os_type = platform.system().lower()
 
     flags = parse_flags(env)
     flash_start = flags.get("addr booloader", FLASH_BASE)
@@ -40,25 +44,21 @@ def get_commands(env, firmware):
 
     pioplatform = env.PioPlatform()
 
-    TOOL = os.path.join(
-        pioplatform.get_package_dir("tool-stm32duino") or "",
-        "stlink",
-        ["st-flash", "ST-LINK_CLI.exe"]["windows" in platform_name])
+    TOOL = os.path.join(pioplatform.get_package_dir("tool-stm32duino") or "", "stlink")
+    BL_CMD = ""
 
-    if "windows" in platform_name:
+    if "windows" in os_type:
+        TOOL = os.path.join(TOOL, "ST-LINK_CLI.exe")
         if bootloader is not None:
-            BL_CMD = [TOOL, "-c SWD SWCLK=8 -P", bootloader, hex(flash_start)]
-        APP_CMD = [TOOL, "-c SWD SWCLK=8 -P", firmware, hex(app_start), "-RST"]
-    elif "linux" in platform_name or "darwin" in platform_name:
+            BL_CMD = f'"{TOOL}" -c SWD SWCLK=8 -P "{bootloader}" 0x{flash_start:08X}'
+        return BL_CMD, f'"{TOOL}" -c SWD UR SWCLK=8 -P "{firmware}" 0x{app_start:08X} -RST'
+    elif "linux" in os_type or "darwin" in os_type:
+        TOOL = os.path.join(TOOL, "st-flash")
         if bootloader is not None:
-            BL_CMD = [TOOL, "write", bootloader, hex(flash_start)]
-        APP_CMD = [TOOL, "--reset", "write", firmware, hex(app_start)]
-    elif "os x" in platform_name:
-        raise SystemExit("\nOS X not supported at the moment\n")
-    else:
-        raise SystemExit("\nOperating system: "+ platform_name +  " is not supported.\n")
+            BL_CMD = f'{TOOL} write {bootloader} 0x{flash_start:08X}'
+        return BL_CMD, f'{TOOL} --reset write {firmware} 0x{app_start:08X}'
 
-    return " ".join(BL_CMD), " ".join(APP_CMD)
+    raise SystemExit("\nOperating system: "+ os_type +  " is not supported.\n")
 
 
 def get_commands_openocd(env, firmware_path):
@@ -99,22 +99,24 @@ def get_commands_openocd(env, firmware_path):
     if bootloader_bin is not None:
         command = openocd_args + ["-c", program_fmt % (bootloader_bin, flash_start)]
         BL_CMD = command = " ".join(command)
-        # print("BL_CMD: {}".format(BL_CMD))
     command = openocd_args + ["-c", program_fmt % (firmware_path, app_start)]
     APP_CMD = command = " ".join(command)
-    # print("BL_CMD: {}".format(APP_CMD))
     return BL_CMD, APP_CMD
 
 
 def exect_commands(env, BL_CMD, APP_CMD):
     retval = 0
+    '''
+    print_info("----------------------------")
+    print_log(f"BL cmd:  '{BL_CMD}'")
+    print_log(f"APP cmd: '{APP_CMD}'")
+    print_info("----------------------------")
+    #'''
     # flash bootloader
     if BL_CMD:
-        # print("Cmd: {}".format(BL_CMD))
         retval = env.Execute(BL_CMD)
     # flash application
     if retval == 0 and APP_CMD:
-        # print("Cmd: {}".format(APP_CMD))
         retval = env.Execute(APP_CMD)
     return retval
 
