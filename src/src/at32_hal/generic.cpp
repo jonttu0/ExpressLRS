@@ -62,3 +62,11 @@ void _Error_Handler(const char * error, int line)
 }
 
 // -------------------------------------------
+// Just to make compiler happy :)
+extern "C"
+{
+void _close(void) {}
+void _lseek(void) {}
+void _read(void) {}
+void _write(void) {}
+}

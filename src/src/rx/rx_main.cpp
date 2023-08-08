@@ -52,7 +52,7 @@ static lq_data_t DRAM_ATTR rx_lq;
 
 RX_CLASS DRAM_FORCE_ATTR crsf(CrsfSerial); //pass a serial port object to the class for it to use
 
-connectionState_e DRAM_ATTR connectionState;
+int8_t DRAM_ATTR connectionState;
 static volatile uint8_t DRAM_ATTR NonceRXlocal; // nonce that we THINK we are up to.
 static uint8_t DRAM_ATTR TLMinterval;
 static uint32_t DRAM_ATTR tlm_check_ratio;
@@ -282,7 +282,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     int32_t diff_us = 0;
     const uint32_t last_rx_us = rx_last_valid_us;
     const uint_fast8_t tlm_ratio = tlm_check_ratio;
-    const connectionState_e conn_state = connectionState;
+    const int8_t conn_state = connectionState;
     uint_fast8_t fhss_config_rx = 0;
     uint_fast8_t nonce = NonceRXlocal;
     rx_last_valid_us = 0;
@@ -490,7 +490,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
 #endif
 
     //DEBUG_PRINTF("I");
-    const connectionState_e _conn_state = connectionState;
+    const int8_t _conn_state = connectionState;
 
     if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
         payloadSize -= OTA_PACKET_CRC;
@@ -780,6 +780,17 @@ void radio_prepare(uint8_t const type)
             delay(100);
             led_set_state(false);
             DEBUG_PRINTF("RADIO CONFIG ERROR!\n");
+#if defined(DEBUG_SERIAL) && 0  // DEBUG TEST CODE!
+            static uint8_t temp_buff[256];
+            int len = DEBUG_SERIAL.available();
+            uint8_t * outbuff = temp_buff;
+            while (len--) {
+                *outbuff++ = DEBUG_SERIAL.read();
+            }
+            len = (uintptr_t)outbuff - (uintptr_t)temp_buff;
+            if (len)
+                DEBUG_SERIAL.write(temp_buff, len);
+#endif
             delay(1000);
         }
     }
@@ -879,7 +890,7 @@ void loop()
 {
     uint32_t const now = millis();
 
-    const connectionState_e _conn_state = (connectionState_e)read_u32(&connectionState);
+    const int8_t _conn_state = (int8_t)read_u8(&connectionState);
 
     if (STATE_lost < _conn_state) {
         led_set_state(_conn_state == STATE_connected);

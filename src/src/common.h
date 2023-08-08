@@ -11,16 +11,15 @@
 #endif
 
 
-typedef enum
-{
+enum {
     STATE_search_iteration_done = -2, // e.g. RX could start SW upgrade
     STATE_fw_upgrade = -1,
     STATE_disconnected = 0,
-    STATE_lost,
-    STATE_tentative,
-    STATE_connected,
-} connectionState_e;
-extern connectionState_e connectionState;
+    STATE_lost = 1,
+    STATE_tentative = 2,
+    STATE_connected = 3,
+};
+extern int8_t connectionState;
 
 
 // *******************************************************************'

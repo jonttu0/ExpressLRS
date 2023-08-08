@@ -40,7 +40,7 @@ static uint32_t DRAM_ATTR SyncPacketInterval_us; // Default is send always
 
 /////////// CONNECTION /////////
 static uint32_t DRAM_ATTR LastPacketRecvMillis;
-connectionState_e DRAM_ATTR connectionState;
+int8_t DRAM_ATTR connectionState;
 
 //////////// TELEMETRY /////////
 static uint32_t DRAM_ATTR TLMinterval;
