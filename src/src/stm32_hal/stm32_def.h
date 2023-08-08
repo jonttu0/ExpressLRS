@@ -14,8 +14,8 @@
 void _Error_Handler(const char *, int);
 
 void hw_init(void);
-void SystemClock_Config(void);
-void timer_init(void);
+void system_clock_config(void);
+void ms_timer_init(void);
 
 void USART_IDLE_IRQ_handler(uint32_t index);
 void USARTx_DMA_handler(uint32_t index);

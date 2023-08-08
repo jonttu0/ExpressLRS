@@ -216,7 +216,7 @@ void FAST_CODE_1 delayMicroseconds(uint32_t usecs)
     while ((timer_read_time() - start) < usecs);
 }
 
-void timer_init(void)
+void ms_timer_init(void)
 {
     // Enable Debug Watchpoint and Trace (DWT) for its 32bit timer
     /*
@@ -233,7 +233,7 @@ void timer_init(void)
 }
 
 
-void SystemClock_Config(void)
+void system_clock_config(void)
 {
     RCC_OscInitTypeDef RCC_OscInitStruct;
     RCC_ClkInitTypeDef RCC_ClkInitStruct;

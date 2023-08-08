@@ -185,7 +185,7 @@ void FAST_CODE_1 delayMicroseconds(uint32_t const usecs)
     while ((uint32_t)(micros() - start) < usecs);
 }
 
-void timer_init(void)
+void ms_timer_init(void)
 {
     /* STM32L0x1 does not have DWT so use timer for us timer */
     enable_pclock((uint32_t)TIMC_1);
@@ -219,7 +219,7 @@ void timer_init(void)
 }
 
 
-void SystemClock_Config(void)
+void system_clock_config(void)
 {
 #if HSI_VALUE != 16000000
 #error "Wrong config! HSI VALUE is 16MHz!"

@@ -276,7 +276,7 @@ void ms_timer_init(void)
 }
 
 
-void SystemClock_Config(void)
+void system_clock_config(void)
 {
     /* enable pwc periph clock */
     crm_periph_clock_enable(CRM_PWC_PERIPH_CLOCK, TRUE);
@@ -370,23 +370,23 @@ void ERTC_IRQHandler(void) {Error_Handler();}
 void FLASH_IRQHandler(void) {Error_Handler();}
 void CRM_IRQHandler(void) {Error_Handler();}
 
-void FAST_CODE_1 EXINT0_IRQHandler(void) {GPIO_EXTI_IRQHandler(0);}
-void FAST_CODE_1 EXINT1_IRQHandler(void) {GPIO_EXTI_IRQHandler(1);}
-void FAST_CODE_1 EXINT2_IRQHandler(void) {GPIO_EXTI_IRQHandler(2);}
-void FAST_CODE_1 EXINT3_IRQHandler(void) {GPIO_EXTI_IRQHandler(3);}
-void FAST_CODE_1 EXINT4_IRQHandler(void) {GPIO_EXTI_IRQHandler(4);}
+void FAST_CODE_1 EXINT0_IRQHandler(void) {gpio_exti_irq_handler(0);}
+void FAST_CODE_1 EXINT1_IRQHandler(void) {gpio_exti_irq_handler(1);}
+void FAST_CODE_1 EXINT2_IRQHandler(void) {gpio_exti_irq_handler(2);}
+void FAST_CODE_1 EXINT3_IRQHandler(void) {gpio_exti_irq_handler(3);}
+void FAST_CODE_1 EXINT4_IRQHandler(void) {gpio_exti_irq_handler(4);}
 void FAST_CODE_1 EXINT9_5_IRQHandler(void)
 {
     uint8_t pin;
     for (pin = 5; pin <= 9; pin++) {
-        GPIO_EXTI_IRQHandler(pin);
+        gpio_exti_irq_handler(pin);
     }
 }
 void FAST_CODE_1 EXINT15_10_IRQHandler(void)
 {
     uint8_t pin;
     for (pin = 10; pin <= 15; pin++) {
-        GPIO_EXTI_IRQHandler(pin);
+        gpio_exti_irq_handler(pin);
     }
 }
 

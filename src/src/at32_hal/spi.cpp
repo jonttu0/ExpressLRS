@@ -11,17 +11,17 @@ struct spi_info
 };
 
 static const struct spi_info spi_bus[] = {
-#ifdef SPI2
-    {SPI2, GPIO('B', 14), GPIO('B', 15), GPIO('B', 13), GPIO_AF},
-#endif
 #ifdef SPI1
     {SPI1, GPIO('A', 6), GPIO('A', 7), GPIO('A', 5), GPIO_AF},
 #endif
+#ifdef SPI2
+    {SPI2, GPIO('B', 14), GPIO('B', 15), GPIO('B', 13), GPIO_AF},
+#endif
 #ifdef SPI3
     {SPI3, GPIO('B', 4), GPIO('B', 5), GPIO('B', 3), GPIO_AF},
-#if CONFIG_MACH_STM32F4
-    {SPI3, GPIO('C', 11), GPIO('C', 12), GPIO('C', 10), GPIO_AF},
 #endif
+#ifdef SPI4
+    {SPI4, GPIO('E', 5), GPIO('E', 6), GPIO('E', 2), GPIO_AF},
 #endif
 };
 
@@ -66,10 +66,16 @@ spi_setup(uint32_t speed, int sck, int miso, int mosi, uint8_t mode)
                 config.clock_phase = SPI_CLOCK_PHASE_1EDGE;
                 break;
             case 1:
+                config.clock_polarity = SPI_CLOCK_POLARITY_LOW;
+                config.clock_phase = SPI_CLOCK_PHASE_2EDGE;
                 break;
             case 2:
+                config.clock_polarity = SPI_CLOCK_POLARITY_HIGH;
+                config.clock_phase = SPI_CLOCK_PHASE_1EDGE;
                 break;
             case 3:
+                config.clock_polarity = SPI_CLOCK_POLARITY_HIGH;
+                config.clock_phase = SPI_CLOCK_PHASE_2EDGE;
                 break;
         }
 
@@ -90,14 +96,14 @@ spi_prepare(struct spi_config config)
 }
 
 void FAST_CODE_1
-spi_transfer(struct spi_config config, uint8_t receive_data, uint8_t len, uint8_t *data)
+spi_transfer(struct spi_config config, uint8_t const receive_data, uint8_t len, uint8_t *data)
 {
-    spi_type *spi = (spi_type *)config.spi;
+    spi_type * const spi = (spi_type *)config.spi;
     if (!spi) return;
     while (len--) {
-        //while (!(spi->sts & (SPI_I2S_TDBE_FLAG)));
+        //while (spi->sts_bit.tdbe == FALSE);
         spi->dt = *data;
-        while (!(spi->sts & SPI_I2S_RDBF_FLAG));
+        while (spi->sts_bit.rdbf == FALSE);
         uint8_t const rdata = spi->dt;
         if (receive_data)
             *data = rdata;

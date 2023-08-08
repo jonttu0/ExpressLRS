@@ -74,7 +74,7 @@ static void init(void)
 #endif
 
     /* Configure the system clock */
-    SystemClock_Config();
+    system_clock_config();
 
     ms_timer_init();
 }

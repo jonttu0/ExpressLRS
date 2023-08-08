@@ -158,7 +158,7 @@ typedef struct
 
 /* Private Variables */
 static gpio_irq_conf_str DRAM_FORCE_ATTR gpio_irq_conf[GPIO_NUM_PINS] = {
-#if defined(AT32F415)
+#if defined(AT32F415) || defined(AT32F403A_407)
     {.irqnb = EXINT0_IRQn, .callback = NULL},     //GPIO_PIN_0
     {.irqnb = EXINT1_IRQn, .callback = NULL},     //GPIO_PIN_1
     {.irqnb = EXINT2_IRQn, .callback = NULL},     //GPIO_PIN_2
@@ -175,8 +175,6 @@ static gpio_irq_conf_str DRAM_FORCE_ATTR gpio_irq_conf[GPIO_NUM_PINS] = {
     {.irqnb = EXINT15_10_IRQn, .callback = NULL}, //GPIO_PIN_13
     {.irqnb = EXINT15_10_IRQn, .callback = NULL}, //GPIO_PIN_14
     {.irqnb = EXINT15_10_IRQn, .callback = NULL}  //GPIO_PIN_15
-#elif defined(AT32F403A_407)
-// TODO!
 #else
 #error "GPIO IRQ config is missing!"
 #endif
@@ -241,7 +239,7 @@ gpio_in_isr_clear_pending(struct gpio_in const g)
 /*********************/
 
 void FAST_CODE_1
-GPIO_EXTI_IRQHandler(uint16_t const pin)
+gpio_exti_irq_handler(uint16_t const pin)
 {
     /* EXTI line interrupt detected */
     uint32_t const line = 0x1 << pin;
