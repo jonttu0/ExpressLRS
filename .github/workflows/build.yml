@@ -51,13 +51,12 @@ jobs:
 
     - name: Run PlatformIO
       run: |
-        platformio platform update
-        platformio platform install native
         mkdir -p ~/artifacts
         cd src
+        pio pkg update
         rm -rf .pio
         export EXPRESSLRS_FLAGS="-DRegulatory_Domain_EU_868 -DRegulatory_Domain_ISM_2400_800kHz -DRegulatory_Domain_ISM_2400_FLRC"
-        platformio run -e ${{ matrix.target }}
+        pio run -e ${{ matrix.target }}
         case ${{matrix.target}} in
           *LOGGER_*)
             OUTDIR=~/artifacts/LOGGER/`echo ${{ matrix.target }}`
