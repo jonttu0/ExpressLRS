@@ -77,6 +77,12 @@ static void init(void)
     system_clock_config();
 
     ms_timer_init();
+
+    crm_periph_clock_enable(CRM_IOMUX_PERIPH_CLOCK, TRUE);
+    crm_periph_reset(CRM_IOMUX_PERIPH_RESET, TRUE);
+    crm_periph_reset(CRM_IOMUX_PERIPH_RESET, FALSE);
+    crm_periph_reset(CRM_EXINT_PERIPH_RESET, TRUE);
+    crm_periph_reset(CRM_EXINT_PERIPH_RESET, FALSE);
 }
 
 void copy_functions_to_ram(void)

@@ -79,6 +79,7 @@ spi_setup(uint32_t speed, int sck, int miso, int mosi, uint8_t mode)
                 break;
         }
 
+        spi_i2s_reset(spi);
         spi_init(spi, &config);
         spi_enable(spi, FALSE);
 

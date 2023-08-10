@@ -164,35 +164,33 @@ void enable_pclock(uint32_t const periph_base)
     if (is_enabled_pclock(periph_base))
         return;
 
-    //crm_periph_clock_enable(PRINT_UART_CRM_CLK, TRUE);
-
-    if (periph_base < AHBPERIPH_BASE) {
-        uint32_t pos = (periph_base - AHBPERIPH_BASE) / 0x400;
-        CRM->ahben |= (1 << pos);
-        CRM->ahben;
-    } else if (periph_base < APB2PERIPH_BASE) {
+    if (periph_base < APB2PERIPH_BASE) {
+        uint32_t pos = (periph_base - APB1PERIPH_BASE) / 0x400;
+        CRM->apb1en |= (1 << pos);
+        CRM->apb1en;
+    } else if (periph_base < AHBPERIPH_BASE) {
         uint32_t pos = (periph_base - APB2PERIPH_BASE) / 0x400;
         CRM->apb2en |= (1 << pos);
         CRM->apb2en;
     } else {
-        uint32_t pos = (periph_base - APB1PERIPH_BASE) / 0x400;
-        CRM->apb1en |= (1 << pos);
-        CRM->apb1en;
+        uint32_t pos = (periph_base - AHBPERIPH_BASE) / 0x400;
+        CRM->ahben |= (1 << pos);
+        CRM->ahben;
     }
 }
 
 // Check if a peripheral clock has been enabled
 uint32_t is_enabled_pclock(uint32_t const periph_base)
 {
-    if (periph_base < AHBPERIPH_BASE) {
-        uint32_t pos = (periph_base - AHBPERIPH_BASE) / 0x400;
-        return CRM->ahben & (1 << pos);
-    } else if (periph_base < APB2PERIPH_BASE) {
+    if (periph_base < APB2PERIPH_BASE) {
+        uint32_t pos = (periph_base - APB1PERIPH_BASE) / 0x400;
+        return CRM->apb1en & (1 << pos);
+    } else if (periph_base < AHBPERIPH_BASE) {
         uint32_t pos = (periph_base - APB2PERIPH_BASE) / 0x400;
         return CRM->apb2en & (1 << pos);
     } else {
-        uint32_t pos = (periph_base - APB1PERIPH_BASE) / 0x400;
-        return CRM->apb1en & (1 << pos);
+        uint32_t pos = (periph_base - AHBPERIPH_BASE) / 0x400;
+        return CRM->ahben & (1 << pos);
     }
 }
 
@@ -206,9 +204,15 @@ get_pclock_frequency(uint32_t const periph_base)
 // Enable a GPIO peripheral clock
 void gpio_clock_enable(gpio_type *regs)
 {
-    uint32_t rcc_pos = ((uint32_t)regs - APB2PERIPH_BASE) / 0x400;
-    CRM->apb2en |= 1 << rcc_pos;
-    (void)CRM->apb2en;
+    uint32_t const io = ((uintptr_t)regs - GPIOA_BASE) / 0x400;
+    crm_periph_clock_enable((crm_periph_clock_type)(CRM_GPIOA_PERIPH_CLOCK + io), TRUE);
+
+    //uint32_t rcc_pos = ((uint32_t)regs - APB2PERIPH_BASE) / 0x400;
+    //CRM->apb2en |= 1 << rcc_pos;
+    //(void)CRM->apb2en;
+
+    // Enable EXTI cloks as well for GPIO ISR handling
+    //enable_pclock(EXINT_BASE);
 }
 
 // Set the mode and extended function of a pin
@@ -299,7 +303,7 @@ void system_clock_config(void)
     }
 
     /* config pll clock resource */
-    crm_pll_config2(CRM_PLL_SOURCE_HICK, 75, 1, CRM_PLL_FR_4);  // 8MHz * 75 / (1 * 4)
+    crm_pll_config2(CRM_PLL_SOURCE_HICK, 75, 1, CRM_PLL_FR_2);  // 8MHz * 75 / (1 * 4)
 
 #else
 #if HEXT_VALUE != 8000000U

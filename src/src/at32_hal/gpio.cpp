@@ -211,9 +211,9 @@ void gpio_in_isr(struct gpio_in g, isr_cb_t callback, uint8_t it_mode)
         gpio_irq_conf[index].irqnb,
         NVIC_EncodePriority(NVIC_GetPriorityGrouping(), ISR_PRIO_EXTI, 0));
     NVIC_EnableIRQ(gpio_irq_conf[index].irqnb);
-    exint_interrupt_enable(g.bit, TRUE);
     // Clear pending IRQ
     EXINT->intsts = g.bit;
+    exint_interrupt_enable(g.bit, TRUE);
 }
 
 void gpio_in_isr_remove(struct gpio_in const g)
