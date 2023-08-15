@@ -1,3 +1,9 @@
+#ifndef HEXT_VALUE
+// Must be defined here to avoid an issue with precompiler:
+//   error: missing binary operator before token "8000000"
+#define HEXT_VALUE 8000000U
+#endif
+
 #include "Arduino.h"
 #include "at32_def.h"
 #include "priorities.h"
