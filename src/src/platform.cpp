@@ -1,5 +1,10 @@
 #include "platform.h"
 #include <string.h>
+#include <assert.h>
+
+#if STORE_TO_FLASH
+static_assert(sizeof(struct platform_config) < 1024, "struct platform_config is oversized (max is 1kB)!");
+#endif
 
 struct platform_config_454c5208
 {
