@@ -30,7 +30,9 @@ void FAST_CODE_1 LostConnection();
 
 /* Debug variables */
 #define PRINT_FREQ_ERROR    0
+#ifndef PRINT_RATE
 #define PRINT_RATE          1
+#endif
 #define PRINT_TIMING        0
 #define PRINT_TIMING_IN_CRSF_FRAME   0
 
@@ -50,7 +52,7 @@ static lq_data_t DRAM_ATTR rx_lq;
 
 RX_CLASS DRAM_FORCE_ATTR crsf(CrsfSerial); //pass a serial port object to the class for it to use
 
-connectionState_e DRAM_ATTR connectionState;
+int8_t DRAM_ATTR connectionState;
 static volatile uint8_t DRAM_ATTR NonceRXlocal; // nonce that we THINK we are up to.
 static uint8_t DRAM_ATTR TLMinterval;
 static uint32_t DRAM_ATTR tlm_check_ratio;
@@ -81,9 +83,11 @@ static LPF DRAM_FORCE_ATTR LPF_UplinkSNR(5);
 
 static uint32_t DRAM_ATTR LastValidPacket_ms; //Time the last valid packet was recv
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_rx;
-static uint32_t DRAM_ATTR msp_packet_rx_sent;
+//static uint32_t DRAM_ATTR msp_packet_rx_sent;
+static uint32_t DRAM_ATTR msp_packet_received_ms;
 static mspPacket_t DRAM_FORCE_ATTR msp_packet_tx;
-static uint8_t DRAM_ATTR tlm_msp_send, tlm_msp_rcvd;
+static uint8_t DRAM_ATTR tlm_msp_send;
+static uint8_t DRAM_ATTR tlm_msp_rcvd;
 static uint8_t DRAM_ATTR uplink_Link_quality;
 
 ///////////////////////////////////////////////////////////////
@@ -104,31 +108,31 @@ struct gpio_out dbg_pin_rx;
 #endif
 
 #if AUX_CHANNEL_ARM == 0
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch4))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch4))
 #elif AUX_CHANNEL_ARM == 1
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch5))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch5))
 #elif AUX_CHANNEL_ARM == 2
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch6))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch6))
 #elif AUX_CHANNEL_ARM == 3
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch7))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch7))
 #elif AUX_CHANNEL_ARM == 4
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch8))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch8))
 #elif AUX_CHANNEL_ARM == 5
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch9))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch9))
 #elif AUX_CHANNEL_ARM == 6
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch10))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch10))
 #elif AUX_CHANNEL_ARM == 7
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch11))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch11))
 #elif AUX_CHANNEL_ARM == 8
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch12))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch12))
 #elif AUX_CHANNEL_ARM == 9
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch13))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch13))
 #elif AUX_CHANNEL_ARM == 10
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch14))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch14))
 #elif AUX_CHANNEL_ARM == 11
-    #define ARM_CH_CHECK() (TX_SKIP_SYNC && SWITCH_IS_SET(rcChannelsData.ch15))
+    #define IS_ARMED_CHECK() (SWITCH_IS_SET(rcChannelsData.ch15))
 #else
-    #define ARM_CH_CHECK() 1
+    #define IS_ARMED_CHECK() 1
 #endif
 
 ///////////////////////////////////////
@@ -229,8 +233,7 @@ void FAST_CODE_1 HandleSendTelemetryResponse(void) // total ~79us
     if (RcChannels_dev_info_pack(tx_buffer, DevInfo)) {
         crc_or_type = DL_PACKET_DEV_INFO;
     } else if ((tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA)) {
-        if (RcChannels_tlm_ota_send(tx_buffer, msp_packet_tx, 0) || msp_packet_tx.error) {
-            msp_packet_tx.reset();
+        if (RcChannels_tlm_ota_send(tx_buffer, msp_packet_tx)) {
             tlm_msp_send = 0;
         }
         crc_or_type = DL_PACKET_TLM_MSP;
@@ -279,7 +282,7 @@ void FAST_CODE_1 HWtimerCallback(uint32_t const us)
     int32_t diff_us = 0;
     const uint32_t last_rx_us = rx_last_valid_us;
     const uint_fast8_t tlm_ratio = tlm_check_ratio;
-    const connectionState_e conn_state = connectionState;
+    const int8_t conn_state = connectionState;
     uint_fast8_t fhss_config_rx = 0;
     uint_fast8_t nonce = NonceRXlocal;
     rx_last_valid_us = 0;
@@ -381,7 +384,7 @@ void FAST_CODE_1 SendDataToFcCallback(uint32_t const us)
 {
 #if PLATFORM_ESP8266
     #define TIMER_ADJUST_EXTRA  7
-#elif PLATFORM_STM32
+#elif PLATFORM_STM32 || PLATFORM_AT32
     #define TIMER_ADJUST_EXTRA  6
 #else
     #define TIMER_ADJUST_EXTRA  0
@@ -487,7 +490,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
 #endif
 
     //DEBUG_PRINTF("I");
-    const connectionState_e _conn_state = connectionState;
+    const int8_t _conn_state = connectionState;
 
     if (ExpressLRS_currAirRate->hwCrc == HWCRC_DIS) {
         payloadSize -= OTA_PACKET_CRC;
@@ -514,6 +517,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
         {
             //DEBUG_PRINTF(" S");
             ElrsSyncPacket_s const * const sync = (ElrsSyncPacket_s*)rx_buffer;
+            const uint_fast8_t numOfTxPerRc = ExpressLRS_currAirRate->numOfTxPerRc;
 
             if (sync->cipher == SyncCipher) {
                 if ((_conn_state == STATE_disconnected) || (_conn_state == STATE_lost)) {
@@ -538,7 +542,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
                         LostConnection();
                         goto exit_rx_isr;
                     }
-                } else if (no_sync_armed && ARM_CH_CHECK()) {
+                } else if (numOfTxPerRc == 1 && no_sync_armed && IS_ARMED_CHECK()) {
                     /* Sync should not be received, ignore it */
                     goto exit_rx_isr;
                 }
@@ -574,7 +578,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
             break;
 
         case UL_PACKET_MSP: {
-            if (no_sync_armed && ARM_CH_CHECK()) {
+            if (IS_ARMED_CHECK()) {
                 /* Not a valid packet, ignore it */
                 goto exit_rx_isr;
             }
@@ -582,6 +586,7 @@ ProcessRFPacketCallback(uint8_t *rx_buffer, uint32_t current_us, size_t payloadS
             //DEBUG_PRINTF(" M");
             if (RcChannels_tlm_ota_receive(rx_buffer, msp_packet_rx)) {
                 tlm_msp_rcvd = 1;
+                msp_packet_received_ms = millis();
             }
 #endif
             break;
@@ -694,31 +699,39 @@ void msp_data_cb(uint8_t const *const input)
         return;
 
     /* process MSP packet from flight controller
-     *  [0]         header: seq&0xF,
-     *  [1]         payload size
-     *  [2]         function
-     *  [3...57]    payload + crc
+     *    Start:
+     *      [0] header: seq&0xF,
+     *      [1] payload size
+     *      [2] function
+     *      [3...57] payload + crc
+     *    Next:
+     *      [0] header
+     *      [1...57] payload + crc
      */
-    mspHeaderV1_TX_t *hdr = (mspHeaderV1_TX_t *)input;
-    uint16_t iter;
+    mspHeaderV1_TX_t const * const p_msp = (mspHeaderV1_TX_t *)input;
+    uint8_t const * p_src = p_msp->payload;
+    size_t iter;
 
-    if (hdr->hdr.flags & MSP_STARTFLAG) {
+    if (p_msp->flags & MSP_ERRORFLAG) {
+        // Handle error!
+    }
+
+    if (p_msp->flags & MSP_STARTFLAG) {
         msp_packet_tx.reset();
         msp_packet_tx.type = MSP_PACKET_TLM_OTA;
-        msp_packet_tx.payloadSize = hdr->hdr.payloadSize + 1; // incl crc
-        msp_packet_tx.function = hdr->hdr.function;
-        msp_packet_tx.flags = hdr->hdr.flags;
+        msp_packet_tx.payloadSize = p_msp->hdr.payloadSize;
+        msp_packet_tx.function = p_msp->hdr.function;
+        p_src = p_msp->hdr.payload;
     }
-    for (iter = 0; (iter < sizeof(hdr->hdr.payload)) && !msp_packet_tx.iterated(); iter++) {
-        msp_packet_tx.addByte(hdr->hdr.payload[iter]);
+    for (iter = 0; (iter < sizeof(p_msp->payload)) && !msp_packet_tx.iterated(); iter++) {
+        msp_packet_tx.addByte(p_src[iter]);
     }
-    if (iter <= sizeof(hdr->hdr.payload)) {
-        if (!msp_packet_tx.error) {
-            msp_packet_tx.setIteratorToSize();
-            write_u8(&tlm_msp_send, 1); // rdy for sending
-        } else {
-            msp_packet_tx.reset();
-        }
+
+    if (msp_packet_tx.iterated() && !msp_packet_tx.error) {
+        msp_packet_tx.setIteratorToSize();
+        write_u8(&tlm_msp_send, 1); // rdy for sending
+    } else {
+        msp_packet_tx.reset();
     }
 #endif
 }
@@ -759,8 +772,25 @@ void radio_prepare(uint8_t const type)
     if (!Radio) {
         /* Infinite loop in case of failure */
         while(1) {
-            led_toggle();
+            led_set_state(true);
+            delay(100);
+            led_set_state(false);
+            delay(100);
+            led_set_state(true);
+            delay(100);
+            led_set_state(false);
             DEBUG_PRINTF("RADIO CONFIG ERROR!\n");
+#if defined(DEBUG_SERIAL) && 0  // DEBUG TEST CODE!
+            static uint8_t temp_buff[256];
+            int len = DEBUG_SERIAL.available();
+            uint8_t * outbuff = temp_buff;
+            while (len--) {
+                *outbuff++ = DEBUG_SERIAL.read();
+            }
+            len = (uintptr_t)outbuff - (uintptr_t)temp_buff;
+            if (len)
+                DEBUG_SERIAL.write(temp_buff, len);
+#endif
             delay(1000);
         }
     }
@@ -860,7 +890,7 @@ void loop()
 {
     uint32_t const now = millis();
 
-    const connectionState_e _conn_state = (connectionState_e)read_u32(&connectionState);
+    const int8_t _conn_state = (int8_t)read_u8(&connectionState);
 
     if (STATE_lost < _conn_state) {
         led_set_state(_conn_state == STATE_connected);
@@ -916,13 +946,15 @@ void loop()
     platform_wd_feed();
 
     /* Send MSP in junks to FC */
-    if (read_u8(&tlm_msp_rcvd) && (10 <= (now - msp_packet_rx_sent))) {
-        crsf.sendMSPFrameToFC(msp_packet_rx);
-        if (msp_packet_rx.iterated() || msp_packet_rx.error) {
+    if (read_u8(&tlm_msp_rcvd) /*&& (10 <= (now - msp_packet_rx_sent))*/) {
+        if (!msp_packet_rx.error)
+            crsf.sendMSPFrameToFC(msp_packet_rx);
+        if (msp_packet_rx.iterated() || msp_packet_rx.error || (100 <= (now - read_u32(&msp_packet_received_ms)))) {
             msp_packet_rx.reset();
             write_u8(&tlm_msp_rcvd, 0);
+            DEBUG_PRINTF("MSP done!\n");
         }
-        msp_packet_rx_sent = now;
+        //msp_packet_rx_sent = now;
     }
 
 #if PRINT_RATE && NO_DATA_TO_FC
@@ -936,7 +968,7 @@ void loop()
         write_u32(&print_rate_cnt, 0);
         write_u32(&print_tlm_cnt, 0);
         DEBUG_PRINTF(" Rate: +%u !%u t%u LQ:%u RSSI:%d SNR:%d - RC: %u|%u|%u|%u|*|%u|%u|%u|%u|\n",
-            good, abs(bad - tlmtx), tlmtx,
+            good, (uint32_t)abs((long int)(bad - tlmtx)), tlmtx,
             uplink_Link_quality,
             LPF_UplinkRSSI.value(),
             LPF_UplinkSNR.value(),

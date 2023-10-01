@@ -1,139 +1,90 @@
-#if CONFIG_STM_UPDATER
 #include "stm32_ota.h"
+
+#if CONFIG_STM_UPDATER
 #include "main.h"
 #include "stm32Updater.h"
 #include "stk500.h"
 #include <Arduino.h>
-#include <ESP8266HTTPUpdateServer.h>
-#include <ESP8266WebServer.h>
+#include <ESPAsyncWebServer.h>
 
+static String g_firmware_file;
+static uint32_t g_flash_address;
 
-extern ESP8266WebServer server;
-
-
-File fsUploadFile; // a File object to temporarily store the received file
-String uploadedfilename; // filename of uploaded file
-
-
-static int8_t flash_stm32(uint32_t flash_addr)
+static bool flash_stm32(uint32_t flash_addr, String & uploadedfilename)
 {
-  int8_t result = -1;
-  websocket_send("STM32 Firmware Flash Requested!");
-  websocket_send("  the firmware file: '" + uploadedfilename + "'");
-  if (uploadedfilename.endsWith("firmware.elrs")) {
-    result = stk500_write_file(uploadedfilename.c_str());
-  } else if (uploadedfilename.endsWith("firmware.bin")) {
-    result = esp8266_spifs_write_file(uploadedfilename.c_str(), flash_addr);
-    if (result == 0)
-      reset_stm32_to_app_mode(); // boot into app
-  } else {
-    websocket_send("Invalid file!");
-  }
-  Serial.begin(SERIAL_BAUD);
-  return result;
-}
+    int8_t result = -1;
 
-
-void stm32_ota_handleFileUploadEnd()
-{
-  uint32_t flash_base = BEGIN_ADDRESS;
-  //String message = "\nRequest params:\n";
-  for (uint8_t i = 0; i < server.args(); i++) {
-    String name = server.argName(i);
-    String value = server.arg(i);
-    //message += " " + name + ": " + value + "\n";
-    if (name == "flash_address") {
-      flash_base = strtol(&value.c_str()[2], NULL, 16);
-      break;
+    websocket_send_txt("STM32 Firmware Flash Requested!");
+    websocket_send_txt("  the firmware file: '" + uploadedfilename + "'");
+    if (uploadedfilename.endsWith("firmware.elrs")) {
+        result = stk500_write_file(uploadedfilename.c_str());
+    } else if (uploadedfilename.endsWith("firmware.bin")) {
+        result = esp8266_spifs_write_file(uploadedfilename.c_str(), flash_addr);
+        if (result == 0)
+            reset_stm32_to_app_mode(); // boot into app
+    } else {
+        websocket_send_txt("Invalid file!");
     }
-  }
-  //websocket_send(message);
-
-  int8_t success = flash_stm32(flash_base);
-
-  if (uploadedfilename.length() && FILESYSTEM.exists(uploadedfilename))
-    FILESYSTEM.remove(uploadedfilename);
-
-  server.sendHeader("Location", "/return");          // Redirect the client to the success page
-  server.send(303);
-  server.send((success < 0) ? 400 : 200);
-  websocket_send((success) ? "Update Successful!": "Update Failure!");
+    Serial.begin(SERIAL_BAUD);
+    return (0 <= result);
 }
 
+bool stm32_ota_check_filename(String & filename)
+{
+    if (filename != "firmware.bin" && filename != "firmware.elrs") {
+        g_firmware_file = "";
+        return false;
+    }
+    g_firmware_file = "/" + filename;
+    return true;
+}
 
-void stm32_ota_handleFileUpload()
-{ // upload a new file to the SPIFFS
-  HTTPUpload &upload = server.upload();
-  if (upload.status == UPLOAD_FILE_START)
-  {
-    /* Remove old file */
-    if (uploadedfilename.length() && FILESYSTEM.exists(uploadedfilename))
-      FILESYSTEM.remove(uploadedfilename);
-
-    FSInfo fs_info;
-    if (FILESYSTEM.info(fs_info))
-    {
-      Dir dir = FILESYSTEM.openDir("/");
-      while (dir.next()) {
-        String file = dir.fileName();
-        if (file.endsWith(".bin")) {
-          FILESYSTEM.remove(file);
+bool stm32_ota_parse_args(AsyncWebServerRequest * request)
+{
+    g_flash_address = BEGIN_ADDRESS;
+    for (size_t i = 0; i < request->args(); i++) {
+        String name = request->argName(i);
+        String value = request->arg(i);
+        if (name == "flash_address") {
+            g_flash_address = strtol(&value.c_str()[2], NULL, 16);
         }
-      }
+#if UART_DEBUG_EN
+        Serial.printf(" arg: %s = %s\r\n", name.c_str(), value.c_str());
+#endif
+    }
+    return true;
+}
 
-      String output = "Filesystem: used: ";
-      output += fs_info.usedBytes;
-      output += " / free: ";
-      output += fs_info.totalBytes;
-      websocket_send(output);
+void stm32_ota_do_flash(void)
+{
+    if (FILESYSTEM.exists(g_firmware_file)) {
+        bool const success = flash_stm32(g_flash_address, g_firmware_file);
+        FILESYSTEM.remove(g_firmware_file);
+        websocket_send_txt((success) ? "Update Successful!" : "Update Failure!");
+#if UART_DEBUG_EN
+        Serial.println("STM32 upgrade done!");
+#endif
+    } else {
+        const char * error = "STM Upgrade: Requested file does not exist! Abort!";
+        websocket_send_txt(error);
+#if UART_DEBUG_EN
+        Serial.println(error);
+#endif
+    }
+}
+#else
 
-      if (fs_info.usedBytes > 0) {
-        //websocket_send("formatting filesystem");
-        //FILESYSTEM.format();
-      }
-    }
-    else
-    {
-      websocket_send("SPIFFs Failed to init!");
-      return;
-    }
-    uploadedfilename = upload.filename;
+bool stm32_ota_check_filename(String & filename)
+{
+    return false;
+}
 
-    websocket_send("Uploading file: " + uploadedfilename);
+bool stm32_ota_parse_args(AsyncWebServerRequest * request)
+{
+    return false;
+}
 
-    if (!uploadedfilename.startsWith("/"))
-    {
-      uploadedfilename = "/" + uploadedfilename;
-    }
-    fsUploadFile = FILESYSTEM.open(uploadedfilename, "w"); // Open the file for writing in SPIFFS (create if it doesn't exist)
-  }
-  else if (upload.status == UPLOAD_FILE_WRITE)
-  {
-    if (fsUploadFile)
-    {
-      fsUploadFile.write(upload.buf, upload.currentSize); // Write the received bytes to the file
-      String output = "Uploaded: ";
-      output += fsUploadFile.position();
-      output += " bytes";
-      websocket_send(output);
-    }
-  }
-  else if (upload.status == UPLOAD_FILE_END)
-  {
-    if (fsUploadFile)
-    {                       // If the file was successfully created
-      String totsize = "Total uploaded size ";
-      totsize += fsUploadFile.position();
-      totsize += " of ";
-      totsize += upload.totalSize;
-      websocket_send(totsize);
-      server.send(100);
-      fsUploadFile.close(); // Close the file again
-    }
-    else
-    {
-      server.send(500, "text/plain", "500: couldn't create file");
-    }
-  }
+void stm32_ota_do_flash(void)
+{
 }
 #endif // CONFIG_STM_UPDATER

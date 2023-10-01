@@ -1,4 +1,8 @@
 #include "CRSF_TX.h"
+
+#if !BACKPACK_LOGGER_BUILD
+
+#include "platform.h"
 #include "debug_elrs.h"
 #include <string.h>
 
@@ -173,14 +177,19 @@ void CRSF_TX::sendMspPacketToRadio(mspPacket_t &msp) const
 {
     if (!p_RadioConnected)
         return;
-    // Set header
-    p_msp_packet.msp.hdr.flags = msp.flags;
-    p_msp_packet.msp.hdr.payloadSize = msp.payloadSize - 1; // remove crc
-    p_msp_packet.msp.hdr.function = msp.function;
-    // Copy encapsulated MSP payload
-    memcpy(p_msp_packet.msp.hdr.payload, msp.payload, msp.payloadSize);
-    // Clean rest
-    //memset(&p_msp_packet.msp.hdr.payload[msp.payloadSize], 0, sizeof(p_msp_packet.msp.payload)-msp.payloadSize);
+    uint8_t * p_dst = p_msp_packet.msp.payload;
+    size_t iter;
+    p_msp_packet.msp.flags = MSP_VERSION + (msp.sequence_nbr & MSP_SEQUENCE_MASK);
+    if (msp.payloadIterator == 0 && msp.sequence_nbr == 0) {
+        p_msp_packet.msp.flags |= MSP_STARTFLAG;
+        p_msp_packet.msp.hdr.payloadSize = msp.payloadSize;
+        p_msp_packet.msp.hdr.function = msp.function;
+        p_dst = p_msp_packet.msp.hdr.payload;
+    }
+    msp.sequence_nbr++;
+    for (iter = 0; iter < sizeof(p_msp_packet.msp.payload) && !msp.iterated(); iter++) {
+        p_dst[iter] = msp.readByte();
+    }
     CrsfFramePushToFifo((uint8_t*)&p_msp_packet, sizeof(p_msp_packet));
 }
 
@@ -335,3 +344,5 @@ void CRSF_TX::uart_wdt(void)
         GoodPktsCount = 0;
     }
 }
+
+#endif // BACKPACK_LOGGER_BUILD

@@ -1,6 +1,10 @@
 #include "CRSF_RX.h"
+
+#if !BACKPACK_LOGGER_BUILD
+
 #include "utils.h"
 #include "debug_elrs.h"
+#include "platform.h"
 #include <string.h>
 
 crsf_channels_msg_t DMA_ATTR p_crsf_channels;
@@ -24,6 +28,7 @@ static uint32_t DMA_ATTR link_stat_sent_us;
 
 void CRSF_RX::Begin(void)
 {
+    dev_info_received = false;
 #if CRSF_v3_USE_SUCCESSFUL_PACKETS
     successful_packets_from_fc = 0;
 #endif
@@ -44,15 +49,15 @@ void CRSF_RX::Begin(void)
 #endif // PROTOCOL_CRSF_V3_TO_FC
 #endif // PROTOCOL_ELRS_TO_FC
 
-    msp_packet.header.device_addr = CRSF_ADDRESS_BROADCAST;
+    msp_packet.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     msp_packet.header.frame_size = sizeof(msp_packet) - CRSF_FRAME_START_BYTES;
-    msp_packet.header.type = CRSF_FRAMETYPE_MSP_WRITE;
+    msp_packet.header.type = CRSF_FRAMETYPE_MSP_REQ;
     msp_packet.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     msp_packet.header.orig_addr = CRSF_ADDRESS_RADIO_TRANSMITTER;
 
     p_crsf_channels.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
     p_crsf_channels.header.frame_size = sizeof(p_crsf_channels) - CRSF_FRAME_START_BYTES;
-#if PROTOCOL_CRSF_V3_TO_FC
+#if !PROTOCOL_ELRS_TO_FC && PROTOCOL_CRSF_V3_TO_FC
     p_crsf_channels.header.type = CRSF_FRAMETYPE_SUBSET_RC_CHANNELS_PACKED;
 #else // !PROTOCOL_CRSF_V3_TO_FC
     p_crsf_channels.header.type = CRSF_FRAMETYPE_RC_CHANNELS_PACKED;
@@ -122,14 +127,24 @@ void FAST_CODE_1 CRSF_RX::sendRCFrameToFC(rc_channels_rx_t * channels) const
 
 void FAST_CODE_1 CRSF_RX::sendMSPFrameToFC(mspPacket_t & msp) const
 {
+    uint8_t * p_dst = msp_packet.msp.payload;
+    uint8_t payload_max = sizeof(msp_packet.msp.payload);
     uint8_t i;
-    msp_packet.msp.flags = MSP_VERSION + msp.sequence_nbr;
+    msp_packet.msp.flags = MSP_VERSION + (msp.sequence_nbr & MSP_SEQUENCE_MASK);
     if (msp.payloadIterator == 0 && msp.sequence_nbr == 0) {
         msp_packet.msp.flags |= MSP_STARTFLAG;
+        msp_packet.msp.hdr.payloadSize = msp.payloadSize;
+        msp_packet.msp.hdr.function = msp.function;
+        p_dst = msp_packet.msp.hdr.payload;
+        payload_max = sizeof(msp_packet.msp.hdr.payload);
     }
     msp.sequence_nbr++;
-    for (i = 0; i < sizeof(msp_packet.msp.payload); i++) {
-        msp_packet.msp.payload[i] = msp.readByte();
+    for (i = 0; i < payload_max && !msp.iterated(); i++) {
+        p_dst[i] = msp.readByte();
+    }
+    // Fill dummy data to rest
+    for (; i < payload_max; i++) {
+        p_dst[i] = 0xE0 + i;
     }
     sendFrameToFC((uint8_t*)&msp_packet, sizeof(msp_packet));
 }
@@ -141,21 +156,32 @@ void CRSF_RX::negotiate_baud(void) const
     if (configured_baudrate == CRSF_RX_BAUDRATE_V3)
         return;
 
-    crsf_speed_req req;
-    req.header.device_addr = CRSF_ADDRESS_BROADCAST;
-    req.header.frame_size = sizeof(req) - CRSF_FRAME_START_BYTES;
-    req.header.type = CRSF_FRAMETYPE_COMMAND;
-    req.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
-    req.header.orig_addr = CRSF_ADDRESS_CRSF_RECEIVER;
-    req.proposal.command = CRSF_COMMAND_SUBCMD_GENERAL;
-    req.proposal.sub_command = CRSF_COMMAND_SUBCMD_GENERAL_CRSF_SPEED_PROPOSAL;
-    req.proposal.portID = CRSF_v3_PORT_ID;
-    req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
+    static crsf_speed_req speed_req;
+    speed_req.header.device_addr = CRSF_ADDRESS_BROADCAST;
+    speed_req.header.frame_size = sizeof(speed_req) - CRSF_FRAME_START_BYTES;
+    speed_req.header.type = CRSF_FRAMETYPE_COMMAND;
+    speed_req.header.dest_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
+    speed_req.header.orig_addr = CRSF_ADDRESS_CRSF_RECEIVER;
+    speed_req.proposal.command = CRSF_COMMAND_SUBCMD_GENERAL;
+    speed_req.proposal.sub_command = CRSF_COMMAND_SUBCMD_GENERAL_CRSF_SPEED_PROPOSAL;
+    speed_req.proposal.portID = CRSF_v3_PORT_ID;
+    speed_req.proposal.baudrate = BYTE_SWAP_U32(CRSF_RX_BAUDRATE_V3);
     // CMD has also its own CRC
-    req.crc_cmd = CalcCRC8len(&req.header.type, (sizeof(req) - CRSF_FRAME_START_BYTES - 2), 0, CRSF_CMD_POLY);
-    sendFrameToFC((uint8_t*)&req, sizeof(req));
-    delay(20); // Wait DMA to finish its job
+    speed_req.crc_cmd = CalcCRC8len(&speed_req.header.type, (sizeof(speed_req) - CRSF_FRAME_START_BYTES - 2), 0, CRSF_CMD_POLY);
+    sendFrameToFC((uint8_t*)&speed_req, sizeof(speed_req));
+    //delay(20); // Wait DMA to finish its job
 #endif // PROTOCOL_CRSF_V3_TO_FC
+}
+
+void CRSF_RX::device_info_ping(void) const
+{
+    if (dev_info_received)
+        return;
+    static crsf_device_info_ping_msg_t dev_info;
+    dev_info.header.device_addr = CRSF_ADDRESS_FLIGHT_CONTROLLER;
+    dev_info.header.frame_size = sizeof(dev_info) - CRSF_FRAME_START_BYTES;
+    dev_info.header.type = CRSF_FRAMETYPE_DEVICE_PING;
+    sendFrameToFC((uint8_t*)&dev_info, sizeof(dev_info));
 }
 
 void CRSF_RX::change_baudrate(uint32_t const baud)
@@ -207,16 +233,17 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
             // Heartbeat is sent if the telemetry is disabled.
             // Can be used to check the V3 link, try to negotiate new speed
             negotiate_baud();
+            // TODO: dev info cb from here???
             break;
         }
 
-        case CRSF_FRAMETYPE_DISPLAYPORT_CMD:
-        case CRSF_FRAMETYPE_DEVICE_INFO: {
-            /* These are sent after startup */
-            negotiate_baud();
+        case CRSF_FRAMETYPE_DEVICE_INFO:
+            dev_info_received = true;
+        case CRSF_FRAMETYPE_DISPLAYPORT_CMD: {
             if (DevInfoCallback) {
                 DevInfoCallback(1);
             }
+            negotiate_baud();
             break;
         }
 
@@ -262,6 +289,7 @@ void CRSF_RX::processPacket(crsf_buffer_t const * const msg)
         successful_packets_from_fc = 0;
     }
 #endif
+    device_info_ping();
 }
 
 void CRSF_RX::handleUartIn(void)
@@ -285,3 +313,5 @@ void CRSF_RX::handleUartIn(void)
             processPacket((crsf_buffer_t*)ptr);
     }
 }
+
+#endif // BACKPACK_LOGGER_BUILD

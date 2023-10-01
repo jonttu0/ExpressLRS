@@ -5,12 +5,16 @@
     <meta name="viewport" content="width = device-width, initial-scale = 1.0">
     <title>ExpressLRS</title>
     <link rel="stylesheet" type="text/css" href="style.css">
-    <script type="text/javascript" src="scripts.js"></script>
   </head>
-
-<body onload="javascript:start();">
+  <script type="module">
+    import * as commands from './elrs.js';
+    document.body.onload = () => {commands.start();};
+    window.commands = commands;
+    window.jscommon = commands.cmn;
+  </script>
+<body>
+  <iframe name="hidden-iframe" style="display: none;"></iframe>
   <div class="center-area">
-
     <div>
       <div class="heading_big">ExpressLRS TX</div>
       <!-- TAB BAR -->
@@ -18,37 +22,28 @@
         <script type="text/javascript">
           function change_tab(evt, tabName) {
               // Declare all variables
-              var i, tabcontent, tablinks;
-
+              var i;
               // Get all elements with class="tabcontent" and hide them
-              tabcontent = document.getElementsByClassName("tabcontent");
+              const tabcontent = document.getElementsByClassName("tabcontent");
               for (i = 0; i < tabcontent.length; i++) {
                   tabcontent[i].style.display = "none";
               }
-
               // Get all elements with class="tablinks" and remove the class "active"
-              tablinks = document.getElementsByClassName("tablinks");
+              const tablinks = document.getElementsByClassName("tablinks");
               for (i = 0; i < tablinks.length; i++) {
                   tablinks[i].className = tablinks[i].className.replace(" active", "");
               }
-
               // Show the current tab, and add an "active" class to the link that opened the tab
               document.getElementById(tabName).style.display = "block";
               evt.currentTarget.className += " active";
           }
         </script>
-        <a href="javascript:void(0)" class="tablinks active"
-            onclick="change_tab(event, 'control_main')">Log</a>
-        <a href="javascript:void(0)" class="tablinks"
-            onclick="change_tab(event, 'control_settings')">Radio</a>
-        <a href="javascript:void(0)" class="tablinks"
-            onclick="change_tab(event, 'control_flash')">Firmware</a>
-        <a href="javascript:void(0)" class="tablinks" name="handset"
-            onclick="change_tab(event, 'control_handset')">Handset</a>
-        <a href="javascript:void(0)" class="tablinks" name="handset"
-            onclick="change_tab(event, 'handset_telemetry')">Telemetry</a>
-        <a href="javascript:void(0)" class="tablinks"
-          onclick="change_tab(event, 'misc_content')">Misc</a>
+        <a href="javascript:void(0)" class="tablinks active" onclick="change_tab(event, 'control_main')">Log</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'control_settings')">Radio</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'control_flash')">Firmware</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'control_handset')" name="handset">Handset</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'handset_telemetry')" name="handset">Telemetry</a>
+        <a href="javascript:void(0)" class="tablinks" onclick="change_tab(event, 'misc_content')">Misc</a>
       </div>
     </div> <!-- header -->
 
@@ -59,9 +54,9 @@
       <div style="text-align: center;">
         <textarea id="logField" readonly></textarea>
         <br>
-        <button type="button" onclick="saveTextAsFile()" value="save" id="save">Save log to file...</button> |
+        <button type="button" onclick="window.jscommon.saveTextAsFile()" value="save" id="save">Save log to file...</button> |
         <input type="checkbox" id="autoscroll" checked><label for="autoscroll"> Auto scroll</label> |
-        <input type='number' value='512' name='scrollsize' id='scrollsize' min="256"><label for="scrollsize"> Scroll len</label>
+        <input type='number' value='512' name='scrollsize' id='scrollsize' min="256" style="width: 50px;"><label for="scrollsize"> Scroll len</label>
         <br>
       </div>
       <hr/>
@@ -94,7 +89,7 @@
               RF mode
             </td>
             <td>
-              <select name="rf_module" onchange="rf_module_changed(this)" id="rf_module" disabled>
+              <select name="rf_module" onchange="window.commands.rf_module_changed(this)" id="rf_module" disabled>
                 <option value="" selected disabled hidden></option>
                 <option value=0> 900 (SX127x)</option>
                 <option value=3>2400 (SX128x)</option>
@@ -109,7 +104,7 @@
               Packet Rate
             </td>
             <td colspan="2">
-              <select name="rate" onchange="message_send(this)" id="rates_input" disabled>
+              <select name="rate" onchange="window.commands.message_send(this)" id="rates_input" disabled>
                 <option value="" selected disabled hidden></option>
               </select>
             </td>
@@ -119,7 +114,7 @@
               TX Power
             </td>
             <td colspan="2">
-              <select name="power" onchange="message_send(this)" id="power_input" disabled>
+              <select name="power" onchange="window.commands.message_send(this)" id="power_input" disabled>
                 <option value="" selected disabled hidden></option>
                 <option value=255>Reset</option>
                 <option value=0>Dynamic</option>
@@ -139,7 +134,7 @@
               Telemetry Ratio
             </td>
             <td colspan="2">
-              <select name="telemetry" onchange="message_send(this)" id="tlm_input" disabled>
+              <select name="telemetry" onchange="window.commands.message_send(this)" id="tlm_input" disabled>
                 <option value="" selected disabled hidden></option>
                 <option value=255>Reset</option>
                 <option value=0>Off</option>
@@ -159,7 +154,7 @@
               RF PWR
             </td>
             <td colspan="2">
-              <select name="rf_pwr" onchange="message_send(this)" id="rf_pwr">
+              <select name="rf_pwr" onchange="window.commands.message_send(this)" id="rf_pwr">
                 <option value=-18>-18</option>
                 <option value=-17>-17</option>
                 <option value=-16>-16</option>
@@ -208,13 +203,13 @@
           <tr>
             <td>
               BAND
-              <select id="vtx_band" onchange="vtx_band_changed(this.value)">
+              <select id="vtx_band" onchange="window.jscommon.vtx_band_changed(this.value)">
                 <option value="" selected disabled hidden>Select band</option>
               </select>
             </td>
             <td>
               CHANNEL
-              <select id="vtx_channel" onchange="vtx_show_freq()">
+              <select id="vtx_channel" onchange="window.jscommon.vtx_show_freq()">
                 <option value="" selected disabled hidden>Select channel</option>
               </select>
             </td>
@@ -222,7 +217,7 @@
               <div id="vtx_freq" style="width: 100px;"></div>
             </td>
             <td>
-              <button onclick="msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button>
+              <button onclick="window.jscommon.msp_vtx_freq_send()" id="vtx_send_btn" disabled>SET</button>
             </td>
           </tr>
         </table>
@@ -234,8 +229,16 @@
     <div id="control_flash" class="tabcontent" style="display:none;">
       <p>
         <fieldset>
+          <legend>Firmware Versions</legend>
+          <div>
+            <p>Target name: {%TARGET_NAME%}</p>
+            <p>Logger ver:  {%ESP_VERSION%}</p>
+            <p>ExpressLRS:  <span id="firmware_version_elrs">??</span></p>
+          </div>
+        </fieldset>
+        <fieldset>
           <legend>Self Firmware</legend>
-          <form method='POST' action='/update' enctype='multipart/form-data'>
+          <form method='POST' action='/doUpdate' enctype='multipart/form-data' target="hidden-iframe">
             <table style="width: 100%;">
               <tr>
                 <td><input type='file' accept='.bin,.bin.gz' name='backpack_fw' id='esp_fw'></td>
@@ -248,7 +251,7 @@
         <fieldset>
           <legend>STM32 Firmware</legend>
           <div>
-            <form method='POST' action='/upload' enctype='multipart/form-data'>
+            <form method='POST' action='/upload' enctype='multipart/form-data' target="hidden-iframe">
               <table style="width:100%;">
                 <tr>
                   <td><input type='file' accept='.bin,.elrs' name='firmware' id='stm_fw'></td>
@@ -260,7 +263,7 @@
           </div>
           <br>
           <div style="text-align: center;">
-            <button onclick="command_stm32('reset')">RESET</button>
+            <button onclick="window.commands.command_stm32('reset')">RESET</button>
           </div>
         </fieldset>
       </p>
@@ -272,7 +275,7 @@
       <script type="text/javascript">
         const message = document.getElementById('validationMessage');
         document.getElementById('esp_fw').onchange = function (ev) {
-          const FIRMWARE_PATTERN = /backpack\.(bin|bin.gz)$/g;
+          const FIRMWARE_PATTERN = /(backpack|backpack_fs_data)\.(bin|bin.gz)$/g;
           const uploadButton = document.getElementById('esp_submit');
           const value = ev.target.value;
           if (FIRMWARE_PATTERN.test(value)) {
@@ -319,13 +322,13 @@
                 Scale
                 <input type="number" id="battery_scale"
                   min='50' max='150' value="100" style="width: 40px;"
-                  onchange="handset_battery_adjust();">
+                  onchange="window.commands.handset_battery_adjust();">
               </td>
               <td>
                 Warning (%)
                 <input type="number" id="battery_warning"
                   min='10' max='100' value="70" step="5" style="width: 45px;"
-                  onchange="handset_battery_adjust();">
+                  onchange="window.commands.handset_battery_adjust();">
               </td>
             </tr>
           </table>
@@ -338,13 +341,45 @@
         </table>
         <div style="padding: 10px; text-align: right;">
           <br/>
-          <button style="width: 100px;" onclick="handset_mixer_send()">SET</button>
+          <button style="width: 100px;" onclick="window.commands.handset_mixer_send()">SET</button>
         </div>
       </fieldset>
 
       <fieldset>
         <legend>Virtual Channels</legend>
         ...are available at some point...
+      </fieldset>
+
+      <fieldset>
+        <legend>AUX Misc</legend>
+        <div style="width: 100%;" id="laptimer_aux_panel">
+          START/STOP Laptimer Switch:
+          <select name="laptimer_aux" id="laptimer_aux"
+                  onchange="window.commands.handset_laptimer_aux_set(this.value);">
+            <option value="" selected disabled hidden></option>
+            <option value=255>DISABLE</option>
+            <option value=0>AUX1</option>
+            <option value=1>AUX2</option>
+            <option value=2>AUX3</option>
+            <option value=3>AUX4</option>
+            <option value=4>AUX5</option>
+            <option value=5>AUX6</option>
+          </select>
+        </div>
+        <div style="width: 100%;" id="recording_aux_panel">
+          START/STOP Recording Switch:
+          <select name="recording_aux" id="recording_aux"
+                  onchange="window.commands.handset_recording_aux_set(this.value);">
+            <option value="" selected disabled hidden></option>
+            <option value=255>DISABLE</option>
+            <option value=0>AUX1</option>
+            <option value=1>AUX2</option>
+            <option value=2>AUX3</option>
+            <option value=3>AUX4</option>
+            <option value=4>AUX5</option>
+            <option value=5>AUX6</option>
+          </select>
+        </div>
       </fieldset>
 
       <fieldset>
@@ -358,50 +393,50 @@
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left;">LEFT, 1</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L1_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L1_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L1_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L1_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L1_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L1_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L1_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L1_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">LEFT, 2</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L2_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L2_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L2_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="L2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L2_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'L2_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="L2_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'L2_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="L2_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 1</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R1_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R1_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R1_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R1_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R1_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R1_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R1_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R1_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R1_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr style="border-bottom: 1px solid #C5C5C5;">
             <td style="text-align: left; width: 150px;">RIGHT, 2</td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R2_min')">auto</button>
-              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_min" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R2_min')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_min" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R2_mid')">auto</button>
-              <input type="number" min='0' max='4095' value="2000" style="width: 50px;" id="R2_mid" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R2_mid')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_mid" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
             <td>
-              <button onclick="handset_calibrate_auto_send(this, 'R2_max')">auto</button>
-              <input type="number" min='0' max='4095' value="4095" style="width: 50px;" id="R2_max" onchange="handset_calibrate_adjust_send(event);"></td>
+              <button onclick="window.commands.handset_calibrate_auto_send(this, 'R2_max')">auto</button>
+              <input type="number" min='0' max='4095' value="0" style="width: 50px;" id="R2_max" onchange="window.commands.handset_calibrate_adjust_send(event);"></td>
           </tr>
           <tr>
             <td id="handset_calibrate_stat" colspan="4">&nbsp;</td>
@@ -410,10 +445,10 @@
       </fieldset>
 
       <div style="padding: 10px; text-align: center;">
-        <button name="handset_reload" style="width: 100px;" value="0" onclick="message_send(this)">Refresh</button>
+        <button name="handset_reload" style="width: 100px;" value="0" onclick="window.commands.message_send(this)">Refresh</button>
       </div>
       <div style="padding: 10px; text-align: center;">
-        <button name="handset_save" style="width: 100px;" value="0" onclick="message_send(this)">Save</button>
+        <button name="handset_save" style="width: 100px;" value="0" onclick="window.commands.message_send(this)">Save</button>
       </div>
     </div>
     <!-- HANDSET END -->
@@ -474,12 +509,48 @@
 
     <!-- ESP-NOW -->
     <div id="misc_content" class="tabcontent" style="display:none;">
-      <fieldset>
+      <fieldset id="laptimer_control">
+        <legend>Lap Timer</legend>
+        <div>
+          <form method='POST' action='/laptimer_config' enctype='multipart/form-data' target="hidden-iframe">
+            <table style="width:100%;">
+              <tr>
+                <td><input placeholder="SSID" type='text' name='ssid' id='laptimer_ssid' size='32' maxlength='32'></td>
+                <td><input placeholder="MAC" type='text' name='macaddr' id='laptimer_mac' size='17' maxlength='17' style="width:130px;"></td>
+              </tr>
+              <tr>
+                <td><input placeholder="Pilot name" type='text' name='pilot' id='laptimer_pilot' size='32' maxlength='32'></td>
+                <td><span>...info...</span></td>
+              </tr>
+            </table>
+            <div style="width:100%; text-align: center;"><input type='submit' value='Save' id='laptimer_submit' style="width:80px;"></div>
+          </form>
+        </div>
+        <hr>
+        <div>
+          <label for="laptimer_ctrl_btn">Laptimer: </label>
+          <button id="laptimer_ctrl_btn" onclick="window.jscommon.laptimer_ctrl_send(this)" class="green">START</button>
+        </div>
+        <hr>
+        <div>
+          <p style="text-align: center; padding: 2px;">LAP TIMES - Race ID: <span id="laptimer_race_id"></span></p>
+          <table id="laptimer_laps">
+            <tr><td style="width: 50px;">Lap</td><td style="width: 200px;">Time</td></tr>
+          </table>
+        </div>
+      </fieldset>
+      <fieldset id="espnow_control">
         <legend>ESP-NOW Clients</legend>
         <div>
           <label for="espnowclients" class="valigntop">Add one per line</label>
           <textarea id="espnowclients" class="valigntop" onkeyup="espnowclients_autosize(this)"></textarea>
-          <button onclick="espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
+          <script>function espnowclients_autosize(el){el.rows = el.value.split('\n').length;}</script>
+          <button onclick="window.jscommon.espnowclients_send()" id="espnowclients_btn" class="valigntop">SAVE</button>
+        </div>
+        <div style="padding-top: 10px;">
+          <label for="espnow_bind_address" class="valigntop">BIND ADDRESS:</label>
+          <input placeholder="MAC" type='text' name='bindaddr' id='espnow_bind_address' size='17' maxlength='17' style="width:130px;"
+                 onchange="window.jscommon.espnow_bind_address_send(event);">
         </div>
       </fieldset>
       <fieldset>
@@ -496,7 +567,7 @@
             <td><input id="wifi_new_psk" type='text' style="width:250px;" placeholder="PASSWORD" minlength="1" maxlength="32"></td>
             <td><input id="wifi_new_mac" type='text' style="width:130px;" placeholder="MAC (optional)" minlength="17" maxlength="17"></td>
           </table>
-          <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="wifinetworks_add()">ADD</button></div>
+          <div style="width:100%; text-align: center;"><button style="width:50px; text-align: center;" onclick="window.jscommon.wifinetworks_add()">ADD</button></div>
         </div>
       </fieldset>
     </div>

@@ -30,6 +30,7 @@ private:
     void sendFrameToFC(uint8_t *buff, uint8_t size) const;
     void processPacket(crsf_buffer_t const * const msg);
     void negotiate_baud(void) const;
+    void device_info_ping(void) const;
     void change_baudrate(uint32_t baud = CRSF_RX_BAUDRATE);
 
     uint32_t last_packet_from_fc_ms;
@@ -37,6 +38,7 @@ private:
     uint32_t successful_packets_from_fc;
 #endif
     uint32_t configured_baudrate;
+    bool dev_info_received;
 };
 
 #endif /* CRSF_RX_H_ */

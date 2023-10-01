@@ -18,18 +18,20 @@ def on_upload(source, target, env):
         else:
             # Update STM receiver or backpack logger
             upload_addr = ['elrs_logger.local', 'elrs_logger']
-
+    elrs_bin_name = ""
     if "backpack.bin" in source_file:
         # Logger firmware update
         elrs_bin_target = source_file + ".gz"
-        if not os.path.exists(source_file + ".gz"):
-            # compressed binary does not exist
+        if not os.path.exists(source_file + ".gz") or platform in ['espressif32']:
+            # compressed binary does not exist or ESP32 (gz OTA update fails os use bin)
             elrs_bin_target = source_file
     else:
         bin_path = os.path.dirname(source_file)
-        elrs_bin_target = os.path.join(bin_path, 'firmware.elrs')
+        elrs_bin_name = "firmware.elrs"
+        elrs_bin_target = os.path.join(bin_path, elrs_bin_name)
         if not os.path.exists(elrs_bin_target):
-            elrs_bin_target = os.path.join(bin_path, 'firmware.bin')
+            elrs_bin_name = "firmware.bin"
+            elrs_bin_target = os.path.join(bin_path, elrs_bin_name)
     # Check if the binary exits
     if not os.path.exists(elrs_bin_target):
         raise SystemExit("No valid binary found!")
@@ -53,14 +55,16 @@ def on_upload(source, target, env):
                         offset = int(offset, 10)
                     app_start = offset
         cmd += ["-F", "flash_address=0x%X" % (app_start,)]
+        if elrs_bin_name:
+            cmd += ["-F", "firmware=%s" % (elrs_bin_name,)]
 
     # Upload address can be given as a --upload-port
     upload_port = env.get('UPLOAD_PORT', None)
     if upload_port is not None:
         upload_addr = [upload_port]
-
+    print("cmd: %s" % cmd)
     for addr in upload_addr:
-        addr = "http://%s/%s" % (addr, ['update', 'upload'][isstm])
+        addr = "http://%s/%s" % (addr, ['doUpdate', 'upload'][isstm])
         print_header("  == UPLOADING TO: %s ==" % addr)
         try:
             subprocess.check_call(cmd + [addr])

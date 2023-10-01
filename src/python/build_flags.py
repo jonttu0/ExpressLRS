@@ -1,5 +1,4 @@
 Import("env")
-from audioop import reverse
 import os, re
 #import fhss_random
 import hashlib
@@ -71,8 +70,22 @@ def parse_env_defines():
     build_flags = env['BUILD_FLAGS']
     elrs_flags = env.get('ENV', {}).get('EXPRESSLRS_FLAGS', "")
     if elrs_flags:
+        print_info(f" == ENV FLAGS DEFINED ==")
+        # check if 'Regulatory_Domain_' is set
+        if 'Regulatory_Domain_' in elrs_flags:
+            # ... and remove existing values
+            build_flags_copy = list(build_flags)
+            for flag in build_flags_copy:
+                if 'Regulatory_Domain_' in flag:
+                    print_warning(f"  Regulatory_Domain '{flag}' removed")
+                    build_flags.remove(flag)
+        # add flags
         elrs_flags = elrs_flags.split()
         for flag in elrs_flags:
+            if flag in build_flags:
+                print_warning(f"  flag '{flag}' removed")
+                build_flags.remove(flag)
+            print_info(f"  flag '{flag}' added")
             build_flags.append(flag)
 
 def parse_flags(path):
@@ -163,6 +176,8 @@ if sha is None:
         sha = ",".join(["0x%s" % x for x in sha_string[:6]])
     else:
         sha = "0,0,0,0,0,0"
+env.Append(LATEST_COMMIT = sha_string)
+env.Append(TARGET_NAME = target_name)
 print_log("[INFO] Current version: '%s'" % sha_string)
 # print_log("Current SHA: %s" % sha)
 env['BUILD_FLAGS'].append("-DLATEST_COMMIT="+sha)
@@ -187,8 +202,8 @@ print_info("------------------------")
 
 # Set upload_protovol = 'custom' for STM32 MCUs
 #  otherwise firmware.bin is not generated
-stm = env.get('PIOPLATFORM', '') in ['ststm32']
-if stm:
+pioplatform = env.get('PIOPLATFORM', '')
+if pioplatform in ['ststm32']:
     env['UPLOAD_PROTOCOL'] = 'custom'
 
     def print_src(node):
@@ -215,3 +230,6 @@ if stm:
         # print(f"Ignored, LL: {name}")
         return None
     env.AddBuildMiddleware(filter_stm_ll_files, "*stm32*_ll_*.c*")
+
+elif pioplatform in ['arterytekat32']:
+    env['UPLOAD_PROTOCOL'] = 'custom'

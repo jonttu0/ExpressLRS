@@ -79,11 +79,11 @@ static struct gpio_out debug_pin;
  *  [ 8...11] = channel3
  *  [12...15] = channel4
 */
-static uint16_t DMA_ATTR RawVals[NUM_ANALOGS * 4];
+static uint16_t DMA_ATTR RawVals[TX_NUM_ANALOGS * 4];
 
 #define DEBUG_VARS 0
 #if DEBUG_VARS
-static volatile uint16_t DMA_ATTR DEBUG_VAL[NUM_ANALOGS];
+static volatile uint16_t DMA_ATTR DEBUG_VAL[TX_NUM_ANALOGS];
 #define DEBUG_VARS_PRINT 2
 #define DEBUG_PRINT_GIMBAL 0
 #endif
@@ -126,7 +126,7 @@ private:
 //filterSpec_s freestyleFilter = {100, 250, 0.01f};
 //filterSpec_s cinematicFilter = {10,   50, 0.01f};
 
-static OneAUDfilter DRAM_FORCE_ATTR filters[NUM_ANALOGS] = {
+static OneAUDfilter DRAM_FORCE_ATTR filters[TX_NUM_ANALOGS] = {
     OneAUDfilter(F_MIN, F_MAX, F_BETA, TIM_INVERVAL_US),
     OneAUDfilter(F_MIN, F_MAX, F_BETA, TIM_INVERVAL_US),
     OneAUDfilter(F_MIN, F_MAX, F_BETA, TIM_INVERVAL_US),
@@ -134,7 +134,7 @@ static OneAUDfilter DRAM_FORCE_ATTR filters[NUM_ANALOGS] = {
 };
 
 #elif FILTER_ENABLE == FILTER_NO
-static GimbalNoFilter DRAM_FORCE_ATTR filters[NUM_ANALOGS] = {
+static GimbalNoFilter DRAM_FORCE_ATTR filters[TX_NUM_ANALOGS] = {
     GimbalNoFilter(),
     GimbalNoFilter(),
     GimbalNoFilter(),
@@ -160,8 +160,8 @@ void FAST_CODE_1 handle_dma_isr(void)
         val += RawVals[iter+1];
         val += RawVals[iter+2];
         val += RawVals[iter+3];
-        val /= NUM_ANALOGS;
-        index = iter / NUM_ANALOGS;
+        val /= TX_NUM_ANALOGS;
+        index = iter / TX_NUM_ANALOGS;
 #if DEBUG_VARS
         DEBUG_VAL[index] = val;
 #endif

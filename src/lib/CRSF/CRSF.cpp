@@ -1,6 +1,10 @@
 #include "CRSF.h"
 #include "debug_elrs.h"
-
+#include "crc.h"
+#include "platform.h"
+#if !BACKPACK_LOGGER_BUILD
+#include "HwSerial.h"
+#endif
 
 GenericLutCRC<uint8_t, CRSF_GEN_POLY, 8> DMA_ATTR crc_crsf;
 
@@ -24,7 +28,9 @@ void CRSF::Begin()
     SerialInPacketPtr = 0;
     CRSFframeActive = false;
 
+#if !BACKPACK_LOGGER_BUILD
     _dev->flush_read();
+#endif
 }
 
 uint8_t CRSF::CalcCRC(uint8_t const * data, uint8_t size) const
@@ -32,7 +38,7 @@ uint8_t CRSF::CalcCRC(uint8_t const * data, uint8_t size) const
     return crc_crsf.calc(data, size);
 }
 
-uint8_t *CRSF::ParseInByte(uint8_t inChar)
+uint8_t *CRSF::ParseInByte(uint8_t const inChar)
 {
     uint8_t *packet_ptr = NULL;
 
@@ -53,9 +59,8 @@ uint8_t *CRSF::ParseInByte(uint8_t inChar)
 
     if (CRSFframeActive == false)
     {
-        if ((inChar == CRSF_ADDRESS_CRSF_RECEIVER) ||
-            (inChar == CRSF_ADDRESS_CRSF_TRANSMITTER) ||
-            (inChar == CRSF_SYNC_BYTE))
+        if ((inChar == CRSF_ADDRESS_CRSF_RECEIVER) || (inChar == CRSF_ADDRESS_CRSF_TRANSMITTER) ||
+            (inChar == CRSF_SYNC_BYTE) || (inChar == CRSF_ADDRESS_BROADCAST))
         {
             CRSFframeActive = true;
             SerialInPacketLen = 0;

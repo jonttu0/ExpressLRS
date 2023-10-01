@@ -12,7 +12,7 @@ void RadioInterface::SetPins(int rst, int dio1, int dio2, int dio3,
     _DIO1 = gpio_in_setup(dio1, 0);
     _DIO2 = gpio_in_setup(dio2, 0),
     _DIO3 = gpio_in_setup(dio3, 0),
-    _BUSY = gpio_in_setup(busy, 0);
+    _BUSY = gpio_in_setup(busy, -1); // pull down for error handling
     _TXen = gpio_out_setup(txpin, 0);
     _RXen = gpio_out_setup(rxpin, 0);
     _PAen = gpio_out_setup(papin, 0);

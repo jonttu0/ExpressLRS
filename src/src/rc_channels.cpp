@@ -623,104 +623,105 @@ RcChannels_get_arm_channel_state(void)
 /*************************************************************************************
  * TELEMETRY OTA PACKET
  *************************************************************************************/
-#define MSP_OTA_FIRST  (0x1 << 3)
-#define MSP_OTA_HEADER (0x1 << 4)
-#define MSP_OTA_LAST   (0x1 << 5)
+#define MSP_OTA_PKT_TYPE_BITS   (2)          // bits 7..6
+#define MSP_OTA_LAST            (0x1 << 5)   // bit 5
+#define MSP_OTA_FIRST           (0x1 << 4)   // bit 4
+#define MSP_OTA_SEQ(x)          ((x) & 0xF) // bits 3..0
 
 typedef struct {
     union {
-        struct
-        {
-            uint16_t func;
-            uint16_t payloadSize;
-            uint8_t flags;
-        } PACKED hdr;
-        struct
-        {
+        struct {
+            uint8_t func;
+            uint8_t payloadSize;
+            uint8_t data[3];
+        } hdr;
+        struct {
             uint8_t data[5];
-        } PACKED payload;
+        } payload;
     };
     uint8_t flags;
-} PACKED TlmDataPacket_s;
+} TlmDataPacket_s;
 
 static_assert(sizeof(TlmDataPacket_s) <= OTA_PAYLOAD_MIN,
               "OTA pkt size is not correct");
 
-uint8_t FAST_CODE_1
+bool FAST_CODE_1
 RcChannels_tlm_ota_send(uint8_t *const output,
-                        mspPacket_t &packet,
-                        uint8_t tx)
+                        mspPacket_t &packet)
 {
-    TlmDataPacket_s *tlm_ptr = (TlmDataPacket_s *)output;
-    uint8_t iter = 0;
-    tlm_ptr->flags = (packet.sequence_nbr++) & 0x7;
+    TlmDataPacket_s * const tlm_ptr = (TlmDataPacket_s *)output;
+    uint8_t flags = MSP_OTA_SEQ(packet.sequence_nbr);
+    uint8_t iter;
 
-    if (packet.sequence_nbr == 1) {
+    if (flags == 0) {
         /* First send header */
-        tlm_ptr->flags |= MSP_OTA_FIRST;
-        tlm_ptr->flags |= MSP_OTA_HEADER;
-        tlm_ptr->hdr.flags = packet.flags;
+        flags |= MSP_OTA_FIRST;
         tlm_ptr->hdr.func = packet.function;
         tlm_ptr->hdr.payloadSize = packet.payloadSize;
-        iter = 0xff;
+        for (iter = 0; iter < sizeof(tlm_ptr->hdr.data); iter++)
+            tlm_ptr->hdr.data[iter] = packet.readByte();
+    } else {
+        for (iter = 0; iter < sizeof(tlm_ptr->payload.data); iter++)
+            tlm_ptr->payload.data[iter] = packet.readByte();
     }
 
-    for (; iter < sizeof(tlm_ptr->payload.data); iter++)
-        tlm_ptr->payload.data[iter] = packet.readByte();
+    if (packet.iterated())
+        flags |= MSP_OTA_LAST; // this is last junk
 
-    uint8_t const done = packet.iterated();
-    if (done)
-        /* this is last junk */
-        tlm_ptr->flags |= MSP_OTA_LAST;
+    tlm_ptr->flags = (flags << MSP_OTA_PKT_TYPE_BITS);
 
-    // add pkt_type
-    tlm_ptr->flags <<= 2;
-    tlm_ptr->flags += tx ? (uint8_t)UL_PACKET_MSP : (uint8_t)DL_PACKET_TLM_MSP;
-    return done;
+    //DEBUG_PRINTF("%x,%x,%x,%x,%x,%x\n", output[0],output[1],output[2],output[3],output[4],output[5]);
+
+    packet.sequence_nbr++;
+    return !!(flags & MSP_OTA_LAST);
 }
 
-uint8_t FAST_CODE_1
+bool FAST_CODE_1
 RcChannels_tlm_ota_receive(uint8_t const *const input,
                            mspPacket_t &packet)
 {
-    TlmDataPacket_s *tlm_ptr = (TlmDataPacket_s *)input;
+    TlmDataPacket_s const * const tlm_ptr = (TlmDataPacket_s *)input;
+    uint8_t const flags = (tlm_ptr->flags >> MSP_OTA_PKT_TYPE_BITS); // remove pkt_type
+    uint8_t const sequence_nbr = MSP_OTA_SEQ(flags);
     uint8_t iter;
-    tlm_ptr->flags >>= 2; // remove pkt_type
 
-    if (tlm_ptr->flags & MSP_OTA_FIRST) {
+    //DEBUG_PRINTF("%x,%x,%x,%x,%x,%x\n", input[0],input[1],input[2],input[3],input[4],input[5]);
+
+    if ((flags & MSP_OTA_FIRST) && sequence_nbr == 0) {
         /* first junk, reset packet and start reception */
         packet.reset();
         packet.type = MSP_PACKET_TLM_OTA;
-        packet.sequence_nbr = tlm_ptr->flags & 0x7;
-        if (tlm_ptr->flags & MSP_OTA_HEADER) {
-            packet.flags = tlm_ptr->hdr.flags;
-            packet.function = tlm_ptr->hdr.func;
-            packet.payloadSize = tlm_ptr->hdr.payloadSize;
-            //DEBUG_PRINTF("flags: %u, func %u, size %u\n", packet.flags, packet.function, packet.payloadSize);
-            goto exit_tlm_rcv;
+        packet.function = tlm_ptr->hdr.func;
+        packet.payloadSize = tlm_ptr->hdr.payloadSize;
+        for (iter = 0; iter < sizeof(tlm_ptr->hdr.data) && !packet.iterated(); iter++) {
+            packet.addByte(tlm_ptr->hdr.data[iter]);
         }
+        //DEBUG_PRINTF("flags: %u, func %u, size %u\n", packet.flags, packet.function, packet.payloadSize);
+    } else {
+        //DEBUG_PRINTF("DONE seq %u == %u data: ", sequence_nbr, packet.sequence_nbr);
+        if (sequence_nbr == packet.sequence_nbr) {
+            for (iter = 0; iter < sizeof(tlm_ptr->payload.data) && !packet.iterated(); iter++) {
+                packet.addByte(tlm_ptr->payload.data[iter]);
+                //DEBUG_PRINTF("0x%X,", tlm_ptr->payload.data[iter]);
+            }
+        } else {
+            /* Mismatch - drop a package to avoid possible issues */
+            packet.error = true;
+            return true;
+        }
+        //DEBUG_PRINTF("\n");
+        //DEBUG_PRINTF("DONE size %u, iter %u\n", packet.payloadSize, packet.payloadIterator);
     }
 
-    //DEBUG_PRINTF("DONE seq %u == %u data: ", (tlm_ptr->flags & 0x7), (packet.sequence_nbr & 0x7));
-    if ((tlm_ptr->flags & 0x7) == (packet.sequence_nbr & 0x7)) {
-        for (iter = 0; iter < sizeof(tlm_ptr->payload.data) && !packet.iterated(); iter++) {
-            packet.addByte(tlm_ptr->payload.data[iter]);
-            //DEBUG_PRINTF("0x%X,", tlm_ptr->payload.data[iter]);
-        }
-    }
-    //DEBUG_PRINTF("  \n");
-    //DEBUG_PRINTF("DONE size %u, iter %u\n", packet.payloadSize, packet.payloadIterator);
-
-    /* is this the last junk */
-    if (tlm_ptr->flags & MSP_OTA_LAST) {
+    if ((flags & MSP_OTA_LAST) || packet.iterated()) {
+        /* Last junk, clear counter for TX to FC */
+        packet.error = false;
         packet.payloadIterator = 0;
         packet.sequence_nbr = 0;
-        return 1;
+        return true;
     }
-
-exit_tlm_rcv:
     packet.sequence_nbr++;
-    return 0;
+    return false;
 }
 
 
@@ -863,6 +864,7 @@ RcChannels_dev_info_extract(uint8_t const *const input, DeviceInfo_t & output)
 {
     if (input[0] == 0xCA && input[1] == 0xFE) {
         output.state = input[2];
+        output.count = input[3];
         return 1;
     }
     return 0;
@@ -876,6 +878,7 @@ RcChannels_dev_info_pack(uint8_t *const output, DeviceInfo_t & input)
     output[0] = 0xCA;
     output[1] = 0xFE;
     output[2] = input.state;
+    output[3] = input.count++;
     input.transmit = false;
     return 1;
 }

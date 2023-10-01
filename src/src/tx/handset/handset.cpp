@@ -6,9 +6,7 @@
 #include "debug_elrs.h"
 #include "tx_common.h"
 #include "HwTimer.h"
-#include "gimbals.h"
-#include "switches.h"
-#include "rc_channels.h"
+#include "handset.h"
 #include "OTAvanilla.h"
 #include <stdlib.h>
 
@@ -18,11 +16,6 @@
 #ifdef DBG_PIN
 static struct gpio_out debug;
 #endif
-
-typedef union {
-    rc_channels_handset_t ota_pkt;
-    uint16_t ch[NUM_ANALOGS + NUM_SWITCHES];
-} rc_channels_internal_u;
 
 static rc_channels_internal_u DRAM_ATTR rc_data;
 
@@ -51,13 +44,13 @@ rc_data_collect(uint32_t const current_us)
             OTA_vanilla_get_channelMinValue():
 #endif
             ANALOG_MIN_VAL;
-    uint16_t gimbals[NUM_ANALOGS];
+    uint16_t gimbals[TX_NUM_ANALOGS];
     uint16_t aux[NUM_SWITCHES] = {0};
     uint16_t scale;
     uint8_t iter, index;
     gimbals_timer_adjust(current_us);
     gimbals_get(gimbals, channelMin, channelMax);
-    for (iter = 0; iter < NUM_ANALOGS; iter++) {
+    for (iter = 0; iter < TX_NUM_ANALOGS; iter++) {
         index = pl_config.mixer[iter].index;
         if (pl_config.mixer[iter].inv) {
             gimbals[index] = channelMin +
@@ -73,7 +66,7 @@ rc_data_collect(uint32_t const current_us)
         }
     }
     // mix analog channels into output buffer
-    for (iter = 0; iter < NUM_ANALOGS; iter++) {
+    for (iter = 0; iter < TX_NUM_ANALOGS; iter++) {
         rc_data.ch[iter] = gimbals[pl_config.mixer[iter].index];
     }
     // get AUX channel positions
@@ -85,13 +78,13 @@ rc_data_collect(uint32_t const current_us)
         }
     }
     // mix AUX channels into output buffer
-    for (iter = 4; iter < (NUM_ANALOGS + NUM_SWITCHES); iter++) {
+    for (iter = 4; iter < (TX_NUM_ANALOGS + NUM_SWITCHES); iter++) {
         rc_data.ch[iter] = aux[pl_config.mixer[iter].index];
     }
     // process channel data into OTA packet
 #if OTA_VANILLA_ENABLED
     if (pl_config.rf_mode == RADIO_TYPE_128x_VANILLA) {
-        for (iter = 4; iter < (NUM_ANALOGS + NUM_SWITCHES); iter++) {
+        for (iter = 4; iter < (TX_NUM_ANALOGS + NUM_SWITCHES); iter++) {
             rc_data.ch[iter] = MAP_U16(rc_data.ch[iter],
                     SWITCH_MIN, SWITCH_MAX,
                     channelMin, channelMax);
@@ -246,10 +239,10 @@ void loop()
         // TODO: limit tlm output speed for higher ratios?
 
         if (_tlm_updated & TLM_UPDATES_DEV_INFO) {
+            uint8_t buff[] = {DevInfo.state, DevInfo.count};
             MSP::sendPacket(
                 &ctrl_serial, MSP_PACKET_V1_ELRS, ELRS_INT_MSP_DEV_INFO,
-                MSP_ELRS_INT, sizeof(DevInfo.state),
-                (uint8_t*)&DevInfo.state);
+                MSP_ELRS_INT, sizeof(buff), buff);
         } else if (_tlm_updated & TLM_UPDATES_GPS) {
             GpsSensorSend();
         } else if (_tlm_updated & (TLM_UPDATES_LNK_STATS | TLM_UPDATES_BATTERY)) {
@@ -261,21 +254,34 @@ void loop()
             }
         }
     }
+    bool need_delay = false;
 
 #if RC_CH_PRINT_INTERVAL
     static uint32_t last_rc_info;
     if (RC_CH_PRINT_INTERVAL <= (now - last_rc_info) && !_tlm_updated) {
         last_rc_info = now;
+        need_delay = true;
+
+        // Push RC data to logger
+        MSP::sendPacket(
+            &ctrl_serial, MSP_PACKET_V1_ELRS, ELRS_HANDSET_RC_DATA,
+            MSP_ELRS_INT, sizeof(rc_data), (uint8_t*)&rc_data);
+        /*
         DEBUG_PRINTF("RC: %u|%u|%u|%u -- %u|%u|%u|%u|%u|%u\n",
             rc_data.ch[0], rc_data.ch[1], rc_data.ch[2], rc_data.ch[3],
             rc_data.ch[4], rc_data.ch[5], rc_data.ch[6], rc_data.ch[7],
             rc_data.ch[8], rc_data.ch[9]);
+        */
     }
 #endif // RC_CH_PRINT_INTERVAL
 
     // Send MSP resp if allowed and packet ready
-    if (tlm_msp_rcvd) {
-        MSP::sendPacket(&msp_packet_rx, &ctrl_serial);
+    if (tx_common_tlm_rx_handle(now)) {
+        if (need_delay)
+            delay(2);
+        if (!MSP::sendPacket(&msp_packet_rx, &ctrl_serial)) {
+            DEBUG_PRINTF("unable to send MSP packet to Logger!");
+        }
         msp_packet_rx.reset();
         tlm_msp_rcvd = 0;
     }

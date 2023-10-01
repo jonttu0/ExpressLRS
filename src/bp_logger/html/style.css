@@ -23,6 +23,7 @@ body {
     right:0px;
     overflow:hidden;
 }
+
 .footer-status {
     display: inline-block;
     vertical-align: middle;
@@ -40,9 +41,17 @@ body {
 }
 
 .content {
-  max-width: 700px;
-  margin: auto;
+    max-width: 700px;
+    margin: auto;
 }
+
+.center {
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.green{background-color: #2a6620; color:#e0e6df}
+.red{background-color: #521a1a; color:#e0e6df}
 
 #logField {
     font-size: 12px;
@@ -98,8 +107,8 @@ fieldset {
 }
 
 legend {
+    text-align: left;
     color: #6692a8;
-    /*text-align: center;*/
     font-weight: bold;
     font-size: 18px;
     padding: 2px 4px;
@@ -116,6 +125,12 @@ button:hover {
 
 #validationMessage {color: red;}
 .hide {display: none;}
+
+table {
+    width: 500px; max-width: 100%;
+    table-layout: auto;
+    text-align: left;
+}
 
 table.a {
     table-layout: auto;
@@ -156,12 +171,10 @@ td {
 .ssid {
     width: 250px;
 }
-/*.wifinetworks tr {
-}​*/
 
 /************ TABS ***********/
  /* Style the tab */
- div.tab {
+div.tab {
     overflow: hidden;
     border: 1px solid #000;
     background-color: #181717;

@@ -1,10 +1,7 @@
 #pragma once
 
+#include "common_defs.h"
 #include <stdint.h>
-
-
-#define NUM_ANALOGS   4
-
 
 void gimbals_init(void);
 void gimbals_timer_adjust(uint32_t us);

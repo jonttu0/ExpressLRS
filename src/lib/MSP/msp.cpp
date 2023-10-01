@@ -83,6 +83,9 @@ bool MSP::processReceivedByte(uint8_t c)
                 case '>':
                     m_packet.type = MSP_PACKET_V1_RESP;
                     break;
+                case '!':
+                    m_packet.type = MSP_PACKET_ERROR;
+                    break;
                 default:
                     m_packet.type = MSP_PACKET_UNKNOWN;
                     m_inputState = MSP_IDLE;
@@ -174,7 +177,7 @@ bool MSP::processReceivedByte(uint8_t c)
                 m_packet.flags = header->flags;
                 // reset the offset iterator for re-use in payload below
                 m_offset = 0;
-                m_inputState = MSP_PAYLOAD_V2_NATIVE;
+                m_inputState = m_packet.payloadSize ? MSP_PAYLOAD_V2_NATIVE : MSP_CHECKSUM_V2_NATIVE;
             }
             break;
 
@@ -202,7 +205,6 @@ bool MSP::processReceivedByte(uint8_t c)
             }
             else
             {
-                DEBUG_PRINTF("MSP FAIL! CRC: %u != %u\n", c, m_crc);
                 m_inputState = MSP_IDLE;
             }
             break;
@@ -218,45 +220,28 @@ bool MSP::processReceivedByte(uint8_t c)
     return (m_inputState == MSP_COMMAND_RECEIVED);
 }
 
-void MSP::markPacketFree()
-{
-    // Set input state to idle, ready to receive the next packet
-    // The current packet data will be discarded internally
-    m_inputState = MSP_IDLE;
-}
 
-#if TARGET_HANDSET
-static uint8_t msp_send_buffer_ping_pong[2][MSP_PORT_INBUF_SIZE+sizeof(mspHeaderV2_t)+1];
-static uint8_t msp_ping_pong;
-#else
-static uint8_t msp_send_buffer[MSP_PORT_INBUF_SIZE+sizeof(mspHeaderV2_t)+1];
-#endif
-
-bool MSP::sendPacket(CtrlSerial *port, mspPacketType_e type,
-                     uint16_t function, uint8_t flags,
-                     uint8_t payloadSize, uint8_t const * payload)
+size_t MSP::bufferPacket(uint8_t *output_ptr, mspPacketType_e type,
+                         uint16_t function, uint8_t flags,
+                         uint8_t payloadSize, uint8_t const * payload)
 {
-#if TARGET_HANDSET
-    uint8_t * msp_send_buffer = &msp_send_buffer_ping_pong[msp_ping_pong][0];
-    msp_ping_pong ^= 1;
-#endif
-    uint8_t * buff = msp_send_buffer;
+    uint8_t * buff = output_ptr;
     uint16_t i;
     uint8_t crc = 0, data;
 
     // Sanity check the packet before sending
-    if (!payload || !port || type == MSP_PACKET_UNKNOWN)
+    if (!payload || !buff || type == MSP_PACKET_UNKNOWN)
     {
         // Unsupported packet type (note: ignoring '!' until we know what it is)
-        return false;
+        return 0;
     }
-
+#if 0
     if ((type == MSP_PACKET_V1_RESP || type == MSP_PACKET_V2_RESPONSE) && payloadSize == 0)
     {
         // Response packet with no payload
-        return false;
+        return 0;
     }
-
+#endif
     // Write out the framing chars
     *buff++ = ('$');
     if (type == MSP_PACKET_V2_RESPONSE || type == MSP_PACKET_V2_COMMAND)
@@ -333,8 +318,37 @@ bool MSP::sendPacket(CtrlSerial *port, mspPacketType_e type,
 
     // Write out the crc
     *buff++ = crc;
-    port->write(msp_send_buffer, (buff - msp_send_buffer));
-    return true;
+    return ((uintptr_t)buff - (uintptr_t)output_ptr);
+}
+
+size_t MSP::bufferPacket(uint8_t *output_ptr, mspPacket_t *packet)
+{
+    return MSP::bufferPacket(
+        output_ptr, packet->type, packet->function, packet->flags,
+        packet->payloadSize, (uint8_t*)packet->payload);
+}
+
+bool MSP::sendPacket(CtrlSerial *port, mspPacketType_e type,
+                     uint16_t function, uint8_t flags,
+                     uint8_t payloadSize, uint8_t const * payload)
+{
+#if TARGET_HANDSET
+    static uint8_t msp_send_buffer_ping_pong[2][MSP_PORT_INBUF_SIZE+sizeof(mspHeaderV2_t)+1];
+    static uint8_t msp_ping_pong;
+
+    uint8_t * msp_send_buffer = &msp_send_buffer_ping_pong[msp_ping_pong][0];
+    msp_ping_pong ^= 1;
+#else
+    static uint8_t msp_send_buffer[MSP_PORT_INBUF_SIZE+sizeof(mspHeaderV2_t)+1];
+#endif
+
+    size_t const len = MSP::bufferPacket(msp_send_buffer, type, function,
+                                         flags, payloadSize, payload);
+    if (len) {
+        port->write(msp_send_buffer, len);
+        return true;
+    }
+    return false;
 }
 
 bool MSP::sendPacket(mspPacket_t *packet, CtrlSerial *port)

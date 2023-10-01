@@ -11,16 +11,15 @@
 #endif
 
 
-typedef enum
-{
+enum {
     STATE_search_iteration_done = -2, // e.g. RX could start SW upgrade
     STATE_fw_upgrade = -1,
     STATE_disconnected = 0,
-    STATE_lost,
-    STATE_tentative,
-    STATE_connected,
-} connectionState_e;
-extern connectionState_e connectionState;
+    STATE_lost = 1,
+    STATE_tentative = 2,
+    STATE_connected = 3,
+};
+extern int8_t connectionState;
 
 
 // *******************************************************************'
@@ -33,10 +32,10 @@ enum {
     RADIO_RF_MODE_2400_ISM_FLRC,
     RADIO_RF_MODE_2400_ISM_VANILLA,
     RADIO_RF_MODE_MAX, // 0x1f = 32 values!
-    ExLRS_RF_MODE_FLRC      = 0x80,
+    ExLRS_RF_MODE_FLRC      = 0x20,
     ExLRS_RF_MODE_HANDSET   = 0x40,
     ExLRS_RF_MODE_DUAL      = 0x80,
-    ExLRS_RF_MODE_MASK      = 0x3F,
+    ExLRS_RF_MODE_MASK      = 0x1F,
     RADIO_RF_MODE_INVALID   = 0xFF,
 };
 
@@ -90,12 +89,15 @@ enum
     OSD_MODE_25Hz,
     OSD_MODE_50Hz,
     OSD_MODE_100Hz,
-    OSD_MODE_125Hz,
+    NOT_USED_VANILLA_LORA_100HZ_8CH,
+    OSD_MODE_125Hz,  // Vanilla 150Hz
     OSD_MODE_200Hz,
     OSD_MODE_250Hz,
+    NOT_USED_VANILLA_LORA_333HZ_8CH,
     OSD_MODE_500Hz,
     OSD_MODE_250Hz_FLRC,
     OSD_MODE_500Hz_FLRC,
+    NOT_USED_VANILLA_FLRC_500HZ,
     OSD_MODE_1kHz_FLRC,
 };
 

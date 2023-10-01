@@ -6,10 +6,10 @@ Language: Cpp
 IndentWidth: 4
 TabWidth: 4
 UseTab: false
-BreakBeforeBraces: Allman
-#BreakBeforeBraces: Linux
+#BreakBeforeBraces: Allman
+BreakBeforeBraces: Linux
 AllowShortIfStatementsOnASingleLine: false
-ColumnLimit: 0 #120
+ColumnLimit: 120
 AccessModifierOffset: -4
 IncludeBlocks: Preserve
 SortIncludes: false
@@ -19,4 +19,16 @@ IndentCaseLabels: true
 BinPackArguments: false
 BinPackParameters: false
 Cpp11BracedListStyle: true
+PointerAlignment: Middle
+AlignAfterOpenBracket: Align
+AlignArrayOfStructures: Left
+AlignConsecutiveMacros:
+  Enabled: true
+  AcrossEmptyLines: false
+  AcrossComments: false
+AllowAllArgumentsOnNextLine: true
+AllowAllParametersOfDeclarationOnNextLine: true
+BinPackArguments: true
+# AlwaysBreakAfterReturnType: TopLevelDefinitions
+AllowShortFunctionsOnASingleLine: None
 ...

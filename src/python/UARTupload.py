@@ -43,12 +43,14 @@ def on_upload(source, target, env):
                 envkey = flag.split("=")[1]
 
     try:
-        if platform in ['ststm32']:
+        if platform in ['ststm32', "arterytekat32"]:
             uploader_xmodem.uart_upload(upload_port, firmware_path, upload_speed,
                                         ghst, key=envkey, target=target_name)
         elif platform in ['espressif8266', 'espressif32']:
             uploader_esp.uart_upload(upload_port, firmware_path, upload_speed,
                                      key=envkey, target=target_name)
+        else:
+            raise Exception(f"Unable to upload! Uknown platform '{platform}'...")
     except Exception as e:
         print_error("{0}\n".format(e))
         return -1

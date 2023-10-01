@@ -74,9 +74,9 @@ static void init(void)
 #endif
 
     /* Configure the system clock */
-    SystemClock_Config();
+    system_clock_config();
 
-    timer_init();
+    ms_timer_init();
 
 #if defined (STM32MP1xx)
     __HAL_RCC_HSEM_CLK_ENABLE();

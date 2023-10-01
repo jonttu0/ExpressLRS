@@ -45,41 +45,40 @@ static void msp_data_cb(uint8_t const *const input)
      *      [0] header
      *      [1...7] payload / crc
      */
-    mspHeaderV1_RX_t *hdr = (mspHeaderV1_RX_t *)input;
+    mspHeaderV1_RX_t const * const p_msp = (mspHeaderV1_RX_t *)input;
+    uint8_t const * p_src = p_msp->payload;
     uint16_t iter;
 
 #if 0
-    DEBUG_PRINTF("MSP: hdr:%u size:%u func:%u data: ",
-        hdr->flags, hdr->hdr.payloadSize, hdr->hdr.function);
-    for (iter = 0; (iter < hdr->hdr.payloadSize); iter++) {
-        DEBUG_PRINTF("0x%X, ", hdr->payload[iter]);
+    DEBUG_PRINTF("MSP: p_msp:%u size:%u func:%u data: ",
+        p_msp->flags, p_msp->hdr.payloadSize, p_msp->hdr.function);
+    for (iter = 0; (iter < p_msp->hdr.payloadSize); iter++) {
+        DEBUG_PRINTF("0x%X, ", p_msp->payload[iter]);
     }
     DEBUG_PRINTF("\n");
 #endif
 
-    if (read_u8(&tlm_msp_send)) {
+    if (TLM_MSP_STATE_FREE != read_u8(&tlm_msp_send)) {
         DEBUG_PRINTF("MSP TX packet ignored\n");
         return;
     }
 
-    if (hdr->flags & MSP_STARTFLAG) {
+    if (p_msp->flags & MSP_STARTFLAG) {
         msp_packet_tx.reset();
+        msp_packet_tx.flags = p_msp->flags;
         msp_packet_tx.type = MSP_PACKET_TLM_OTA;
-        msp_packet_tx.payloadSize = hdr->hdr.payloadSize + 2; // incl size+func
-        msp_packet_tx.function = hdr->hdr.function;
+        msp_packet_tx.payloadSize = p_msp->hdr.payloadSize;
+        msp_packet_tx.function = p_msp->hdr.function;
+        p_src = p_msp->hdr.payload;
     }
-    for (iter = 0; (iter < sizeof(hdr->payload)) && !msp_packet_tx.iterated(); iter++) {
-        msp_packet_tx.addByte(hdr->payload[iter]);
+    for (iter = 0; (iter < sizeof(p_msp->payload)) && !msp_packet_tx.iterated(); iter++) {
+        msp_packet_tx.addByte(p_src[iter]);
     }
-    if (iter < sizeof(hdr->payload)) {
-        // check CRC
-        if ((hdr->payload[iter] == msp_packet_tx.crc) && !msp_packet_tx.error) {
-            msp_packet_tx.addByte(msp_packet_tx.crc);
-            msp_packet_tx.setIteratorToSize();
-            write_u8(&tlm_msp_send, 1); // rdy for sending
-        } else {
-            msp_packet_tx.reset();
-        }
+    if (msp_packet_tx.iterated() && !msp_packet_tx.error) {
+        msp_packet_tx.setIteratorToSize();
+        write_u8(&tlm_msp_send, TLM_MSP_STATE_SEND);
+    } else {
+        msp_packet_tx.reset();
     }
 }
 
@@ -113,13 +112,13 @@ void setup()
 
 void loop()
 {
+    uint32_t const current_ms = millis();
     uint8_t can_send;
 
     tx_common_handle_rx_buffer();
 
     if (0 <= tx_common_has_telemetry())
     {
-        uint32_t current_ms = millis();
         if (0 <= tx_common_check_connection() &&
             connectionState == STATE_connected &&
             TLM_REPORT_INTERVAL <= (uint32_t)(current_ms - TlmSentToRadioTime))
@@ -136,13 +135,13 @@ void loop()
     can_send = crsf.handleUartIn();
 
     // Send MSP resp if allowed and packet ready
-    if (can_send && tlm_msp_rcvd)
+    if (can_send && tx_common_tlm_rx_handle(current_ms))
     {
-        //DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
-        //    msp_packet_rx.function, msp_packet_rx.payloadSize);
         crsf.sendMspPacketToRadio(msp_packet_rx);
-        msp_packet_rx.reset();
-        tlm_msp_rcvd = 0;
+        if (msp_packet_rx.iterated()) {
+            msp_packet_rx.reset();
+            tlm_msp_rcvd = 0;
+        }
     }
 #ifdef CTRL_SERIAL
     else {

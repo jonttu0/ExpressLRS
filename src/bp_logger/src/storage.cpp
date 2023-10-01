@@ -4,7 +4,6 @@
 #include <Arduino.h>
 #include <EEPROM.h>
 
-
 struct storage eeprom_storage;
 
 static uint32_t last_save;
@@ -29,17 +28,18 @@ void storage::load()
 {
     EEPROM.get(0, *this);
 
-    if (versionNumber != LOGGER_STORAGE_VERSION)
+    if (versionNumber != LOGGER_STORAGE_VERSION) {
         initDefaults();
+    }
     if (!wifi_is_valid()) {
         memset(wifi_nets, 0, sizeof(wifi_nets));
         wifi_nets_initialized = LOGGER_WIFINETS_INIT_KEY;
 #if defined(WIFI_SSID) && defined(WIFI_PSK)
         wifi_networks_t * const ptr = &wifi_nets[0];
         const char ssid[] = WIFI_SSID;
-        strcpy(ptr->ssid, ssid);
+        memcpy(ptr->ssid, ssid, sizeof(ssid));
         const char psk[] = WIFI_PSK;
-        strcpy(ptr->psk, psk);
+        memcpy(ptr->psk, psk, sizeof(psk));
 #endif
     }
     isDirty = false;
@@ -59,18 +59,48 @@ void storage::markDirty()
 
 void storage::initDefaults()
 {
+    if (versionNumber < 0x11220001) {
+        batt_voltage_scale = 100;
+        batt_voltage_interval = 5000;
+        batt_voltage_warning = BATT_WARN_DEFAULT;
+
+        vtx_freq = 0;
+
+        espnow_initialized = 0;
+        espnow_clients_count = 0;
+    }
+    if (versionNumber < 0x11220002) {
+        // mighrate to newer version
+        wifi_nets_initialized = 0;
+        memset(wifi_nets, 0, sizeof(wifi_nets));
+    }
+    if (versionNumber < 0x11220003) {
+        memset(&laptimer, 0, sizeof(laptimer));
+    }
+    if (versionNumber < 0x11220004) {
+        memset(&laptimer_config, 0, sizeof(laptimer_config));
+        laptimer_config.index = -1;
+    }
+    if (versionNumber < 0x11220005) {
+        laptimer_start_stop_aux = UINT32_MAX;
+    }
+    if (versionNumber < 0x11220006) {
+        laptimer_osd_pos.row = 5;
+        laptimer_osd_pos.column = 0;
+        laptimer_osd_timeout = 3000;
+    }
+    if (versionNumber < 0x11220007) {
+#if defined(MY_UID)
+        uint8_t default_uid[6] = {MY_UID};
+#else
+        uint8_t default_uid[6];
+        WiFi.softAPmacAddress(&default_uid[0]);
+#endif
+        default_uid[0] &= ~0x1; // UID is used as a MAC address
+        memcpy(uid, default_uid, sizeof(default_uid));
+        recording_start_stop_aux = UINT32_MAX;
+    }
+
     versionNumber = LOGGER_STORAGE_VERSION;
-
-    batt_voltage_scale = 100;
-    batt_voltage_interval = 5000;
-    batt_voltage_warning = BATT_WARN_DEFAULT;
-
-    vtx_freq = 0;
-
-    espnow_initialized = 0;
-    espnow_clients_count = 0;
-
-    wifi_nets_initialized = LOGGER_WIFINETS_INIT_KEY;
-
     this->save();
 }

@@ -1,21 +1,25 @@
 Import("env", "projenv")
+import dfu
 import stlink
 import UARTupload
 import opentx
 import upload_via_wifi
 import esp_compress
 import upload_passthrough_edgetx
+import shutil, os
 
 
 FAIL = '\033[91m'
-#FAIL = '\033[47;31m'
 
 tgt_UART = "uart"
 tgt_WIFI = "wifi"
 tgt_STLINK = "stlink"
+tgt_OPENOCD = "openocd"
 tgt_PASSTHROUGH = "passthrough"
 tgt_DFU = "dfu"
 
+# pioplatform = env.PioPlatform()
+# platform = pioplatform.name
 platform = env.get('PIOPLATFORM', '')
 target_name = env['PIOENV'].upper()
 
@@ -31,12 +35,12 @@ def find_build_flag(search):
 
 # don't overwrite if custom command defined
 #if stm and "$UPLOADER $UPLOADERFLAGS" in env.get('UPLOADCMD', '$UPLOADER $UPLOADERFLAGS'):
-if platform in ['ststm32']:
+if platform in ['ststm32', 'arterytekat32']:
     features = env.GetProjectOption("custom_features", "")
+    # default_protocol = env.GetProjectOption("upload_protocol", "")
 
-    board = env.BoardConfig()
-    hwids_list = board.get("build.hwids", [])
-    upload_protocols = board.get("upload.protocols", "")
+    board_config = env.BoardConfig()
+    upload_protocols = board_config.get("upload.protocols", "")
 
     # Default to ST-Link uploading
     default_upload_cmd = stlink.on_upload
@@ -45,6 +49,11 @@ if platform in ['ststm32']:
         ["$BUILD_DIR/${PROGNAME}.bin"],
         [stlink.on_upload],
         title="Upload via ST-Link", description="")
+    env.AddCustomTarget(tgt_OPENOCD,
+        ["$BUILD_DIR/${PROGNAME}.bin"],
+        [stlink.on_upload_openocd],
+        title="Upload via OpenOCD", description="")
+
     if "_TX" in target_name or "_HANDSET" in target_name:
         upload_flags = env.GetProjectOption("upload_flags", "")
         wifi_targets = []
@@ -78,15 +87,10 @@ if platform in ['ststm32']:
             [UARTupload.on_upload],
             title="Upload via FC Passthrough", description="")
 
-    if "dfu" in upload_protocols:
-        if not hwids_list:
-            raise SystemExit("DFU enabled but no HW IDs available!")
-        hwids = [s.replace("0x", "") for s in hwids_list[0]]
-        command = 'dfu-util -d %s -s %s:leave -D "$BUILD_DIR/${PROGNAME}.bin"' % (
-            ":".join(hwids), board.get("upload.offset_address", "0x08001000"))
+    if "dfu" in upload_protocols or platform =='arterytekat32':
         env.AddCustomTarget(tgt_DFU,
-            dependencies=["$BUILD_DIR/${PROGNAME}.bin"],
-            actions=command,
+            ["$BUILD_DIR/${PROGNAME}.bin"],
+            [dfu.on_upload],
             title="Upload via DFU", description="")
 
     # Override default upload command
@@ -123,12 +127,29 @@ elif platform in ['espressif8266']:
             title="Upload via FC Passthrough", description="")
 
 elif platform in ['espressif32']:
+    env.AddPostAction("buildprog", esp_compress.compressFirmware)
+    env.AddPreAction("${BUILD_DIR}/spiffs.bin",
+                     [esp_compress.compress_files])
+    env.AddPreAction("${BUILD_DIR}/${ESP32_FS_IMAGE_NAME}.bin",
+                     [esp_compress.compress_files])
+    env.AddPostAction("${BUILD_DIR}/${ESP32_FS_IMAGE_NAME}.bin",
+                     [esp_compress.compress_fs_bin])
+
     env.AddCustomTarget(tgt_WIFI,
         ["$BUILD_DIR/${PROGNAME}.bin"],
         [esp_compress.compressFirmware, upload_via_wifi.on_upload],
         title="Upload via WiFi", description="")
     if "_ETX" in target_name:
         env.AddPreAction("upload", upload_passthrough_edgetx.init_passthrough)
+    if "LOGGER_" in target_name:
+        def copy_bootfile(source, target, env):
+            BUILD_DIR = env.subst("$BUILD_DIR")
+            FRAMEWORK_DIR = env.PioPlatform().get_package_dir("framework-arduinoespressif32")
+            shutil.copyfile(FRAMEWORK_DIR + "/tools/partitions/boot_app0.bin", BUILD_DIR + "/boot_app0.bin")
+            image_name = env.subst("$PROGNAME")
+            shutil.copyfile(os.path.join(BUILD_DIR, image_name + ".bin"), os.path.join(BUILD_DIR, "firmware.bin"))
+
+        env.AddPostAction("$BUILD_DIR/${PROGNAME}.bin", copy_bootfile)
 
 else:
     raise SystemExit(FAIL + "\nNot supported platfrom! '%s'\n" % platform)

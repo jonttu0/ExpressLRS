@@ -1,13 +1,9 @@
 #ifndef H_CRSF
 #define H_CRSF
 
-#include "HwSerial.h"
-#include "helpers.h"
-#include "crc.h"
-#include "platform.h"
-#include "utils.h"
 #include "msp.h"
 #include "rc_channels.h"
+
 
 #if PROTOCOL_ELRS_TO_FC
     #if PROTOCOL_ELRS_RX_BAUDRATE
@@ -69,6 +65,7 @@ enum crsf_frame_type_e
     CRSF_FRAMETYPE_PARAMETER_READ = 0x2C,
     CRSF_FRAMETYPE_PARAMETER_WRITE = 0x2D,
     CRSF_FRAMETYPE_COMMAND = 0x32,
+    CRSF_FRAMETYPE_ENCAPSULATED_TLM = 0x40,
     // MSP commands
     CRSF_FRAMETYPE_MSP_REQ = 0x7A,   // response request using msp sequence as command
     CRSF_FRAMETYPE_MSP_RESP = 0x7B,  // reply with 58 byte chunked binary
@@ -76,8 +73,17 @@ enum crsf_frame_type_e
     CRSF_FRAMETYPE_DISPLAYPORT_CMD = 0x7D, // displayport control command
 };
 
+enum crsf_encapsulated_tlm_types {
+    CRSF_TLM_TYPE_GPS = CRSF_FRAMETYPE_GPS,
+    CRSF_TLM_TYPE_BATTERY_SENSOR = CRSF_FRAMETYPE_BATTERY_SENSOR,
+    CRSF_TLM_TYPE_VTX = 0x10,
+    CRSF_TLM_TYPE_LINK_STATISTICS = CRSF_FRAMETYPE_LINK_STATISTICS,
+    CRSF_TLM_TYPE_OSD_TEXT = 0x22,
+};
+
 enum
 {
+    CRSF_COMMAND_SUBCMD_SET_FREQ = 0x08,
     CRSF_COMMAND_SUBCMD_GENERAL = 0x0A,    // general command
 };
 
@@ -90,15 +96,19 @@ enum
 enum crsf_addr_e
 {
     CRSF_ADDRESS_BROADCAST = 0x00,
+    CRSF_ADDRESS_TBS_AGENT = 0x0E,
     CRSF_ADDRESS_USB = 0x10,
-    CRSF_ADDRESS_TBS_CORE_PNP_PRO = 0x80,
-    CRSF_ADDRESS_RESERVED1 = 0x8A,
-    CRSF_ADDRESS_CURRENT_SENSOR = 0xC0,
+    CRSF_ADDRESS_WIFI = 0x12,
+    CRSF_ADDRESS_VRX = 0x14,
+    CRSF_ADDRESS_OSD = 0x80,
+    CRSF_ADDRESS_CURRENT_SENSOR = 0x8A,
+    CRSF_ADDRESS_TBS_CURRENT_SENSOR = 0xC0,
     CRSF_ADDRESS_GPS = 0xC2,
     CRSF_ADDRESS_TBS_BLACKBOX = 0xC4,
     CRSF_ADDRESS_FLIGHT_CONTROLLER = 0xC8,
     CRSF_ADDRESS_RESERVED2 = 0xCA,
     CRSF_ADDRESS_RACE_TAG = 0xCC,
+    CRSF_ADDRESS_VTX_ADD = 0xCE,
     CRSF_ADDRESS_RADIO_TRANSMITTER = 0xEA,
     CRSF_ADDRESS_CRSF_RECEIVER = 0xEC,
     CRSF_ADDRESS_CRSF_TRANSMITTER = 0xEE,
@@ -180,6 +190,29 @@ typedef struct crsf_buffer_u
             uint8_t sub_command;
             uint8_t payload[1];
         } command;
+        struct {
+            // Extended fields
+            uint8_t dest_addr;
+            uint8_t orig_addr;
+            // Param
+            union {
+                struct {
+                    uint8_t field_id;
+                    uint8_t junk_index;
+                } read;
+                struct {
+                    uint8_t field_id;
+                    uint8_t value;
+                } write;
+                struct {
+                    uint8_t field_id;
+                    uint8_t junks_remain;
+                    uint8_t parent;
+                    uint8_t type;
+                    char name[1]; // variable len, null terminated
+                } entry;
+            };
+        } param;
     };
 } crsf_buffer_t;
 
@@ -324,7 +357,7 @@ typedef struct crsf_sensor_gps_s
 
 
 /* MSP from radio to FC */
-#define CRSF_FRAME_RX_MSP_FRAME_SIZE 8
+#define CRSF_FRAME_RX_MSP_FRAME_SIZE 8 //16
 typedef struct
 {
     uint8_t flags;
@@ -342,15 +375,15 @@ typedef struct
 #define CRSF_FRAME_TX_MSP_FRAME_SIZE 58
 typedef struct
 {
+    uint8_t flags;
     union {
         struct {
-            uint8_t flags;
             uint8_t payloadSize;
             uint8_t function;
             /* CRC is included into payload ( = payloadSize+1 ) */
             uint8_t payload[CRSF_FRAME_TX_MSP_FRAME_SIZE-3];
         } hdr;
-        uint8_t payload[CRSF_FRAME_TX_MSP_FRAME_SIZE];
+        uint8_t payload[CRSF_FRAME_TX_MSP_FRAME_SIZE-1];
     };
 } PACKED mspHeaderV1_TX_t;
 
@@ -388,6 +421,15 @@ struct crsf_speed_req {
     uint8_t crc;
 };
 
+typedef struct crsf_set_vtx_command {
+    crsf_ext_header_t header;
+    uint8_t command;
+    uint8_t len;
+    uint16_t freq;
+    uint8_t crc_cmd; // crc of type + payload
+    uint8_t crc;
+} PACKED crsf_set_vtx_command_t;
+
 // Heartbeat, used with V3 to keep the link up without telemetry
 typedef struct crsf_heartbeat_msg_s
 {
@@ -396,8 +438,78 @@ typedef struct crsf_heartbeat_msg_s
     uint8_t crc;
 } PACKED crsf_heartbeat_msg_t;
 
+// Ping FC to get DEVICE_INFO message
+typedef struct crsf_device_info_ping_msg_s
+{
+    crsf_ext_header_t header;
+    uint8_t crc;
+} PACKED crsf_device_info_ping_msg_t;
+
+// Ping FC to get DEVICE_INFO message
+typedef struct crsf_device_info_msg_header_s
+{
+    crsf_ext_header_t header;
+    uint8_t name[1];  // variable size
+} PACKED crsf_device_info_msg_header_t;
+typedef struct crsf_device_info_msg_footer_s
+{
+    uint32_t serialno;
+    uint32_t hardware_ver;
+    uint32_t software_ver;
+    uint8_t field_count;
+    uint8_t parameter_ver;
+    uint8_t crc;
+} PACKED crsf_device_info_msg_footer_t;
+
+typedef struct {
+    crsf_ext_header_t header;
+    uint8_t field_id;
+    uint8_t junk_index;
+    uint8_t crc;
+} PACKED crsf_param_read_t;
+
+typedef struct {
+    crsf_ext_header_t header;
+    uint8_t field_id;
+    uint8_t junks_remain;
+    uint8_t parent;
+    uint8_t type;
+    char name[1]; // variable len, null terminated
+} PACKED crsf_param_entry_hdr_t;
+
+typedef struct {
+    uint8_t childs[1]; // variable len, null terminated
+    uint8_t crc;
+} PACKED crsf_param_entry_footer_folder_t;
+
+typedef struct {
+    char options[1]; // variable len, null terminated
+    uint8_t value;
+    uint8_t min;
+    uint8_t max;
+    uint8_t def;
+    uint8_t endmark;
+    uint8_t crc;
+} PACKED crsf_param_entry_footer_text_selection_t;
+
+typedef struct {
+    uint8_t value;
+    uint8_t timeout;
+    char info_msg[1];
+    uint8_t crc;
+} PACKED crsf_param_entry_footer_command_t;
+
+typedef struct {
+    crsf_ext_header_t header;
+    uint8_t field_id;
+    uint8_t value;
+    uint8_t crc;
+} PACKED crsf_param_write_t;
+
 /////inline and utility functions//////
 
+
+class HwSerial;
 
 class CRSF
 {
@@ -417,9 +529,14 @@ public:
     GpsCallback_t GpsCallback;
     DevInfoCallback_t DevInfoCallback;
 
+#if !BACKPACK_LOGGER_BUILD
 protected:
+#endif
     uint8_t CalcCRC(uint8_t const * data, uint8_t size) const;
     uint8_t *ParseInByte(uint8_t inChar);
+    bool IsFrameActive(void) const {
+        return CRSFframeActive;
+    }
 
     HwSerial * const _dev;
 

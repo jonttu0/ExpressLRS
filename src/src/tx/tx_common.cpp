@@ -40,7 +40,7 @@ static uint32_t DRAM_ATTR SyncPacketInterval_us; // Default is send always
 
 /////////// CONNECTION /////////
 static uint32_t DRAM_ATTR LastPacketRecvMillis;
-connectionState_e DRAM_ATTR connectionState;
+int8_t DRAM_ATTR connectionState;
 
 //////////// TELEMETRY /////////
 static uint32_t DRAM_ATTR TLMinterval;
@@ -55,7 +55,9 @@ static MSP msp_packet_parser;
 
 mspPacket_t msp_packet_tx;
 mspPacket_t msp_packet_rx;
-uint8_t DRAM_ATTR tlm_msp_send, tlm_msp_rcvd;
+uint8_t DRAM_ATTR tlm_msp_send;
+uint32_t DRAM_ATTR tlm_msp_sent_ms;
+uint8_t DRAM_ATTR tlm_msp_rcvd;
 
 LinkStats_t DRAM_ATTR LinkStatistics;
 GpsOta_t DRAM_ATTR GpsTlm;
@@ -296,7 +298,6 @@ void process_rx_buffer(uint8_t payloadSize)
 
     switch (RcChannels_packetTypeGet((uint8_t*)rx_buffer, payloadSize)) {
         case DL_PACKET_TLM_MSP: {
-            //DEBUG_PRINTF("DL MSP junk\n");
             if (RcChannels_tlm_ota_receive((uint8_t*)rx_buffer, msp_packet_rx))
                 tlm_msp_rcvd = 1;
             break;
@@ -401,12 +402,19 @@ ota_packet_generate_internal(uint8_t * const tx_buffer,
         SyncPacketSent_us = current_us;
         crc_or_type = UL_PACKET_SYNC;
     }
-    else if (!arm_state && (tlm_msp_send == 1) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
+    else if (!arm_state && (rxtx_counter % numOfTxPerRc) == 0 &&
+             (TLM_MSP_STATE_SEND == tlm_msp_send) && (msp_packet_tx.type == MSP_PACKET_TLM_OTA))
     {
         /* send tlm packet if needed */
-        if (RcChannels_tlm_ota_send(tx_buffer, msp_packet_tx) || msp_packet_tx.error) {
-            msp_packet_tx.reset();
-            tlm_msp_send = 0;
+        if (RcChannels_tlm_ota_send(tx_buffer, msp_packet_tx)) {
+            msp_packet_tx.sequence_nbr = 0;
+            msp_packet_tx.payloadIterator = 0;
+#if TX_TLM_WHEN_DISARMED
+            tlm_msp_send = TLM_MSP_STATE_WAIT_RESP;
+#else
+            tlm_msp_send = TLM_MSP_STATE_FREE;
+#endif
+            tlm_msp_sent_ms = millis();
         }
         crc_or_type = UL_PACKET_MSP;
     }
@@ -733,10 +741,8 @@ void hw_timer_stop(void)
 #ifdef CTRL_SERIAL
 static void MspOtaCommandsSend(mspPacket_t &packet)
 {
-    uint16_t iter;
-
     // TODO,FIXME: add a retry!!
-    if (read_u8(&tlm_msp_send)) {
+    if (TLM_MSP_STATE_FREE != read_u8(&tlm_msp_send)) {
         DEBUG_PRINTF("UL MSP ignored. func: %x, size: %u\n",
                      packet.function, packet.payloadSize);
         return;
@@ -746,18 +752,10 @@ static void MspOtaCommandsSend(mspPacket_t &packet)
     msp_packet_tx.type = MSP_PACKET_TLM_OTA;
     msp_packet_tx.flags = packet.flags;
     msp_packet_tx.function = packet.function;
-    // Convert to CRSF encapsulated MSP message
-    msp_packet_tx.addByte(packet.payloadSize);
-    msp_packet_tx.addByte(packet.function);
-    for (iter = 0; iter < packet.payloadSize; iter++) {
-        msp_packet_tx.addByte(packet.payload[iter]);
-    }
-    /* Add CRC */
-    msp_packet_tx.addByte(msp_packet_tx.crc);
-    msp_packet_tx.setIteratorToSize();
-
-    if (!msp_packet_tx.error)
-        write_u8(&tlm_msp_send, 1); // rdy for sending
+    msp_packet_tx.payloadSize = packet.payloadSize;
+    memcpy(msp_packet_tx.payload, packet.payload, packet.payloadSize);
+    write_u8(&tlm_msp_send, TLM_MSP_STATE_SEND); // rdy for sending
+    tlm_msp_sent_ms = 0;
 }
 #endif
 
@@ -844,4 +842,42 @@ void tx_common_update_link_stats(void)
         LinkStatistics.link.downlink_Link_quality = 0;
 
     LinkStatistics.link.uplink_TX_Power = PowerMgmt.power_to_radio_enum();
+}
+
+bool tx_common_tlm_rx_handle(uint32_t const now)
+{
+   // Send MSP resp if allowed and packet ready
+    static uint8_t retrx_count = 0;
+    uint8_t const tlm_msp_tx_state = read_u8(&tlm_msp_send);
+    bool const wait_resp = TLM_MSP_STATE_WAIT_RESP == tlm_msp_tx_state;
+    if (tlm_msp_rcvd) {
+        // Check that resp match
+        if (wait_resp && msp_packet_rx.sequence_nbr == 0 &&
+                msp_packet_rx.type == msp_packet_tx.type &&
+                msp_packet_rx.function == msp_packet_tx.function) {
+            msp_packet_rx.type = MSP_PACKET_V1_RESP; // Only v1 over OTA
+            // Resp ok, free TX buffer to send next one
+            write_u8(&tlm_msp_send, TLM_MSP_STATE_FREE);
+            retrx_count = 0;
+            //DEBUG_PRINTF("Expected MSP response\n");
+        } else {
+            //DEBUG_PRINTF("DL MSP rcvd. func: %x, size: %u\n",
+            //             msp_packet_rx.function, msp_packet_rx.payloadSize);
+        }
+        return true; // Allow forwarding to logger
+    } else if (wait_resp) {
+        int32_t const timeout = (MSP_EEPROM_WRITE == msp_packet_tx.function) ? 200 : 1000;
+        if (timeout <= (int32_t)(now - tlm_msp_sent_ms)) {
+            if (2 < retrx_count++) {
+                // Give up...
+                write_u8(&tlm_msp_send, TLM_MSP_STATE_FREE);
+                retrx_count = 0;
+                DEBUG_PRINTF("MSP ignored after 3 retries\n");
+            } else {
+                // retransmit if no resp received
+                write_u8(&tlm_msp_send, TLM_MSP_STATE_SEND);
+            }
+        }
+    }
+    return false;
 }

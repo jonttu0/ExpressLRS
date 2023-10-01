@@ -1,6 +1,5 @@
 #pragma once
 
-#include "common_defs.h"
 #include <stdint.h>
 
 #define NUM_SWITCHES   6

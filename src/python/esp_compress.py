@@ -54,28 +54,31 @@ def compressFirmware(source, target, env):
 
 
 def compress_files(source, target, env):
-    #add filetypes (extensions only) to be gzipped before uploading. Everything else will be copied directly
+    target_name = env['PIOENV'].upper()
+    # is_bp_logger = "LOGGER_" in target_name
+    data_src_dir = env.GetProjectOption("html_sources_dir", "").split()
+
+    # add filetypes (extensions only) to be gzipped before uploading.
+    # Everything else will be copied directly
     filetypes_to_gzip = ['js', 'html', 'css']
-    #filetypes_to_gzip = []
 
     project_dir = env.get('PROJECT_DIR')
-    platform = env.get('PIOPLATFORM', '')
-    if platform == 'espressif8266':
-        data_src_dir = os.path.join(project_dir,
-            "bp_logger", "html")
+    if data_src_dir:
+        data_src_dir = os.path.join(project_dir, *data_src_dir)
     else:
         data_src_dir = os.path.join(project_dir,
             "src", "esp32", "html")
 
-    print(' ***** Packing html files *****')
+    print(f' ***** Packing html files for {target_name} *****')
+    print(f'   source: {data_src_dir}')
+
+    if not os.path.exists(data_src_dir):
+        print('    HTML source "%s" does not found.' % data_src_dir)
+        return -1
 
     data_dir = env.get('PROJECTDATA_DIR')
     if "$PROJECT_DATA_DIR" in data_dir:
         data_dir = env.get('PROJECT_DATA_DIR')
-
-    if not os.path.exists(data_src_dir):
-        print('    HTML source "%s" does not found.' % data_src_dir)
-        return
 
     if os.path.exists(data_dir):
         print('    RM data dir: ' + data_dir)
@@ -107,8 +110,9 @@ def compress_files(source, target, env):
     print('   packing done!')
 
 def compress_fs_bin(source, target, env):
-    build_dir = env.subst("$BUILD_DIR")
-    image_name = env.get('ESP8266_FS_IMAGE_NAME')
-    src_file = os.path.join(build_dir, image_name + ".bin")
+    #build_dir = env.subst("$BUILD_DIR")
+    #image_name = env.get('ESP8266_FS_IMAGE_NAME')
+    #src_file = os.path.join(build_dir, image_name + ".bin")
+    src_file = str(target[0])
     target_file = src_file + ".gz"
     binary_compress(target_file, src_file)
